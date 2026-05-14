@@ -13,6 +13,45 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (evening) — Training augmentation experiment: 30 cases didn't move the needle
+
+**What landed:**
+- 30 hand-crafted training-only supplement cases (`data/augmented/v1_supplement.json`):
+  20 multi_source_convergence + 5 hedged_evidence + 5 partial_answer.
+- `scripts/prepare_data.py` patched for `--supplement` flag (cases route to TRAIN only;
+  eval + tier0 holdouts stay exactly the fitz-gov data → reported metrics remain
+  apples-to-apples vs the sklearn baseline).
+- `.gitignore` excepts `data/augmented/` so the supplement is tracked.
+- Retrained on the augmented set (2,366 train / 584 eval / 60 tier0), seed 42.
+
+**What was learned (the experiment didn't work as hoped):**
+
+| Axis | Baseline | Augmented | Δ |
+|---|---|---|---|
+| `multi_source_convergence` err rate (target subcategory) | 57% (4/7) | 43% (3/7) | -14 pts (improved but not fixed) |
+| Uncalibrated eval acc | 87.84% | 88.19% | +0.35 (within noise) |
+| Trustworthy recall (uncal) | 86.54% | 87.82% | +1.28 |
+| **High-confidence wrong** | **10 of 71** | **17 of 69** | **+7 (worse — model more overconfident on its mistakes)** |
+| **Calibrated eval acc** | **86.13 ± 0.86** (3-seed) | **83.72** (1-seed) | **-2.4 (outside seed noise)** |
+| Calibrated FT | 5.27 ± 0.21 | 5.51 | flat |
+
+**Key takeaways:**
+- The target subcategory improved (57% → 43% err) but did not close.
+- New failure subcategories emerged: `cross_source_agreement` (2/4 = 50% err, **NEW** top failure) and `converted_contradiction` (3/3 = 100% err, **NEW**). The model over-generalized "multiple sources" from the new training cases to neighbors where it shouldn't have.
+- 30 cases (1.3% of training) was both **too few** to robustly teach the pattern AND **too stylistically uniform** — it nudged the model's "trustworthy prototype" toward a narrower shape (rich multi-source attribution = trustworthy) at the cost of other patterns.
+- The augmentation cases were all TRUSTWORTHY. We should have included boundary-defining DISPUTED examples ("multiple sources with surface-similar numbers that actually conflict") to teach the model where the line is.
+
+**Decision:** roll back the augmentation. Baseline ships as v1. Document multi_source_convergence as a known v1 limitation in the model card. Build a *bigger and more diverse* augmentation set for v2 — likely 100-200 cases per failure subcategory, including boundary-defining counter-examples in the *other* class.
+
+**Filed for v2 work:**
+- Augment with ~100 multi_source_convergence (TRUSTWORTHY) + ~50 cross_source_agreement DISPUTED counter-examples (cases where sources superficially agree but actually conflict on a key detail).
+- Add hedged_evidence and partial_answer variants in proportion to their tier1 failure counts.
+- Validate with 3-seed + per-subcategory tier1 inspection before deciding to ship.
+
+**Next:** ship v1 from the baseline (write `scripts/export_onnx.py` + `scripts/push_to_hub.py` + model card).
+
+---
+
 ## 2026-05-14 (evening) — Tier1 failure inspection surfaces multi-source-convergence bug
 
 **What landed:**

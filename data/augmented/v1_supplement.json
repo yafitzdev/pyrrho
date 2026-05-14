@@ -1,0 +1,627 @@
+{
+  "schema": "fitz-gov v5 case schema, pyrrho training-side supplement",
+  "purpose": "Close the v1 tier1 failure modes surfaced by scripts/inspect_tier1_failures.py: multi_source_convergence (4/7 errors), hedged_evidence (4/10), partial_answer (3/6). Train-only — never enters eval split.",
+  "instructions": "Cases here are loaded by scripts/prepare_data.py when --supplement is passed, and routed entirely to the train split. The eval and tier0_sanity splits remain exactly the fitz-gov v5 holdouts so the published 86.13% number stays apples-to-apples comparable.",
+  "cases": [
+    {
+      "id": "aug_conv_001",
+      "query": "What is the speed of sound in dry air at 20 degrees Celsius?",
+      "contexts": [
+        "The National Institute of Standards and Technology (NIST) lists the speed of sound in dry air at 20 degrees Celsius as 343.2 meters per second under standard atmospheric pressure.",
+        "Physics textbooks generally cite c = 343 m/s for sound in dry air at room temperature (20 C), with the exact value depending on humidity and slight temperature variation.",
+        "Engineering reference tables give 343.2 m/s at 20 C and 0% relative humidity. The value varies by approximately 0.6 m/s per degree Celsius change in air temperature."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["343"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_002",
+      "query": "What is the average distance from the Earth to the Moon?",
+      "contexts": [
+        "NASA reports the average Earth-Moon distance as approximately 384,400 kilometers (238,855 miles), with the actual distance varying between roughly 363,300 km at perigee and 405,500 km at apogee.",
+        "The Jet Propulsion Laboratory (JPL) cites the mean lunar distance as 384,402 km based on lunar laser ranging measurements that are accurate to within centimeters.",
+        "International Astronomical Union sources give a value of 384,399 km for the semi-major axis of the Moon's orbit around Earth."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["384"],
+      "forbidden_claims": ["sources disagree", "conflicting", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_003",
+      "query": "What is the boiling point of pure water at standard atmospheric pressure?",
+      "contexts": [
+        "The International Union of Pure and Applied Chemistry (IUPAC) defines the boiling point of pure water at standard atmospheric pressure (101.325 kPa) as 100 degrees Celsius (212 degrees Fahrenheit).",
+        "NIST chemistry reference data lists the boiling point of water at 1 atm as 99.974 degrees Celsius, with the rounded value of 100 C used in most practical contexts.",
+        "Standard chemistry textbooks cite 100 C / 212 F as the boiling point of water at sea level (1 atm pressure)."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["100"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_004",
+      "query": "When did the original iPhone first go on sale?",
+      "contexts": [
+        "Apple released the original iPhone on June 29, 2007, after Steve Jobs first unveiled the device at the Macworld conference on January 9, 2007.",
+        "According to Apple's official corporate history, the first iPhone went on sale in the United States on June 29, 2007 at 6:00 PM local time at Apple Stores and AT&T retail locations.",
+        "Industry retrospectives consistently identify June 29, 2007 as the launch date of the first-generation iPhone, with initial pricing of $499 for the 4 GB model and $599 for the 8 GB model."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "technology",
+      "query_type": "when",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "temporal",
+      "evidence_pattern": "direct",
+      "required_elements": ["2007"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_005",
+      "query": "How many chromosomes are in a typical human somatic cell?",
+      "contexts": [
+        "Human somatic cells contain 46 chromosomes, organized as 23 pairs (22 autosomal pairs plus one pair of sex chromosomes). This is consistent across all standard biology and medical genetics references.",
+        "The National Human Genome Research Institute (NHGRI) states that humans have 46 chromosomes, arranged in 23 pairs.",
+        "Cell biology textbooks describe the human chromosome number as 2n = 46, with each somatic cell containing 22 autosome pairs and either XX (female) or XY (male) sex chromosomes."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "medicine",
+      "query_type": "how",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["46", "23"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_006",
+      "query": "In what year did World War II end?",
+      "contexts": [
+        "World War II ended in 1945. Germany surrendered on May 8, 1945 (V-E Day), and Japan formally surrendered on September 2, 1945 aboard the USS Missouri, ending the war in the Pacific.",
+        "Historians universally date the end of WWII to 1945, with the European theater concluding in May and the Pacific theater concluding in September following the atomic bombings of Hiroshima and Nagasaki.",
+        "The U.S. National WWII Museum identifies 1945 as the year of WWII's conclusion, with VJ Day on September 2, 1945 marking the formal end of hostilities."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "history",
+      "query_type": "in",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "temporal",
+      "evidence_pattern": "direct",
+      "required_elements": ["1945"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_007",
+      "query": "What is the atomic number of carbon?",
+      "contexts": [
+        "The atomic number of carbon is 6, meaning a neutral carbon atom contains 6 protons in its nucleus. This is given in every periodic table.",
+        "IUPAC and NIST chemistry references both list carbon (chemical symbol C) with atomic number Z = 6.",
+        "Standard chemistry references identify carbon as element number 6 on the periodic table."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["6"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_008",
+      "query": "Approximately how far is the Earth from the Sun?",
+      "contexts": [
+        "The average Earth-Sun distance, also known as 1 astronomical unit (1 AU), is approximately 149.6 million kilometers (93 million miles).",
+        "NASA cites 1 AU = 149,597,870.7 km. The actual Earth-Sun distance varies between roughly 147.1 million km (perihelion) and 152.1 million km (aphelion) due to the elliptical orbit.",
+        "The International Astronomical Union defines 1 AU as exactly 149,597,870,700 meters. Earth's average orbital distance is 1 AU, commonly rounded to 150 million km."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "how",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["149"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_009",
+      "query": "In what year did the Berlin Wall fall?",
+      "contexts": [
+        "The Berlin Wall fell on November 9, 1989, when East German authorities announced unrestricted travel to the West. The physical demolition continued through 1990 and 1991.",
+        "Most historical references identify 1989 as the fall of the Berlin Wall, marking a pivotal moment in the collapse of the Iron Curtain and the eventual reunification of Germany in October 1990.",
+        "The German Federal Archives document November 9, 1989 as the date the wall was opened to free passage, ending 28 years of division."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "history",
+      "query_type": "in",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "temporal",
+      "evidence_pattern": "direct",
+      "required_elements": ["1989"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_010",
+      "query": "What is the height of Mount Everest above sea level?",
+      "contexts": [
+        "Mount Everest is officially 8,848.86 meters (29,031.7 feet) above sea level, according to a joint 2020 survey by China and Nepal that updated the previously accepted value.",
+        "The previous widely-cited height of Mount Everest was 8,848 m (29,029 ft), based on a 1955 Indian survey. The 2020 joint Sino-Nepalese measurement revised it to 8,848.86 m.",
+        "National Geographic and the U.S. Geological Survey both now cite 8,848.86 m (29,032 ft) as the height of Mount Everest, following the 2020 official re-measurement."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "geography",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["8,848", "8848"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_011",
+      "query": "Who wrote the play Hamlet?",
+      "contexts": [
+        "Hamlet was written by William Shakespeare, believed to have been composed between 1599 and 1601. It is one of his most performed and analyzed tragedies.",
+        "The Folger Shakespeare Library and the Royal Shakespeare Company both attribute Hamlet to William Shakespeare, with composition dated to circa 1600.",
+        "Shakespeare's authorship of Hamlet is universally accepted among literary scholars. The play was first printed in the First Folio of 1623, seven years after his death."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "history",
+      "query_type": "who",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["Shakespeare"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_012",
+      "query": "What is the half-life of Carbon-14?",
+      "contexts": [
+        "Carbon-14 has a half-life of approximately 5,730 years (plus or minus 40 years), as established by W.F. Libby's measurements that won the 1960 Nobel Prize in Chemistry.",
+        "NIST and IUPAC currently cite the half-life of Carbon-14 as 5,700 years, though the older Libby value of 5,568 years is still used in some calibration contexts for legacy radiocarbon dating measurements.",
+        "Modern radiocarbon dating laboratories typically use 5,730 years for Carbon-14 half-life. The slight differences (5,568, 5,700, 5,730 years) all reflect refinements of the same measurement and are within experimental uncertainty."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["5,7", "5700", "5730"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_013",
+      "query": "When did humans first land on the Moon?",
+      "contexts": [
+        "Neil Armstrong and Buzz Aldrin became the first humans to land on the Moon on July 20, 1969, during the Apollo 11 mission. Armstrong stepped onto the lunar surface at 02:56 UTC on July 21, 1969.",
+        "NASA's official Apollo program records identify July 20, 1969 as the date of the first crewed lunar landing, with the Lunar Module Eagle touching down at the Sea of Tranquility at 20:17 UTC.",
+        "Historical archives universally cite July 20, 1969 as the date of the first Moon landing. The mission returned safely on July 24, 1969 with crew members Armstrong, Aldrin, and Michael Collins."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "history",
+      "query_type": "when",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "temporal",
+      "evidence_pattern": "direct",
+      "required_elements": ["1969"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_014",
+      "query": "How many bones are in the adult human skeleton?",
+      "contexts": [
+        "The adult human skeleton consists of 206 bones. This number is consistent across standard anatomical references including Gray's Anatomy and Netter's Atlas of Human Anatomy.",
+        "Medical anatomy textbooks list 206 bones in the adult human body, organized into the axial skeleton (80 bones) and the appendicular skeleton (126 bones).",
+        "The American Association of Anatomists cites 206 bones as the standard count for the adult human skeleton, though infants are born with approximately 270 bones, many of which fuse during growth."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "medicine",
+      "query_type": "how",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["206"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_015",
+      "query": "What is the capital of Australia?",
+      "contexts": [
+        "Canberra is the capital city of Australia, located in the Australian Capital Territory. It was chosen as the federal capital in 1908 as a compromise between Sydney and Melbourne.",
+        "The Australian government's official sources confirm Canberra as the national capital, home to Parliament House, the High Court, and most federal agencies.",
+        "Canberra has served as Australia's capital since 1927, when the federal Parliament moved from its temporary location in Melbourne. The city was purpose-designed by American architect Walter Burley Griffin."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "geography",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["Canberra"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_016",
+      "query": "What is the equatorial diameter of Earth?",
+      "contexts": [
+        "Earth's equatorial diameter is approximately 12,756 km (7,926 miles). The planet is slightly oblate, with the polar diameter being about 12,714 km, roughly 42 km smaller.",
+        "NASA's planetary fact sheet gives Earth's equatorial radius as 6,378.1 km, corresponding to an equatorial diameter of 12,756.2 km.",
+        "The International Earth Rotation and Reference Systems Service uses an equatorial radius of 6,378.137 km for the WGS-84 ellipsoid, giving an equatorial diameter of 12,756.274 km."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["12,756", "12756"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_017",
+      "query": "What is the typical lifespan of human red blood cells?",
+      "contexts": [
+        "Human red blood cells (erythrocytes) have an average lifespan of approximately 120 days. After this period they are recycled, primarily by macrophages in the spleen.",
+        "Medical hematology references consistently cite 100-120 days as the lifespan of mature red blood cells in healthy adults, with 120 days being the most commonly used figure.",
+        "The American Society of Hematology cites a mean RBC lifespan of about 115 days, with normal variation between roughly 100 and 120 days depending on individual physiology."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "medicine",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["120"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_018",
+      "query": "Where is the headquarters of the United Nations?",
+      "contexts": [
+        "The United Nations headquarters is located in New York City, at 760 United Nations Plaza in the Turtle Bay neighborhood of Manhattan. The 18-acre site has been UN headquarters since 1952.",
+        "Official UN sources identify New York City as the UN headquarters location. The site, on the East River in Manhattan, was donated by John D. Rockefeller Jr. in 1946.",
+        "The UN's headquarters complex in New York City houses the General Assembly, Security Council, and Secretariat. The land is technically international territory governed by a treaty with the United States."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "history",
+      "query_type": "where",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["New York"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_019",
+      "query": "What is the value of pi to four decimal places?",
+      "contexts": [
+        "The mathematical constant pi rounded to four decimal places is 3.1416. The full constant is irrational and non-terminating, beginning 3.14159265358979...",
+        "Standard mathematics references list pi as 3.14159 to five decimal places, which rounds to 3.1416 at four decimal places.",
+        "NIST and academic math references give pi = 3.1415926535... When rounded to 4 decimal places (rounding the 5th decimal of 9 up), the value is 3.1416."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["3.1416"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_conv_020",
+      "query": "What is the chemical formula for water?",
+      "contexts": [
+        "The chemical formula for water is H2O, consisting of two hydrogen atoms covalently bonded to one oxygen atom.",
+        "IUPAC and all standard chemistry references identify water's molecular formula as H2O, with a molar mass of approximately 18.015 g/mol.",
+        "Water's chemical formula H2O is among the most universally known facts in chemistry. The molecule has a bent geometry with a bond angle of approximately 104.5 degrees."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "multi_source_convergence",
+      "difficulty": "hard",
+      "category": "trustworthy_direct",
+      "domain": "science",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 3,
+      "reasoning_type": "factual",
+      "evidence_pattern": "direct",
+      "required_elements": ["H2O"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_hedge_001",
+      "query": "Does meditation reduce stress?",
+      "contexts": [
+        "A 2014 meta-analysis published in JAMA Internal Medicine pooled 47 randomized controlled trials and concluded that mindfulness meditation programs produce moderate evidence of improvement in stress, with effect sizes around 0.30 standard deviations relative to control.",
+        "Subsequent reviews have noted that effects vary substantially by program type, duration, and individual factors. Researchers caution that publication bias and heterogeneous outcome measures limit precise effect-size estimates."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "hedged_evidence",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "medicine",
+      "query_type": "does",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "evaluative",
+      "evidence_pattern": "direct",
+      "required_elements": ["moderate", "stress"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_hedge_002",
+      "query": "Are electric vehicles better for the environment than gasoline cars?",
+      "contexts": [
+        "A 2021 lifecycle analysis by the International Council on Clean Transportation found that electric vehicles produce 60-68% lower greenhouse gas emissions than comparable gasoline cars over their full lifetime in Europe, accounting for manufacturing emissions including battery production.",
+        "The same analysis notes that the magnitude of EV benefit depends substantially on the electricity grid carbon intensity. In coal-heavy grids the lifecycle benefit narrows; in renewable-heavy grids it widens. The directional conclusion (EVs are net better) holds across all studied grids."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "hedged_evidence",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "environment",
+      "query_type": "are",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "evaluative",
+      "evidence_pattern": "direct",
+      "required_elements": ["lower", "grid"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_hedge_003",
+      "query": "Does caffeine improve cognitive performance?",
+      "contexts": [
+        "A 2010 meta-analysis of 41 studies in the Journal of Alzheimer's Disease found caffeine consumption improves reaction time, alertness, and vigilance in the short term, with effects especially pronounced in sleep-deprived or fatigued subjects.",
+        "Researchers note that habitual coffee drinkers may experience smaller acute effects due to tolerance. Effects on longer-term cognitive outcomes such as memory consolidation and reasoning are less consistent across studies."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "hedged_evidence",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "medicine",
+      "query_type": "does",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "evaluative",
+      "evidence_pattern": "direct",
+      "required_elements": ["alertness", "tolerance"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_hedge_004",
+      "query": "Does daily aspirin reduce the risk of cardiovascular events?",
+      "contexts": [
+        "The American College of Cardiology and American Heart Association recommend low-dose daily aspirin (75-100 mg) for secondary prevention in patients with established cardiovascular disease, where it reduces recurrent event risk by approximately 25%.",
+        "For primary prevention in adults without cardiovascular disease, more recent guidelines (2019 ACC/AHA, 2022 USPSTF) discourage routine aspirin use due to a near-equal increase in bleeding risk. Recommendations now favor individualized assessment based on cardiovascular and bleeding risk."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "hedged_evidence",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "medicine",
+      "query_type": "does",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "evaluative",
+      "evidence_pattern": "direct",
+      "required_elements": ["secondary", "primary"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_hedge_005",
+      "query": "Is intermittent fasting effective for weight loss?",
+      "contexts": [
+        "A 2020 systematic review in the New England Journal of Medicine found that intermittent fasting protocols (16:8, 5:2, alternate-day) produce weight loss comparable to standard calorie-restricted diets when total caloric intake is matched, with 3-8% body weight loss over 8-12 weeks.",
+        "The review notes that adherence drives outcomes more than the fasting protocol itself. Long-term maintenance data beyond 12 months is limited, and effects on metabolic markers beyond weight (insulin sensitivity, lipid profile) show modest improvements that are not consistently distinguishable from weight loss alone."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "hedged_evidence",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "medicine",
+      "query_type": "is",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "evaluative",
+      "evidence_pattern": "direct",
+      "required_elements": ["weight loss", "adherence"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_partial_001",
+      "query": "What were the quarterly revenue figures for the company in 2024?",
+      "contexts": [
+        "Company 2024 financial summary: Q1 revenue was $4.2 million, up 18% year-over-year. Q2 revenue was $4.6 million, up 21% year-over-year, driven by new product launches in the European market.",
+        "Q3 2024 revenue was $5.1 million, up 24% year-over-year. Q4 2024 results will be published in the upcoming annual report scheduled for release in March 2025."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "partial_answer",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "finance",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "factual",
+      "evidence_pattern": "partial",
+      "required_elements": ["Q1", "Q2", "Q3", "Q4"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_partial_002",
+      "query": "How did Germany perform in the 2024 Summer Olympics medal count?",
+      "contexts": [
+        "Germany's 2024 Summer Olympic results: 12 gold medals (in disciplines including equestrian, rowing, and modern pentathlon), 13 silver medals, and silver-medal performances in team handball, hockey, and several swimming events.",
+        "Germany's bronze medal tally for 2024 totaled 8, including bronzes in cycling, judo, and athletics. Total medal count (gold+silver+bronze) ranks Germany 10th in the official medal table for the Paris 2024 Games."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "partial_answer",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "sports",
+      "query_type": "how",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "factual",
+      "evidence_pattern": "partial",
+      "required_elements": ["gold", "silver", "bronze"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_partial_003",
+      "query": "What were the average SAT scores for admitted students at the university?",
+      "contexts": [
+        "University admissions report 2024: The middle 50% (25th to 75th percentile) of admitted students scored between 1380 and 1530 on the SAT, with a median of 1460. Reading and Writing section: 690-770 (middle 50%).",
+        "Math section scores for the middle 50% of admitted students ranged from 700-790. Subject-specific breakdowns for specific majors and STEM programs are available in the appendix of the full admissions report (not included in this excerpt)."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "partial_answer",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "education",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "factual",
+      "evidence_pattern": "partial",
+      "required_elements": ["1380", "1530", "1460"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_partial_004",
+      "query": "What are the listed side effects of the medication?",
+      "contexts": [
+        "Common side effects (occurring in >10% of patients) listed in the prescribing information include: headache, nausea, fatigue, and mild gastrointestinal discomfort. Most resolve within 1-2 weeks of continued use.",
+        "Less common side effects (1-10% of patients): dizziness, dry mouth, sleep disturbance. The full prescribing information also lists rare side effects (<1%) which are described in the safety section but not detailed in this summary."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "partial_answer",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "medicine",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "factual",
+      "evidence_pattern": "partial",
+      "required_elements": ["headache", "nausea"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    },
+    {
+      "id": "aug_partial_005",
+      "query": "What was the project timeline and major milestones?",
+      "contexts": [
+        "Project timeline: Phase 1 (requirements gathering) ran from January to March 2024. Phase 2 (design) ran from March to June 2024. Phase 3 (development) began in June 2024 and is currently in progress with completion targeted for end of Q1 2025.",
+        "Major milestones achieved: requirements sign-off (March 15, 2024), design approval (June 8, 2024), alpha release (October 2024). Beta release and general availability dates are still being finalized; the team will share updated targets after the Q4 2024 stakeholder review."
+      ],
+      "expected_mode": "trustworthy",
+      "subcategory": "partial_answer",
+      "difficulty": "hard",
+      "category": "trustworthy_hedged",
+      "domain": "technology",
+      "query_type": "what",
+      "source_type": "multi",
+      "context_count": 2,
+      "reasoning_type": "temporal",
+      "evidence_pattern": "partial",
+      "required_elements": ["Phase 1", "Phase 2", "milestones"],
+      "forbidden_claims": ["sources disagree", "cannot determine"]
+    }
+  ]
+}

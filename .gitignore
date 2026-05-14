@@ -27,9 +27,12 @@ dist/
 .claude/
 
 # Project artifacts (gitignored — too large or derivable)
-# Anything under data/ is derived from fitz-gov via prepare_data.py.
+# Anything under data/ is derived from fitz-gov via prepare_data.py,
+# *except* data/augmented/ which is hand-curated supplement data and
+# must be tracked for reproducibility.
 data/*
 !data/.gitkeep
+!data/augmented/
 models/
 checkpoints/
 outputs/

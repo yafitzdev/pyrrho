@@ -36,7 +36,8 @@ Every margin is multiple standard deviations larger than seed noise. Confirmed n
 
 ## Known limitations of v1
 
-- **Short clean TRUSTWORTHY contexts trigger over-abstention.** Smell test showed: `"Q: When was the iPhone released? Ctx: Apple released the original iPhone on June 29, 2007..."` → predicts ABSTAIN with P(A)=0.92. Tier1 training is 62.7% hard cases; the model never learned the short-clean-answer pattern. Fixable in v2 with ~50 short-context TRUSTWORTHY training cases.
+1. **Multi-source-convergence misclassified as DISPUTED.** When multiple authoritative sources agree on a fact with slight numerical variation (within measurement tolerance), the model frequently classifies the case as DISPUTED with high confidence. 57% error rate on this fitz-gov subcategory (n=7). Examples: "What is the speed of light?" + 4 sources all citing 299,792,458 m/s → P(DISPUTED) = 0.79. Attempted fix with 30 training-side supplement cases (2026-05-14 evening LOG entry) only moved the needle to 43% err and regressed other axes — proper fix needs ~100-200 cases with boundary counter-examples; deferred to v2.
+2. **Short clean TRUSTWORTHY contexts trigger over-abstention.** Smell test showed: `"Q: When was the iPhone released? Ctx: Apple released the original iPhone on June 29, 2007..."` → predicts ABSTAIN with P(A)=0.92. Tier1 training is 62.7% hard cases; the model never learned the short-clean-answer pattern. Fixable in v2 alongside #1.
 
 ## Pipeline / tooling — what exists now
 

@@ -203,7 +203,52 @@ def parse_args() -> argparse.Namespace:
         help="Label space cardinality: 3 = TRUSTWORTHY collapsed (matches fitz-sage baseline). "
         "4 = TRUSTWORTHY_HEDGED vs TRUSTWORTHY_DIRECT kept separate.",
     )
+    parser.add_argument(
+        "--supplement",
+        type=Path,
+        default=None,
+        help="Optional path to a supplement JSON ({cases: [...]} schema with per-case "
+        "expected_mode field). Cases are added to the TRAIN split only; eval and "
+        "tier0_sanity stay exactly the fitz-gov holdouts, so reported eval metrics "
+        "remain apples-to-apples comparable to the sklearn baseline.",
+    )
     return parser.parse_args()
+
+
+def load_supplement(path: Path, num_classes: int) -> list[dict]:
+    """Load a supplement JSON. Cases must have `expected_mode` ('abstain'|'disputed'|'trustworthy')."""
+    if not path.exists():
+        raise FileNotFoundError(f"Supplement not found: {path}")
+    with path.open("r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    cases = data.get("cases", [])
+    out: list[dict] = []
+    for case in cases:
+        mode = (case.get("expected_mode") or "").strip().lower()
+        if mode == "abstain":
+            label = "ABSTAIN"
+        elif mode == "disputed":
+            label = "DISPUTED"
+        elif mode == "trustworthy":
+            # In 3-class space, collapse hedged + direct to TRUSTWORTHY.
+            # In 4-class space, route by `category` field if available.
+            if num_classes == 4:
+                cat = (case.get("category") or "").strip().lower()
+                label = (
+                    "TRUSTWORTHY_DIRECT" if "direct" in cat
+                    else "TRUSTWORTHY_HEDGED"
+                )
+            else:
+                label = "TRUSTWORTHY"
+        else:
+            raise ValueError(
+                f"Supplement case {case.get('id')!r} has unknown expected_mode={mode!r}"
+            )
+        case["label"] = label
+        case["label_id"] = LABEL2ID[label]
+        case["source_file"] = f"supplement:{path.name}"
+        out.append(case)
+    return out
 
 
 def main() -> int:
@@ -263,6 +308,28 @@ def main() -> int:
     train, eval_ = stratified_split(tier1, args.train_ratio, args.seed)
     print_distribution(f"tier1 train ({args.train_ratio:.0%})", train)
     print_distribution(f"tier1 eval ({1 - args.train_ratio:.0%})", eval_)
+
+    # Supplement cases — train only. Eval + tier0 holdouts stay exactly the fitz-gov data
+    # so the published 86.13% number remains directly comparable to the sklearn baseline.
+    if args.supplement is not None:
+        print(f"\nLoading supplement: {args.supplement}")
+        supp_raw = load_supplement(args.supplement.resolve(), args.num_classes)
+        supp = [normalize_case(c) for c in supp_raw]
+        # Defensive: no overlap with eval or tier0 IDs (would leak)
+        eval_ids = {r["id"] for r in eval_ if r["id"]}
+        tier0_ids = {r["id"] for r in tier0 if r["id"]}
+        leak_eval = {r["id"] for r in supp} & eval_ids
+        leak_tier0 = {r["id"] for r in supp} & tier0_ids
+        if leak_eval or leak_tier0:
+            print(
+                f"ERROR: supplement IDs overlap with eval ({len(leak_eval)}) "
+                f"or tier0 ({len(leak_tier0)}). Aborting to prevent leakage.",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"  loaded {len(supp)} supplement cases (all routed to TRAIN)")
+        train = train + supp
+        print_distribution(f"tier1 train + supplement ({len(train)})", train)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     save_jsonl(train, output_dir / "train.jsonl")
