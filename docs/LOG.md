@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (evening) — Release pipeline complete; v1 packaged for HuggingFace
+
+**What landed:**
+- `scripts/export_onnx.py` — exports `model.onnx` (FP32, 599 MB) + `model_quantized.onnx` (INT8 dynamic, 151 MB) via `optimum[onnxruntime]`. Also copies the source `model.safetensors` (598 MB) into the release dir so transformers users can load via `AutoModelForSequenceClassification.from_pretrained` without ONNX runtime.
+- `scripts/build_model_card.py` — auto-generates the HF README.md from `summary.json` (3-seed aggregate). Embeds headline metrics table with `mean ± std` and `Δ vs sklearn baseline`. Includes usage examples (transformers + ONNX), known limitations section, training hyperparameters, citation, license.
+- `scripts/push_to_hub.py` — uploads `models/pyrrho-modernbert-base-v1/` to HuggingFace. Supports `--dry-run` for manifest preview before push. Required-file check fails fast if model card or tokenizer is missing.
+- `pyproject.toml` extras `[hub] = huggingface-hub>=0.26`; `[all]` includes `[hub]`.
+
+**Verified end-to-end via dry-run:**
+- 9 files, 1351.7 MB total: safetensors (598 MB), model.onnx (599 MB), model_quantized.onnx (151 MB), tokenizer (3.6 MB), README.md (model card), config.json, ort_config.json, special_tokens_map.json, tokenizer_config.json.
+- INT8 ONNX smoke-test passed end-to-end.
+- Target repo: `yafitzdev/pyrrho-modernbert-base-v1` (public, Apache-2.0).
+
+**Next:** user runs `huggingface-cli login` (one-time) and then `python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1` to publish.
+
+---
+
 ## 2026-05-14 (evening) — Training augmentation experiment: 30 cases didn't move the needle
 
 **What landed:**

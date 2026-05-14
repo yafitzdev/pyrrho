@@ -47,6 +47,9 @@ unsloth = [
 tracking = [
     "wandb>=0.18",
 ]
+hub = [
+    "huggingface-hub>=0.26",
+]
 dev = [
     "ruff>=0.7",
     "pytest>=8.3",
@@ -54,7 +57,7 @@ dev = [
     "jupyter>=1.1",
 ]
 all = [
-    "pyrrho[encoder,slm,tracking,dev]",
+    "pyrrho[encoder,slm,tracking,hub,dev]",
 ]
 
 [tool.setuptools.packages.find]

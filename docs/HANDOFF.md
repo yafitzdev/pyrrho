@@ -60,22 +60,25 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 
 ## Immediate next actions
 
-Pick one (or do in order):
-
-1. **Push to GitHub.** Repo is initialized; 5 commits ready.
+1. **Push to HuggingFace.** Release artifacts are already built and dry-run-verified at `models/pyrrho-modernbert-base-v1/` (1.35 GB: safetensors + FP32 ONNX + INT8 ONNX + tokenizer + model card). User runs:
    ```powershell
    cd C:\Users\yanfi\PycharmProjects\pyrrho
+   .\.venv\Scripts\Activate.ps1
+   huggingface-cli login                                                    # one-time
+   python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1
+   ```
+   Target: `yafitzdev/pyrrho-modernbert-base-v1` (public, Apache-2.0).
+
+2. **Push pyrrho repo to GitHub.** 10 commits ready locally.
+   ```powershell
    gh repo create pyrrho --public --source=. --remote=origin --push --description "Fine-tuned classification models for RAG governance"
    ```
 
-2. **Ship v1 to HuggingFace** — baseline confirmed as winner. Three pieces still to write:
-   - `scripts/export_onnx.py` — `optimum[onnxruntime]` ONNX + INT8 quantization
-   - `scripts/push_to_hub.py` — upload safetensors + ONNX + tokenizer + model card to `yafitzdev/pyrrho-modernbert-base-v1`
-   - Model card auto-generated from `final_metrics.json` + `eval_report.json`
+3. **SLM track** — fine-tune Qwen3.5-0.8B to see if it fixes `multi_source_convergence` (the only real v1 limitation). Probably yes — pretraining world knowledge + reasoning depth address the failure mode the encoder hit a ceiling on. ~1 hr for the fine-tune.
 
-3. **Cross-architecture validation.** Train DeBERTa-v3-base with the same config. If within 1–2 pts of ModernBERT-base, result is architecture-robust. ~10 min.
+4. **Cross-architecture validation** (optional). Train DeBERTa-v3-base with the same encoder config. If within 1–2 pts of ModernBERT-base, the result is architecture-robust.
 
-4. **Start v2 work** (post-v1 ship). Add 30–50 short-context TRUSTWORTHY cases to training to close the known limitation.
+5. **v2 work** — bigger / more diverse augmentation set (~100-200 cases per failing subcategory, plus boundary counter-examples in the DISPUTED class), then retrain.
 
 ## Release gates (the bar any pyrrho model must clear before shipping)
 
