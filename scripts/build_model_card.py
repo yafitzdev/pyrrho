@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output", type=Path, required=True, help="Where to write README.md")
     p.add_argument("--model-id", type=str, default="yafitzdev/pyrrho-modernbert-base-v1")
     p.add_argument("--base-model", type=str, default="answerdotai/ModernBERT-base")
-    p.add_argument("--fitz-gov-version", type=str, default="v5.1")
+    p.add_argument("--fitz-gov-version", type=str, default="V5.1")
     return p.parse_args()
 
 
@@ -128,8 +128,6 @@ metrics:
 
 > Decide whether your retrieved sources support a confident answer, contradict each other, or simply don't contain it — **without an LLM call**.
 
-Named for [Pyrrho of Elis](https://en.wikipedia.org/wiki/Pyrrho), the Greek philosopher whose school practiced suspension of judgment when evidence was insufficient.
-
 This is a fine-tune of [`{args.base_model}`]({"https://huggingface.co/" + args.base_model}) on [fitz-gov](https://github.com/yafitzdev/fitz-gov) {args.fitz_gov_version} for **3-class RAG governance classification**: given a `(query, retrieved contexts)` pair, predicts one of:
 
 | Verdict | Meaning |
@@ -154,19 +152,6 @@ Validated on the [fitz-gov]({"https://github.com/yafitzdev/fitz-gov"}) {args.fit
 | Disputed recall | **{fmt_mean_std(eval_cal['recall_disputed'])}** | {BASELINE['recall_disputed'] * 100:.1f} | **{fmt_delta(eval_cal['recall_disputed']['mean'], BASELINE['recall_disputed'])}** |
 | Abstain recall | **{fmt_mean_std(eval_cal['recall_abstain'])}** | {BASELINE['recall_abstain'] * 100:.1f} | **{fmt_delta(eval_cal['recall_abstain']['mean'], BASELINE['recall_abstain'])}** |
 | Macro F1 | {fmt_mean_std(eval_cal['macro_f1'])} | n/a | — |
-
-Every margin is multiple standard deviations larger than seed noise — not a lucky-run artifact.
-
-### Uncalibrated (argmax) numbers, for reference
-
-| Metric | pyrrho v1 (uncalibrated) |
-|---|---|
-| Overall accuracy | {fmt_mean_std(eval_uncal['accuracy'])} |
-| Macro F1 | {fmt_mean_std(eval_uncal['macro_f1'])} |
-| False-trustworthy rate | {fmt_mean_std(eval_uncal['false_trustworthy_rate'])} |
-| Trustworthy recall | {fmt_mean_std(eval_uncal['recall_trustworthy'])} |
-| Disputed recall | {fmt_mean_std(eval_uncal['recall_disputed'])} |
-| Abstain recall | {fmt_mean_std(eval_uncal['recall_abstain'])} |
 
 ---
 
@@ -266,7 +251,7 @@ Training data: fitz-gov {args.fitz_gov_version} `tier1_core`, stratified 80/20 s
 
 ## Dataset
 
-This model is trained and evaluated on [**fitz-gov**](https://github.com/yafitzdev/fitz-gov), a 2,980-case benchmark for RAG governance (epistemic honesty). The eval split (584 cases) is a stratified 20% hold-out from `tier1_core` (2,920 cases, 62.7% hard difficulty, 17 domains, 113+ subcategories).
+This model is trained and evaluated on [**fitz-gov {args.fitz_gov_version}**](https://github.com/yafitzdev/fitz-gov), a 2,980-case benchmark for RAG governance (epistemic honesty). The eval split (584 cases) is a stratified 20% hold-out from `tier1_core` (2,920 cases, 62.7% hard difficulty, 17 domains, 113+ subcategories).
 
 fitz-gov commit at training time: `{fitz_commit}`
 
