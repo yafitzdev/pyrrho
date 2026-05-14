@@ -13,6 +13,34 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (late evening) — fitz-sage v0.12.0 push paused mid-debug
+
+User wanted to push fitz-sage v0.12.0 before integrating pyrrho. The local release commit (`985d7dc1` "release: v0.12.0 — Cloud removed, storage on SQLite + FTS5") had un-validated tests. Ran the suite from scratch, surfaced multiple problems, fixed several, hit a hang on the last one. Paused before fixing the hang to preserve context.
+
+**What got fixed (working-tree changes in fitz-sage, NOT committed):**
+- Lint/format pass: ruff (`# noqa: F401` for `LLMReranker` re-export; auto-removed unused pytest import), black (15 files), isort (2 files).
+- 216 cascading fixture errors: `FitzKragConfig` rejected legacy `embedding` / `vector_db` / `vector_db_kwargs` keys (post-Cloud-removal schema). Patched `tests/e2e_krag/runner.py`, `tests/e2e_krag/config.py`, `tests/test_config.yaml` to drop them and switch chat from `ollama`/`cohere` providers → `endpoint` provider with explicit `chat_base_url` per tier (Ollama on `:11434/v1`, OpenAI cloud on api).
+- Installed `openai` Python package into fitz-sage venv (was missing; needed by the `endpoint` provider after the Cloud removal).
+
+**What was diagnosed but only partially fixed:**
+- 25 unit-test failures clustered in `test_vocabulary`, `test_section_store`, `test_krag_guardrails`. **All three pass in isolation** — but fail in the full pytest run. Smoking gun: `MagicMock > 0` errors at `fitz_sage/retrieval/vocabulary/store.py:71` and `CodeSynthesizer.generate().text` returning a MagicMock instead of a real `Answer`. Root cause: `tests/unit/test_krag_detection.py` and `test_krag_engine.py` use `@patch("...SqliteConnectionManager")` without the existing opt-in `reset_sqlite_singleton` fixture → the singleton `_instance` is overwritten with a MagicMock that survives the test boundary because `unittest.mock.patch` restores the class reference but NOT the singleton cache.
+- Attempted fix: changed `reset_sqlite_singleton` in `tests/unit/conftest.py` from opt-in to `autouse=True`. **The test run hung for 29+ minutes with 0 bytes of output.** Likely cause: `reset_instance()` acquires `cls._lock`, and one of the patched fixtures inside an inner test creates a deadlock when the autouse before/after dance interacts with `unittest.mock.patch`'s class-level patching.
+
+**Resume plan when fitz-sage v0.12.0 push picks up:**
+1. Revert the `autouse=True` change in `tests/unit/conftest.py` (back to opt-in).
+2. Add `reset_sqlite_singleton` either as a class-level autouse inside `test_krag_detection.py` + `test_krag_engine.py`, or as a method-level fixture parameter on the specific test methods that use `@patch("...SqliteConnectionManager")`. The class-level autouse is the smallest patch; only those two classes are affected.
+3. Re-run `pytest tests/unit/ -q` — expect ~1573 pass / 0 fail / 0 error.
+4. Commit formatting + test-fixture migration as a single pre-release commit. Tag `v0.12.0`. Push.
+
+**What was learned:**
+- The "Cloud removed" migration shipped without re-running the test suite. Three test-side files still carried the legacy schema, and one Python dep (`openai`) was implicitly required but not in `pyproject.toml`.
+- A singleton + `unittest.mock.patch` is a classic test-leakage trap. The codebase already had a fix (the opt-in `reset_sqlite_singleton`) but the two heaviest patchers in the suite didn't use it. Better to add the fixture call than to autouse-globalize.
+- Autouse + `cls._lock` + `unittest.mock.patch` can deadlock. Surgical fixture application > global autouse for fixtures that take locks.
+
+**Next:** when resuming, follow the resume plan above. After fitz-sage ships, return to pyrrho's roadmap: integrate pyrrho into fitz-sage's governance path, then SLM track.
+
+---
+
 ## 2026-05-14 (evening) — fitz-gov V5.1 published as HuggingFace Dataset; pyrrho card cross-linked
 
 **What landed:**
