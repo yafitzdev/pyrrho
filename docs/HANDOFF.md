@@ -67,14 +67,7 @@ Pick one (or do in order):
    gh repo create pyrrho --public --source=. --remote=origin --push --description "Fine-tuned classification models for RAG governance"
    ```
 
-2. **3-seed validation on the 6-epoch sweep alternative** (~5 min). Sweep surfaced ep=6 as a candidate with 88% tier0 / 0% tier0-FT vs baseline's 80% / 4%. Validate before deciding which to ship.
-   ```powershell
-   # First, save the 6-epoch config as configs/encoder/modernbert_base_ep6.yaml (copy of baseline with num_train_epochs: 6)
-   python scripts/run_seeds.py --config configs/encoder/modernbert_base_ep6.yaml --seeds 42 1337 7
-   python scripts/compare_runs.py outputs/multi_seed/summary.json outputs/multi_seed_ep6/summary.json
-   ```
-
-3. **Ship v1 to HuggingFace.** Three pieces still to write:
+2. **Ship v1 to HuggingFace** — baseline confirmed as winner. Three pieces still to write:
    - `scripts/export_onnx.py` — `optimum[onnxruntime]` ONNX + INT8 quantization
    - `scripts/push_to_hub.py` — upload safetensors + ONNX + tokenizer + model card to `yafitzdev/pyrrho-modernbert-base-v1`
    - Model card auto-generated from `final_metrics.json` + `eval_report.json`

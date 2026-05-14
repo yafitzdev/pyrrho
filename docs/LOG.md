@@ -28,7 +28,7 @@ Each entry follows the pattern:
 - **Label smoothing is the most tier0-protective knob.** ls=0.20 and 0.25 both boost tier0 to ~85% while keeping eval acc above 84%. Worth a closer look in v2.
 - One cell crashed: `cw=[1.5, 1.5, 1.0]`. Likely numerical fluke on this single seed. Skip.
 
-**Next:** run `scripts/run_seeds.py` on the 6-epoch variant config to compare 3-seed numbers against the baseline's already-validated 86.13 ± 0.86. Decide which to ship as v1 based on the head-to-head.
+**Next:** ship the baseline (attempt 4) as v1. User correctly pushed back on the ep=6 candidate: tier0 is a 60-case diagnostic with known label noise, *not* a gate. The publishable number is tier1 (584 cases, 3-seed-validated, directly comparable to fitz-sage's 5-fold CV). Baseline wins tier1 by +1.54 pts accuracy *and* lower FT — trading those for an 8-pt tier0 boost is moving the wrong way. v1 ship plan: write `scripts/export_onnx.py` + `scripts/push_to_hub.py` + model card, push to `yafitzdev/pyrrho-modernbert-base-v1`.
 
 ---
 
