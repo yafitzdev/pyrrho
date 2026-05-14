@@ -8,11 +8,12 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 
 | # | File | What you'll learn | When to read |
 |---|---|---|---|
-| 1 | [STATE.md](STATE.md) | **Live status.** What's been done, what's next, what's blocked. | First thing, always. |
-| 2 | [PROJECT.md](PROJECT.md) §1–§5 | Vision, the fitz-gov / fitz-sage / pyrrho triangle, baseline to beat, encoder-vs-SLM rationale. | When you need *why* anything was decided. |
-| 3 | [METHODOLOGY.md](METHODOLOGY.md) | End-to-end model-development pipeline. The 8-step process every release follows. | Before producing any new release. |
-| 4 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
-| 5 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, conversation history. | When you need the deep context behind a model pick or hyperparameter choice. |
+| 1 | [HANDOFF.md](HANDOFF.md) | **Current status snapshot.** What's trained, validated numbers, immediate next actions, decisions not to relitigate. Gets overwritten as state changes. | First thing, always. |
+| 2 | [LOG.md](LOG.md) | **Project history.** Append-only reverse-chronological log of findings, decisions, and experiments. Read for the *why* and the *when*. | When HANDOFF.md mentions something you don't have context on. |
+| 3 | [PROJECT.md](PROJECT.md) §1–§5 | Vision, the fitz-gov / fitz-sage / pyrrho triangle, baseline to beat, encoder-vs-SLM rationale. | When you need *why* anything was decided structurally. |
+| 4 | [METHODOLOGY.md](METHODOLOGY.md) | End-to-end model-development pipeline. The 8-step process every release follows. | Before producing any new release. |
+| 5 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
+| 6 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
 
 ---
 
@@ -40,7 +41,7 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 - False-trustworthy rate: **5.27 ± 0.21%** (baseline: 5.7%, **safer**)
 - Trustworthy recall: **79.38 ± 1.64%** (baseline: 70.0%, **Δ +9.38**)
 
-Full validation methodology and per-seed numbers in [STATE.md](STATE.md). Pipeline that produced these in [METHODOLOGY.md](METHODOLOGY.md).
+Full validation methodology and per-seed numbers in [HANDOFF.md](HANDOFF.md). Pipeline that produced these in [METHODOLOGY.md](METHODOLOGY.md). The story of how we got these numbers (5 hyperparameter attempts, 3-seed validation, smoke test) lives in [LOG.md](LOG.md).
 
 ---
 

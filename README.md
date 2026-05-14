@@ -97,7 +97,8 @@ All docs live under [`docs/`](docs/). Start here:
 | Document | Purpose |
 |---|---|
 | [docs/INDEX.md](docs/INDEX.md) | **Fresh session entry point.** Read this first. |
-| [docs/STATE.md](docs/STATE.md) | Current status, what was done, what's next |
+| [docs/HANDOFF.md](docs/HANDOFF.md) | Current status snapshot — what's trained, headline metrics, next actions |
+| [docs/LOG.md](docs/LOG.md) | Append-only project history (findings, decisions, experiments) |
 | [docs/PROJECT.md](docs/PROJECT.md) | Full plan: vision, model picks, training recipes, roadmap |
 | [docs/METHODOLOGY.md](docs/METHODOLOGY.md) | End-to-end model-development pipeline, release gates, W&B conventions |
 | [docs/SETUP.md](docs/SETUP.md) | RTX 5090 / Blackwell / Windows environment specifics |

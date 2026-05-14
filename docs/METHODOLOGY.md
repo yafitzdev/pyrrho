@@ -196,7 +196,8 @@ exact same evaluation.
 
 ## Reading order for new contributors / new sessions
 
-1. [STATE.md](STATE.md) — current status, what's next.
+1. [HANDOFF.md](HANDOFF.md) — current status, what's next.
+   - [LOG.md](LOG.md) — append-only project history.
 2. [PROJECT.md](PROJECT.md) §1-§5 — vision and architecture decisions.
 3. This file (METHODOLOGY.md) — how to actually produce a release.
 4. [SETUP.md](SETUP.md) — environment specifics (RTX 5090 / Windows / WSL2).
