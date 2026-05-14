@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (evening) — CLAUDE.md added; HANDOFF/LOG update convention codified
+
+**What landed:**
+- New `CLAUDE.md` at the repo root with project-specific working rules for future Claude sessions.
+- Documented the **HANDOFF (snapshot, overwritten) vs LOG (append-only history)** split as a binding convention: "If meaningful work happened in your session, update LOG.md and HANDOFF.md before ending the turn. Don't ask the user for permission to log."
+- Codified the LOG entry format: date heading, **What landed / What was learned / Next**, new entries at the top, past entries never edited.
+- Listed hard constraints to never relitigate (brand, CPU constraint, banned model families, naming, release gates).
+- Listed common commands and pointers to memory directory.
+
+**What was learned:**
+- The HANDOFF/LOG split is only useful if it's *enforced*. Without CLAUDE.md, a fresh session might revert to "edit STATE.md once and forget." With CLAUDE.md as a permanent project policy file, the convention becomes a working rule, not a request.
+- The first test of the convention: this entry itself. Writing it before ending the turn proves the rule works.
+
+**Next:** push to GitHub via `gh repo create`, then run the sweep, then ship v1 to HuggingFace.
+
+---
+
 ## 2026-05-14 (evening) — Repo cleanup + GitHub prep
 
 **What landed:**
