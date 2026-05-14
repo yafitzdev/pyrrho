@@ -58,25 +58,21 @@ Reproducibility: every artifact-producing script writes `manifest.json` (git/pip
 
 Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODOLOGY.md).
 
+## What's live
+
+- **Model on HF**: https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1 (public, Apache-2.0, 1.35 GB: safetensors + FP32 ONNX + INT8 ONNX)
+- **Dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, MIT, V5.1, three configs)
+- **pyrrho GitHub repo**: live (public, just made public by user — should verify cross-links work)
+
 ## Immediate next actions
 
-1. **Push to HuggingFace.** Release artifacts are already built and dry-run-verified at `models/pyrrho-modernbert-base-v1/` (1.35 GB: safetensors + FP32 ONNX + INT8 ONNX + tokenizer + model card). User runs:
-   ```powershell
-   cd C:\Users\yanfi\PycharmProjects\pyrrho
-   .\.venv\Scripts\Activate.ps1
-   huggingface-cli login                                                    # one-time
-   python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1
-   ```
-   Target: `yafitzdev/pyrrho-modernbert-base-v1` (public, Apache-2.0).
+1. **Build pyrrho into fitz-sage as the default governance backend.** The moat-realizing step. Replace the constraint+sklearn pipeline with an inference call to `yafitzdev/pyrrho-modernbert-base-v1` (INT8 ONNX). Real users get the +7 pt accuracy, +50× CPU speedup, and zero LLM dependency. Triggers a fitz-sage release with "now powered by pyrrho" as the headline. ~4–8 hr.
 
-2. **Push pyrrho repo to GitHub.** 10 commits ready locally.
-   ```powershell
-   gh repo create pyrrho --public --source=. --remote=origin --push --description "Fine-tuned classification models for RAG governance"
-   ```
+2. **SLM track** — fine-tune Qwen3.5-0.8B to see if it fixes `multi_source_convergence` (the only real v1 limitation). Pretraining world knowledge + reasoning depth should address the failure mode. ~1 hr for the fine-tune. Independent from #1, can run in parallel.
 
-3. **SLM track** — fine-tune Qwen3.5-0.8B to see if it fixes `multi_source_convergence` (the only real v1 limitation). Probably yes — pretraining world knowledge + reasoning depth address the failure mode the encoder hit a ceiling on. ~1 hr for the fine-tune.
+3. **Cross-link the triangle in fitz-sage / fitz-gov READMEs** — quick GitHub PRs adding "models trained on this benchmark" and "powered by" sections. ~30 min.
 
-4. **Cross-architecture validation** (optional). Train DeBERTa-v3-base with the same encoder config. If within 1–2 pts of ModernBERT-base, the result is architecture-robust.
+4. **Cross-architecture validation** (optional). Train DeBERTa-v3-base with the same encoder config. Defensive content for v1.5 model card. ~10 min.
 
 5. **v2 work** — bigger / more diverse augmentation set (~100-200 cases per failing subcategory, plus boundary counter-examples in the DISPUTED class), then retrain.
 

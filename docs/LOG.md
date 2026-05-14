@@ -13,6 +13,25 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (evening) — fitz-gov V5.1 published as HuggingFace Dataset; pyrrho card cross-linked
+
+**What landed:**
+- `yafitzdev/fitz-gov` is live on HuggingFace as a Dataset (https://huggingface.co/datasets/yafitzdev/fitz-gov), version 5.1.0, MIT license.
+- Three configs: `tier1_core` (default, 2,920 cases / train split), `tier0_sanity` (60 cases / test split), `validation` (250 human-validated cases / test split). Verified `datasets.load_dataset(...)` loads each cleanly.
+- Auto-generated dataset card with full schema docs, quickstart, citation, and cross-links to pyrrho + fitz-sage.
+- New script lives in **fitz-gov** repo: `fitz-gov/scripts/upload_to_hf.py` (needs a separate commit in that repo).
+- pyrrho's `scripts/build_model_card.py` updated to reference `yafitzdev/fitz-gov` (full path) instead of just `fitz-gov` in the YAML frontmatter so HF can auto-render the cross-link.
+- Pushed the updated model card to `yafitzdev/pyrrho-modernbert-base-v1` via `huggingface_hub.upload_file` (card-only update, no need to re-upload the 1.35 GB model weights).
+
+**What was learned:**
+- HF dataset upload from JSON-of-cases → JSONL-per-config takes ~5.94 MB total. Single `huggingface_hub.upload_folder` call. Repo creation + upload took <30 s on the user's connection.
+- The triangle is now end-to-end public on HF: dataset → models that train on it → fitz-sage (still GitHub-only) library that consumes the models. Anyone can run `load_dataset("yafitzdev/fitz-gov")` + `AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-modernbert-base-v1")` to reproduce the full evaluation.
+- The pyrrho model card now properly auto-renders the dataset cross-link, completing one side of the triangle visually.
+
+**Next:** ship pyrrho into fitz-sage as the default governance backend (the moat-realizing step), or fine-tune Qwen3.5-0.8B (the SLM track).
+
+---
+
 ## 2026-05-14 (evening) — Release pipeline complete; v1 packaged for HuggingFace
 
 **What landed:**

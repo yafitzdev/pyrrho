@@ -117,7 +117,7 @@ tags:
   - fitz-gov
   - pyrrho
 datasets:
-  - fitz-gov
+  - yafitzdev/fitz-gov
 metrics:
   - accuracy
   - f1
