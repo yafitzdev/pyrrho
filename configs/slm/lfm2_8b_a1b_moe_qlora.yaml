@@ -1,0 +1,115 @@
+# pyrrho-lfm2-8b-a1b-v1 — Track B, slot 10 (the MoE showcase release)
+# Liquid AI LFM2-8B-A1B: 8B total params, 1B active per token. CPU-runnable MoE.
+# Replaces the earlier (rejected) Qwen3.6-35B-A3B plan which needed ~17 GB Q4 RAM.
+#
+# Expected VRAM on RTX 5090: ~7 GB (trivial fit)
+# Expected wall-clock on RTX 5090: 30-90 min (1B active → fast)
+# Expected accuracy: 84-88% overall (MoE wins 1-3 pts over dense at same active params)
+#
+# RISKS to debug before training:
+# 1. License: LFM Open License (not Apache 2.0) — verify portfolio compatibility first.
+# 2. LoRA target_modules: LFM2 hybrid arch + MoE routing. Module paths NOT validated.
+#    Must run model.named_modules() to identify attention + expert MLP paths before
+#    training. PEFT may need patches.
+# 3. bitsandbytes 4-bit: untested on LFM2 MoE — have bf16 fallback ready.
+# 4. GGUF export for MoE: llama.cpp MoE support is reasonable for Mixtral-class but
+#    LFM2-8B-A1B is newer architecture. Verify before promising CPU artifact.
+# 5. Training tooling: Unsloth's LFM2 support is newer than Qwen/Gemma. Standard TRL
+#    SFTTrainer is the safer first attempt.
+
+model:
+  base_model: LiquidAI/LFM2-8B-A1B
+  trust_remote_code: true
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 32                                 # higher rank for the larger total-params model
+  alpha: 64
+  dropout: 0.05
+  bias: none
+  task_type: CAUSAL_LM
+  # PLACEHOLDER — verify via named_modules() inspection before training.
+  # Need to identify both attention paths AND expert MLP paths in LFM2's MoE layers.
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    # Expected expert MLP paths (verify):
+    # - experts.{i}.gate_proj
+    # - experts.{i}.up_proj
+    # - experts.{i}.down_proj
+    # - router  (if PEFT should also tune the routing gate)
+
+data:
+  fitz_gov_path: ../fitz-gov/data
+  tier1_split:
+    stratify_by: [category, difficulty, domain]
+    train_ratio: 0.8
+    seed: 42
+  max_seq_length: 2048
+  prompt_template: |
+    <|im_start|>system
+    You are a RAG governance classifier. Given a user question and retrieved sources, decide whether the sources support a confident answer.
+
+    Output exactly one token: ABSTAIN, DISPUTED, or TRUSTWORTHY.
+    - ABSTAIN: sources do not contain enough information to answer.
+    - DISPUTED: sources contradict each other on the answer.
+    - TRUSTWORTHY: sources consistently and sufficiently support an answer.
+    <|im_end|>
+    <|im_start|>user
+    Question: {query}
+
+    Sources:
+    {numbered_contexts}
+    <|im_end|>
+    <|im_start|>assistant
+    {label}<|im_end|>
+
+training:
+  output_dir: ./outputs/lfm2_8b_a1b_moe_qlora_v1
+  num_train_epochs: 2                   # MoE typically converges faster than dense
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 8        # effective batch = 16
+  gradient_checkpointing: true
+
+  learning_rate: 1.5e-4                 # slightly lower than dense
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: paged_adamw_8bit
+
+  neftune_noise_alpha: 5
+
+  # Router-loss / load-balancing — MoE-specific. If TRL adds this hook in the future,
+  # use auxiliary_loss_weight: 0.01 to discourage expert collapse.
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: accuracy
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: [wandb]
+  run_name: pyrrho-lfm2-8b-a1b-v1
+  seed: 42
+
+inference:
+  constrained_decoding: true
+  allowed_labels: [ABSTAIN, DISPUTED, TRUSTWORTHY]
+  max_new_tokens: 4
+
+export:
+  format: gguf
+  quantization: Q4_K_M
+  output_path: ./models/pyrrho-lfm2-8b-a1b-v1.gguf

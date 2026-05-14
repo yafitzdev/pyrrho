@@ -1,0 +1,118 @@
+# pyrrho-lfm2.5-1.2b-v1 — Track B, slot 4b (Liquid hybrid 1-2B class)
+# Alternative to qwen3.5_2b_qlora.yaml. Same capability class, different architecture.
+# Liquid AI LFM2.5 — hybrid (multiplicative gates + short convolutions), not transformer.
+#
+# Per Liquid's benchmarks: 2.3-2.8x faster prefill, 1.7-2.2x faster decode vs Qwen3-1.7B.
+# Designed explicitly for RAG, agentic tasks, data extraction.
+#
+# Expected wall-clock on RTX 5090: 20-60 min (smaller than Qwen3.5-2B + hybrid arch)
+# Expected accuracy: 82-86% overall (competitive with Qwen3-1.7B per Liquid's benchmarks)
+#
+# RISKS to debug before training:
+# 1. License: LFM Open License (not Apache 2.0) — verify portfolio compatibility first.
+# 2. LoRA target_modules: LFM2 is not a vanilla transformer. The placeholders below
+#    are GUESSES — must verify via model.named_modules() before training. PEFT may
+#    need patches if non-transformer layer types appear.
+# 3. bitsandbytes 4-bit: untested on LFM2's hybrid layers. Have bf16 fallback ready.
+# 4. GGUF export: llama.cpp LFM2 support is newer than for Qwen/Gemma — verify.
+
+model:
+  base_model: LiquidAI/LFM2.5-1.2B-Instruct
+  trust_remote_code: true   # LFM2 architecture may need custom code
+
+quantization:
+  load_in_4bit: true        # Verify; fall back to bf16 if quantization fails
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  task_type: CAUSAL_LM
+  # PLACEHOLDER — verify by running:
+  #   from transformers import AutoModelForCausalLM
+  #   m = AutoModelForCausalLM.from_pretrained(
+  #       "LiquidAI/LFM2.5-1.2B-Instruct", trust_remote_code=True
+  #   )
+  #   for n, _ in m.named_modules(): print(n)
+  # Then fill in real attention + gate/conv module paths for LFM2's hybrid arch.
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    # LFM2-specific paths likely include multiplicative-gate and short-conv layers —
+    # add them after named_modules() inspection.
+
+data:
+  fitz_gov_path: ../fitz-gov/data
+  tier1_split:
+    stratify_by: [category, difficulty, domain]
+    train_ratio: 0.8
+    seed: 42
+  max_seq_length: 2048      # LFM2.5 supports 32K context; 2048 sufficient for fitz-gov
+  # Prompt template — use LFM2's chat template (verify via tokenizer.apply_chat_template).
+  # Below is a generic ChatML-style fallback that LFM2 may accept.
+  prompt_template: |
+    <|im_start|>system
+    You are a RAG governance classifier. Given a user question and retrieved sources, decide whether the sources support a confident answer.
+
+    Output exactly one token: ABSTAIN, DISPUTED, or TRUSTWORTHY.
+    - ABSTAIN: sources do not contain enough information to answer.
+    - DISPUTED: sources contradict each other on the answer.
+    - TRUSTWORTHY: sources consistently and sufficiently support an answer.
+    <|im_end|>
+    <|im_start|>user
+    Question: {query}
+
+    Sources:
+    {numbered_contexts}
+    <|im_end|>
+    <|im_start|>assistant
+    {label}<|im_end|>
+
+training:
+  output_dir: ./outputs/lfm2.5_1.2b_qlora_v1
+  num_train_epochs: 3
+  per_device_train_batch_size: 8       # LFM2.5-1.2B smaller than Qwen3.5-2B → larger batch
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2       # effective batch = 16
+  gradient_checkpointing: true
+
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: paged_adamw_8bit
+
+  neftune_noise_alpha: 5
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: accuracy
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: [wandb]
+  run_name: pyrrho-lfm2.5-1.2b-v1
+  seed: 42
+
+inference:
+  constrained_decoding: true
+  allowed_labels: [ABSTAIN, DISPUTED, TRUSTWORTHY]
+  max_new_tokens: 4
+  # Liquid's recommended sampling for LFM2.5: temp=0.3, min_p=0.15, repeat_penalty=1.05
+  # For deterministic classification we use temp=0 with constrained decoding instead.
+
+export:
+  format: gguf
+  quantization: Q4_K_M
+  output_path: ./models/pyrrho-lfm2.5-1.2b-v1.gguf
+  # WARNING: verify llama.cpp supports LFM2 GGUF conversion before promising this artifact.

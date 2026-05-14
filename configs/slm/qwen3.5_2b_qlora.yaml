@@ -1,0 +1,97 @@
+# pyrrho-qwen3.5-2b-v1 — Track B, slot 4a (transformer 2B class)
+# Generative SLM portfolio variant. QLoRA fine-tuned on RTX 5090.
+# Qwen3.5 family released Feb-Mar 2026.
+#
+# Expected wall-clock on RTX 5090: 30-75 min
+# Expected accuracy: 82-86% overall (will likely match encoder, not beat it)
+# Portfolio value is the architecture variety + clean Qwen-family scaling story.
+
+model:
+  base_model: Qwen/Qwen3.5-2B-Instruct
+  trust_remote_code: false
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  task_type: CAUSAL_LM
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+data:
+  fitz_gov_path: ../fitz-gov/data
+  tier1_split:
+    stratify_by: [category, difficulty, domain]
+    train_ratio: 0.8
+    seed: 42
+  max_seq_length: 2048
+  prompt_template: |
+    <|im_start|>system
+    You are a RAG governance classifier. Given a user question and retrieved sources, decide whether the sources support a confident answer.
+
+    Output exactly one token: ABSTAIN, DISPUTED, or TRUSTWORTHY.
+    - ABSTAIN: sources do not contain enough information to answer.
+    - DISPUTED: sources contradict each other on the answer.
+    - TRUSTWORTHY: sources consistently and sufficiently support an answer.
+    <|im_end|>
+    <|im_start|>user
+    Question: {query}
+
+    Sources:
+    {numbered_contexts}
+    <|im_end|>
+    <|im_start|>assistant
+    {label}<|im_end|>
+
+training:
+  output_dir: ./outputs/qwen3.5_2b_qlora_v1
+  num_train_epochs: 3
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 4   # effective batch = 16
+  gradient_checkpointing: true
+
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: paged_adamw_8bit
+
+  neftune_noise_alpha: 5
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: accuracy
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: [wandb]
+  run_name: pyrrho-qwen3.5-2b-v1
+  seed: 42
+
+inference:
+  constrained_decoding: true
+  allowed_labels: [ABSTAIN, DISPUTED, TRUSTWORTHY]
+  max_new_tokens: 4
+
+export:
+  format: gguf
+  quantization: Q4_K_M
+  output_path: ./models/pyrrho-qwen3.5-2b-v1.gguf

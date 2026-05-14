@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyrrho"
+version = "0.0.1"
+description = "Fine-tuned classification models for RAG quality (governance + grounding)"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Yan Fitzner", email = "yanfitzner@yahoo.de" }
+]
+keywords = ["rag", "governance", "hallucination", "classification", "modernbert", "qwen"]
+
+dependencies = [
+    # PyTorch is installed separately with --index-url https://download.pytorch.org/whl/cu128
+    # See SETUP.md
+    "transformers>=4.46",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "evaluate>=0.4",
+    "scikit-learn>=1.5",
+    "numpy>=1.26",
+    "pandas>=2.2,<3",
+    "pyarrow>=18,<24",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+encoder = [
+    "optimum[onnxruntime]>=1.23",
+    "onnxruntime>=1.20",
+]
+slm = [
+    "trl>=0.12",
+    "peft>=0.13",
+    "bitsandbytes>=0.45",
+    "sentencepiece>=0.2",
+    "protobuf>=4.25",
+]
+unsloth = [
+    "unsloth",
+]
+tracking = [
+    "wandb>=0.18",
+]
+dev = [
+    "ruff>=0.7",
+    "pytest>=8.3",
+    "ipykernel>=6.29",
+    "jupyter>=1.1",
+]
+all = [
+    "pyrrho[encoder,slm,tracking,dev]",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "N", "UP"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

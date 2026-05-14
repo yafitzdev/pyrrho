@@ -1,0 +1,79 @@
+# pyrrho-modernbert-base-v1 (4-class experiment)
+# Same architecture as modernbert_base.yaml but the label space is 4-way:
+# ABSTAIN / DISPUTED / TRUSTWORTHY_HEDGED / TRUSTWORTHY_DIRECT.
+# All metrics + gates collapse 4-class predictions to 3-class internally so numbers
+# stay directly comparable to the fitz-sage 78.7% / 5.7% baseline.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  num_labels: 4
+  id2label:
+    0: ABSTAIN
+    1: DISPUTED
+    2: TRUSTWORTHY_HEDGED
+    3: TRUSTWORTHY_DIRECT
+  label2id:
+    ABSTAIN: 0
+    DISPUTED: 1
+    TRUSTWORTHY_HEDGED: 2
+    TRUSTWORTHY_DIRECT: 3
+
+data:
+  fitz_gov_path: ../fitz-gov/data
+  tier1_split:
+    stratify_by: [category, difficulty, domain]
+    train_ratio: 0.8
+    seed: 42
+  max_seq_length: 4096
+  truncation: longest_first
+
+training:
+  output_dir: ./outputs/modernbert_base_4class_v1
+  num_train_epochs: 5
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 32
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: false
+
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: adamw_torch_fused
+
+  # 4-class is more balanced than 3-class (HEDGED + DIRECT split TRUSTWORTHY in half),
+  # so the class-weight pressure on non-T is gentler.
+  class_weights: [1.5, 1.5, 1.0, 1.0]
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: macro_f1
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: [wandb]
+  run_name: pyrrho-modernbert-base-4class-v1
+  seed: 42
+
+eval:
+  cv_folds: 5
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_recall
+    - per_class_precision
+    - false_trustworthy_rate
+  breakdowns:
+    - difficulty
+    - domain
+    - reasoning_type
+    - query_type
+
+export:
+  format: onnx
+  quantization: int8
+  output_path: ./models/pyrrho-modernbert-base-4class-v1.onnx

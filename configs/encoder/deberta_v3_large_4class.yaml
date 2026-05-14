@@ -1,0 +1,59 @@
+# pyrrho-deberta-v3-large-v1 (4-class experiment)
+# DeBERTa-v3-large at 435M, 4-class label space.
+# Lower learning rate (1e-5) standard for large encoders.
+
+model:
+  base_model: microsoft/deberta-v3-large
+  num_labels: 4
+  id2label:
+    0: ABSTAIN
+    1: DISPUTED
+    2: TRUSTWORTHY_HEDGED
+    3: TRUSTWORTHY_DIRECT
+  label2id:
+    ABSTAIN: 0
+    DISPUTED: 1
+    TRUSTWORTHY_HEDGED: 2
+    TRUSTWORTHY_DIRECT: 3
+
+data:
+  fitz_gov_path: ../fitz-gov/data
+  tier1_split:
+    stratify_by: [category, difficulty, domain]
+    train_ratio: 0.8
+    seed: 42
+  max_seq_length: 2048
+  truncation: longest_first
+
+training:
+  output_dir: ./outputs/deberta_v3_large_4class_v1
+  num_train_epochs: 6
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2     # effective batch = 16
+  gradient_checkpointing: false
+
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: adamw_torch_fused
+
+  class_weights: [1.5, 1.5, 1.0, 1.0]
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: macro_f1
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: [wandb]
+  run_name: pyrrho-deberta-v3-large-4class-v1
+  seed: 42
+
+eval:
+  cv_folds: 5

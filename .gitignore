@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+*.egg
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code internal state
+.claude/
+
+# Project artifacts (gitignored — too large or derivable)
+# Anything under data/ is derived from fitz-gov via prepare_data.py.
+data/*
+!data/.gitkeep
+models/
+checkpoints/
+outputs/
+runs/
+wandb/
+
+# Model weights / large binaries (regardless of location)
+*.bin
+*.safetensors
+*.onnx
+*.gguf
+*.pt
+*.pth
+
+# Training / eval outputs (regardless of location)
+results/
+logs/
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+.env.local
+*.local
+
+# OS
+Thumbs.db
+nul
