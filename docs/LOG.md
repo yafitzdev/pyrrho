@@ -13,6 +13,32 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (evening) — Tier1 failure inspection surfaces multi-source-convergence bug
+
+**What landed:**
+- `scripts/inspect_tier1_failures.py` — aggregates 71 tier1 eval failures by subcategory / domain / reasoning_type / query_type / evidence_pattern; shows sample failures per top bucket; flags "high-confidence wrong" cases (max prob >= 0.8).
+- Ran against baseline checkpoint. **87.84% acc, 71 failures, 10 high-confidence wrong.**
+
+**What was learned (two surprises that tier0 inspection missed):**
+
+1. **`multi_source_convergence` is the worst subcategory at 57% error (4/7).** TRUSTWORTHY cases where multiple authoritative sources agree on a fact get classified DISPUTED, often with high confidence. Two examples:
+   - "What is the speed of light?" + 4 sources all citing 299,792,458 m/s → predicted DISPUTED with P(D)=0.79.
+   - "Average global temperature increase since pre-industrial times?" + NASA/IPCC/Met Office/NOAA all citing 1.09–1.20°C → predicted DISPUTED with P(D)=0.83.
+   - The model has learned "multiple sources with slightly different-looking numbers = conflict." It hasn't learned "multiple sources within measurement tolerance = consensus." This is a real, embarrassing bug. Not in tier0 because tier0 doesn't have multi-source consensus cases at that scale.
+
+2. **`hedged_evidence` (40%) + `partial_answer` (50%)** — same family as the short-clean-TRUSTWORTHY weakness from the smell test. Model is over-cautious whenever the trustworthy signal isn't a textbook hard tier1-style case with rich methodology context.
+
+**Other observations:**
+- TRUSTWORTHY → DISPUTED accounts for 18 of 71 failures. Wasn't visible in tier0 (which has very few multi-source TRUSTWORTHY cases).
+- `temporal` reasoning_type has the highest per-class error rate (19.5%, n=41). Date/timeframe comparison is brittle.
+- Per-domain failures spread evenly — no single domain dominates.
+
+**Why this is significant:** the user pushed back on me prioritizing tier0 analysis. Running the equivalent on tier1 surfaced a *worse* problem (multi_source_convergence) that tier0 inspection could never have found. **This is now the strongest argument against shipping v1 as-is, or at minimum the most important known limitation to disclose.**
+
+**Next:** decide whether to (a) ship v1 documenting multi-source-convergence as a known limitation, or (b) hold and add ~50 training cases targeting `multi_source_convergence` + `hedged_evidence` + `partial_answer`, retrain, ship a more defensible v1.
+
+---
+
 ## 2026-05-14 (evening) — 23-cell hyperparameter sweep around v1 baseline
 
 **What landed:**
