@@ -72,9 +72,9 @@ Pick one (or do in order):
    - `scripts/push_to_hub.py` — upload safetensors + ONNX + tokenizer + model card to `yafitzdev/pyrrho-modernbert-base-v1`
    - Model card auto-generated from `final_metrics.json` + `eval_report.json`
 
-4. **Cross-architecture validation.** Train DeBERTa-v3-base with the same config. If within 1–2 pts of ModernBERT-base, result is architecture-robust. ~10 min.
+3. **Cross-architecture validation.** Train DeBERTa-v3-base with the same config. If within 1–2 pts of ModernBERT-base, result is architecture-robust. ~10 min.
 
-5. **Start v2 work** (post-v1 ship). Add 30–50 short-context TRUSTWORTHY cases to training to close the known limitation.
+4. **Start v2 work** (post-v1 ship). Add 30–50 short-context TRUSTWORTHY cases to training to close the known limitation.
 
 ## Release gates (the bar any pyrrho model must clear before shipping)
 
