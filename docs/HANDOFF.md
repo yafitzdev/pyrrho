@@ -61,15 +61,17 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 
 Pick one (or do in order):
 
-1. **Push to GitHub.** Repo is initialized + initial commit ready.
+1. **Push to GitHub.** Repo is initialized; 5 commits ready.
    ```powershell
    cd C:\Users\yanfi\PycharmProjects\pyrrho
    gh repo create pyrrho --public --source=. --remote=origin --push --description "Fine-tuned classification models for RAG governance"
    ```
 
-2. **Run the 23-cell hyperparameter sweep** (~30–60 min in background on the 5090). Validates whether attempt-4's config is optimal or a local maximum.
+2. **3-seed validation on the 6-epoch sweep alternative** (~5 min). Sweep surfaced ep=6 as a candidate with 88% tier0 / 0% tier0-FT vs baseline's 80% / 4%. Validate before deciding which to ship.
    ```powershell
-   python scripts/sweep.py --grid configs/sweep_grids/encoder_v1.yaml
+   # First, save the 6-epoch config as configs/encoder/modernbert_base_ep6.yaml (copy of baseline with num_train_epochs: 6)
+   python scripts/run_seeds.py --config configs/encoder/modernbert_base_ep6.yaml --seeds 42 1337 7
+   python scripts/compare_runs.py outputs/multi_seed/summary.json outputs/multi_seed_ep6/summary.json
    ```
 
 3. **Ship v1 to HuggingFace.** Three pieces still to write:

@@ -13,6 +13,25 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-14 (evening) — 23-cell hyperparameter sweep around v1 baseline
+
+**What landed:**
+- Coordinate-descent sweep on seed 42 across 6 axes: `label_smoothing`, `learning_rate`, `num_train_epochs`, `class_weights`, `warmup_ratio`, `weight_decay`. 22 cells completed, 1 crashed.
+- Ranked summary at `outputs/sweeps/encoder_v1/sweep_summary.json`.
+
+**What was learned:**
+- **Attempt 4 (the baseline) is genuinely optimal on primary metrics.** Single-seed eval acc 87.50% / FT 4.41% / tier0 80.00%. No single-knob change beats it on eval accuracy. Confirms the systematization didn't just discover an obvious upgrade.
+- **6-epoch variant is a real alternative candidate.** Eval 85.96% / FT 5.15% / **tier0 88.33%** / **tier0 FT 0.00%**. Trades 1.54 pts of eval accuracy for +8.33 pts of tier0 accuracy and zero tier0 false-trustworthy. Cleaner balance.
+- **LR 5e-5 is the sweet spot.** LR 3e-5 → -5 pts. LR 8e-5 / 1e-4 → collapse to ~69% acc. Sharp peak.
+- **Class weights are essential.** `cw=None` → 68.32% acc (vs 87.50% baseline). Same finding as attempt 5, now with sweep confirmation.
+- **Warmup matters more than expected.** `warmup_ratio=0.0` → tier0 collapses to 58.33%.
+- **Label smoothing is the most tier0-protective knob.** ls=0.20 and 0.25 both boost tier0 to ~85% while keeping eval acc above 84%. Worth a closer look in v2.
+- One cell crashed: `cw=[1.5, 1.5, 1.0]`. Likely numerical fluke on this single seed. Skip.
+
+**Next:** run `scripts/run_seeds.py` on the 6-epoch variant config to compare 3-seed numbers against the baseline's already-validated 86.13 ± 0.86. Decide which to ship as v1 based on the head-to-head.
+
+---
+
 ## 2026-05-14 (evening) — CLAUDE.md added; HANDOFF/LOG update convention codified
 
 **What landed:**
