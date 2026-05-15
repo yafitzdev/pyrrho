@@ -13,6 +13,150 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-15 — pyrrho is in production: fitz-sage v0.13.0 shipped
+
+The moat-realizing step landed. pyrrho-modernbert-base-v1 is now the
+governance backend of fitz-sage as of **v0.13.0** (on PyPI + GitHub).
+
+**What landed (fitz-sage repo, v0.13.0):**
+
+- **Governance = pyrrho.** The constraint+sklearn cascade
+  (`GovernanceDecider`, `AnswerGovernor`, 5 constraint plugins,
+  `feature_extractor`, the `model_v6_cascade.joblib` artifact,
+  `tools/governance/` training scripts — ~6,316 lines) is deleted.
+  Replaced by `fitz_sage/governance/pyrrho.py` (~150 lines): load the
+  INT8 ONNX (`model_quantized.onnx`) from
+  `yafitzdev/pyrrho-modernbert-base-v1`, tokenize the
+  `Question:/Sources:` format, softmax, calibrated `TAU=0.50`
+  fallback. `decide(query, contexts) -> GovernanceDecision`.
+- **Reranker = ONNX cross-encoder too.** Not in pyrrho's plan, but the
+  same pattern: fitz-sage's chat-call `LLMReranker` was replaced by
+  `Alibaba-NLP/gte-reranker-modernbert-base` served as INT8 ONNX
+  (`OnnxReranker`). Same `optimum`/`transformers`/ModernBERT toolchain
+  as pyrrho — researched current rerankers (2026 landscape: jina-v3,
+  Qwen3-Reranker, mxbai, bge), gte-modernbert-base won on
+  CPU-quality/size ratio.
+- fitz-sage shipped these together as **v0.13.0** ("encoders
+  everywhere"): https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
+  / https://pypi.org/project/fitz-sage/0.13.0/
+
+**What was learned:**
+
+- **The integration was clean because v0.12.0 had already done the
+  hard part.** Removing Cloud/pgvector/embeddings in v0.12.0 left a
+  `GovernanceDecider` with a stable `decide()`-shaped interface; the
+  pyrrho swap was a like-for-like backend replacement, not surgery.
+  The "prepare the ground first" sequencing paid off.
+- **pyrrho's INT8 ONNX shipped on the HF repo is what made the
+  integration ~150 lines.** Because `model_quantized.onnx` is in the
+  model repo, fitz-sage just does `ORTModelForSequenceClassification
+  .from_pretrained(MODEL_ID, file_name="model_quantized.onnx")` — no
+  quantization step on the consumer side. (Contrast: the gte-reranker
+  HF repo ships FP32 only, so fitz-sage's reranker path currently
+  runs FP32 — logged as a v0.13.1 fix in fitz-sage's backlog.)
+- **The encoder pattern generalized.** pyrrho proved "small
+  fine-tuned encoder beats LLM-orchestration for finite-output
+  problems" on governance; fitz-sage then applied the identical
+  pattern to reranking on its own initiative. The pattern is now
+  the house style, not a one-off.
+- Net: fitz-sage production code is -30% vs v0.11.0 across the v0.12
+  + v0.13 releases. Per-query LLM calls dropped from ~8–10 to ~2–4 on
+  the typical path (governance cascade 4–5 calls + LLM rerank 1 call
+  → both now zero chat calls).
+
+**Next:** pyrrho v1 is in production and stable — the integration
+milestone is closed. The remaining pyrrho roadmap is model-quality
+work: the SLM track (Qwen3.5-0.8B against `multi_source_convergence`)
+and the v2 augmentation set. Neither blocks anything; both are
+quality upside on an already-shipped baseline.
+
+---
+
+## 2026-05-14 (night) — fitz-sage v0.12.0 shipped to PyPI
+
+Resumed the v0.12.0 push from the previous pause. Root-caused the
+autouse deadlock, fixed the real bug + several adjacent ones, tagged,
+released, published.
+
+**What landed (fitz-sage repo):**
+
+- **Real fix for the singleton deadlock:** `SqliteConnectionManager._lock`
+  was a non-reentrant `threading.Lock`; `reset_instance()` acquires it
+  then calls `stop()` which acquires it again from the same thread →
+  deadlock. Switched to `threading.RLock`. The autouse hang from
+  yesterday was this, not a fixture-shape issue.
+- **Scoped fixture application:** reverted yesterday's
+  `autouse=True` in `tests/unit/conftest.py`; added
+  `pytestmark = pytest.mark.usefixtures("reset_sqlite_singleton")` at
+  the top of `test_krag_detection.py` and `test_krag_engine.py` (the
+  only two files that `@patch SqliteConnectionManager`).
+- **Adjacent fixes surfaced during the test green-up:**
+  - `test_krag_engine`: stale `PostgresTableStore` patch target
+    replaced with `SqliteTableStore` (the engine actually uses the
+    SQLite version post-v0.12.0).
+  - `test_section_store::test_returns_results_with_bm25_score`: test
+    fed a positive raw `bm25()` value but production negates the FTS5
+    score (FTS5 returns lower=better). Test input flipped to negative.
+  - `test_cli_endpoint_flags::test_flags_appear_in_help`: linux CI
+    renders typer/rich help with embedded ANSI codes that split
+    `--endpoint` into `-` + `-endpoint`. Strip ANSI before substring
+    match.
+- **CI workflow cleanup:** `.github/workflows/ci.yml` had a
+  "Run postgres tests (Linux only)" step that selected zero tests
+  post-v0.12.0 → exit code 5 → red CI. Removed the step, dropped the
+  now-pointless `-m "not postgres"` filter, pruned `fitz-pgserver` /
+  `psycopg` / `psycopg-pool` / `faiss-cpu` from the pip installs.
+  `mutation.yml` dropped `--ignore=tests/unit/test_postgres_recovery.py`
+  for a file that no longer exists.
+- **Comprehensive doc refresh:** 35 docs touched; 3 deleted
+  (`hyde.md`, `contextual-embeddings.md`, `hybrid-search.md` — all
+  describe removed features). Stale-term occurrences across all docs
+  dropped from 318 to 10, every remaining one in an intentional
+  "what's removed" migration table. CLAUDE.md + HANDOFF.md moved out
+  of git tracking into local-only notes (added to `.gitignore`).
+- **CHANGELOG fix landed post-tag:** the original v0.12.0 changelog
+  entry mentioned the storage swap but silently understated the
+  embedding-pipeline removal, the chat-protocol consolidation
+  (ollama / cohere / anthropic → endpoint), and the `retrieval_mode`
+  toggle removal. Added those to Highlights / Removed / Changed.
+  Retagged `v0.12.0` at the changelog-fix commit (`b82748b5`) — the
+  PyPI artifact is from the pre-fix commit (immutable, that's fine),
+  but the git tag now reflects honest docs.
+
+**Tests:** 1574 passed / 0 failed / 8 skipped (Windows .venv, ~44 s).
+CI matrix green on ubuntu-latest × windows-latest × Python
+3.10/3.11/3.12.
+
+**Released:**
+
+- Git tag `v0.12.0` pushed to https://github.com/yafitzdev/fitz-sage
+- GitHub Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.12.0
+- PyPI: https://pypi.org/project/fitz-sage/0.12.0/ (wheel + sdist, OIDC trusted-publisher flow via `release.yml`, ~47 s end-to-end)
+
+**What was learned:**
+
+- The singleton deadlock was a real production bug, not a test-isolation
+  artifact. The autouse change yesterday just made it 100% reproducible.
+  This is exactly the "build a smoking gun by making the bug fire on
+  every test" debugging pattern — paused yesterday at the smoking-gun
+  stage; resumed today and the cause became visible immediately.
+- Documentation drift after a major refactor is invisible until you
+  grep. 318 stale-term hits in a "modernised" codebase suggests every
+  big refactor needs a doc-sweep as a mandatory follow-up step, not an
+  optional polish pass.
+- Tag annotation messages are visible on the GitHub Release page via
+  `gh release create --notes-from-tag` — write them like release notes,
+  not like commit messages. Mine for v0.12.0 actually covered the
+  embedding removal even though the CHANGELOG didn't; the release page
+  was therefore better than the bundled changelog.
+
+**Next:** pyrrho-into-fitz-sage integration (the moat-realizing step).
+Replace the constraint+sklearn pipeline in fitz-sage with an inference
+call to `yafitzdev/pyrrho-modernbert-base-v1` (INT8 ONNX). Triggers
+fitz-sage v0.13.0 with "now powered by pyrrho" as the headline.
+
+---
+
 ## 2026-05-14 (late evening) — fitz-sage v0.12.0 push paused mid-debug
 
 User wanted to push fitz-sage v0.12.0 before integrating pyrrho. The local release commit (`985d7dc1` "release: v0.12.0 — Cloud removed, storage on SQLite + FTS5") had un-validated tests. Ran the suite from scratch, surfaced multiple problems, fixed several, hit a hang on the last one. Paused before fixing the hang to preserve context.

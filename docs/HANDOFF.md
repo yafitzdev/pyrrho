@@ -18,7 +18,7 @@ The brand name is from Pyrrho of Elis — the Greek philosopher whose school pra
 
 | Release | Status |
 |---|---|
-| `pyrrho-modernbert-base-v1` | Trained + 3-seed validated. **Not yet packaged for HuggingFace.** |
+| `pyrrho-modernbert-base-v1` | Trained + 3-seed validated. On HuggingFace. **In production — it is the governance backend of fitz-sage v0.13.0.** |
 | #2–#10 (Track A long-context / accuracy mode, Track B SLMs, grounding sidecar) | Not started |
 
 ## Validated v1 metrics (3-seed mean ± std on fitz-gov v5 eval hold-out, 584 cases)
@@ -60,50 +60,26 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 
 ## What's live
 
-- **Model on HF**: https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1 (public, Apache-2.0, 1.35 GB: safetensors + FP32 ONNX + INT8 ONNX). Model card aligned to user's trimmed shape (no philosophical aside, no uncalibrated table) — `build_model_card.py` produces this by default. Cross-linked to `yafitzdev/fitz-gov` dataset.
-- **Dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, MIT, V5.1, three configs: tier1_core / tier0_sanity / validation). Verified `load_dataset(...)` loads cleanly.
-- **pyrrho GitHub repo**: public, **redesigned README** matches fitz-sage style (centered header, hero comparison table, "Why pyrrho?" feature blockquotes, collapsible details). 12+ commits pushed.
-- **fitz-gov README**: has new 🤗 HuggingFace banner + callout block with `load_dataset` quickstart and link to pyrrho baseline. New `scripts/upload_to_hf.py` in that repo (uncommitted in fitz-gov as of paused state).
+- **pyrrho model on HF**: https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1 (public, Apache-2.0, 1.35 GB: safetensors + FP32 ONNX + INT8 ONNX). Model card aligned to user's trimmed shape (no philosophical aside, no uncalibrated table) — `build_model_card.py` produces this by default. Cross-linked to `yafitzdev/fitz-gov` dataset.
+- **fitz-gov dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, MIT, V5.1, three configs: tier1_core / tier0_sanity / validation). Verified `load_dataset(...)` loads cleanly.
+- **pyrrho GitHub repo**: public, redesigned README in the fitz-sage style.
+- **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-modernbert-base-v1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
+  - Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
+  - PyPI: https://pypi.org/project/fitz-sage/0.13.0/
 
-## IN-FLIGHT WORK — fitz-sage v0.12.0 push (paused 2026-05-14 evening, context limit)
+## Immediate next actions
 
-User wanted to push fitz-sage v0.12.0 before integrating pyrrho into it. Release commit was sitting locally but tests were failing. Mid-debug when context window filled.
+The integration milestone is **closed** — pyrrho v1 is shipped and is
+the production governance backend. Everything below is model-quality
+upside on an already-live baseline; nothing here blocks anything.
 
-**Status at pause:**
+1. **SLM track** — fine-tune Qwen3.5-0.8B to see if it fixes `multi_source_convergence` (v1's only real failure mode — see Known limitations #1). Pretraining world knowledge + reasoning depth should address it. ~1 hr for the fine-tune.
 
-1. ✅ **Lint clean**: ruff (1 manual `# noqa: F401` on `LLMReranker` re-export + 1 auto-fixed unused pytest import), black (15 files reformatted), isort (2 files fixed). All commits sit uncommitted in fitz-sage working tree.
-2. ✅ **216 fixture errors fixed**: `FitzKragConfig` rejected legacy `embedding` / `vector_db` / `vector_db_kwargs` keys (Cloud-removal migration). Patched `tests/e2e_krag/runner.py`, `tests/e2e_krag/config.py`, and `tests/test_config.yaml` to drop legacy keys + switch `ollama`/`cohere` providers → `endpoint` with explicit `chat_base_url` per tier (Ollama on `:11434/v1`, OpenAI on api).
-3. ✅ **`openai` dep installed** into fitz-sage venv (was missing; needed by `endpoint` provider).
-4. ✅ **Test isolation bug diagnosed**: `tests/unit/test_krag_detection.py` and `test_krag_engine.py` use `@patch("...SqliteConnectionManager")` without the `reset_sqlite_singleton` fixture → the singleton `_instance` leaks a `MagicMock` into subsequent tests, causing **25 cascading failures** in test_vocabulary / test_section_store / test_krag_guardrails (all of which pass in isolation but fail in full-suite order).
-5. ⚠️ **Fix attempted but caused hang**: changed `reset_sqlite_singleton` in `tests/unit/conftest.py` to `autouse=True`. Test run hung for 29+ min with 0 bytes of output. **Likely a deadlock on the singleton's `_lock`** when `reset_instance()` is called in `before/after` and an inner test holds the lock. User killed the run and asked me to stop and update HANDOFF before resuming.
+2. **v2 augmentation set** — bigger / more diverse data (~100-200 cases per failing subcategory, plus boundary counter-examples in the DISPUTED class) targeting both known limitations, then retrain `pyrrho-modernbert-base-v2`.
 
-**Files modified in fitz-sage (working tree, NOT committed):**
-- `fitz_sage/llm/providers/__init__.py` (added F401 noqa)
-- 15 black-reformatted files across `fitz_sage/` and `tests/`
-- `tests/unit/conftest.py` (autouse change — **this is the suspect for the deadlock**)
-- `tests/e2e_krag/runner.py` (dropped 3 legacy config keys from both `config_dict` builds; plumbed `chat_base_url` + `chat_api_key_env`)
-- `tests/e2e_krag/config.py` (simplified `get_tier_config` to drop embedding/vector_db)
-- `tests/test_config.yaml` (rewrote tiers to use `endpoint` provider)
+3. **Cross-architecture validation** (optional). Train DeBERTa-v3-base with the same encoder config. Defensive content for a v1.5 model card. ~10 min.
 
-**Resume plan when fitz-sage push picks up again:**
-
-a. **Revert the autouse change** in `tests/unit/conftest.py` (back to opt-in `reset_sqlite_singleton`). The autouse is too risky given the deadlock.
-b. **Instead, add explicit `reset_sqlite_singleton` requests** to the two offending test files (`test_krag_detection.py` and `test_krag_engine.py`) — either as method-level fixture parameters or a class-level autouse inside those files only.
-c. Re-run `pytest tests/unit/ -q` — expect ~1573 pass / 0 fail.
-d. Commit the formatting + test-fixture migration as a single pre-release commit. Tag v0.12.0. Push.
-e. Then resume the pyrrho-into-fitz-sage integration plan.
-
-## Immediate next actions (after fitz-sage v0.12.0 ships)
-
-1. **Build pyrrho into fitz-sage as the default governance backend.** The moat-realizing step. Replace the constraint+sklearn pipeline with an inference call to `yafitzdev/pyrrho-modernbert-base-v1` (INT8 ONNX). Real users get the +7 pt accuracy, +50× CPU speedup, and zero LLM dependency. Triggers a fitz-sage v0.13.0 release with "now powered by pyrrho" as the headline. ~4–8 hr.
-
-2. **SLM track** — fine-tune Qwen3.5-0.8B to see if it fixes `multi_source_convergence` (the only real v1 limitation). Pretraining world knowledge + reasoning depth should address the failure mode. ~1 hr for the fine-tune. Independent from #1, can run in parallel.
-
-3. **Cross-link the triangle in fitz-sage README** — already partially done; verify "powered by pyrrho" / "models trained on this benchmark" sections cover the model + dataset HF links. ~10 min.
-
-4. **Cross-architecture validation** (optional). Train DeBERTa-v3-base with the same encoder config. Defensive content for v1.5 model card. ~10 min.
-
-5. **v2 work** — bigger / more diverse augmentation set (~100-200 cases per failing subcategory, plus boundary counter-examples in the DISPUTED class), then retrain.
+4. **fitz-gov v6** — only after a v2 pyrrho ships and validates. Long-context / domain expansion. Still gated (see "Things NOT to do").
 
 ## Release gates (the bar any pyrrho model must clear before shipping)
 
@@ -119,9 +95,10 @@ The originally-planned **tier0 95% sanity gate has been dropped** (see LOG 2026-
 - ❌ Don't propose Qwen 2.5 anything — stale (Nov 2024). Use Qwen 3.5+ family.
 - ❌ Don't propose 35B-class MoE bases — violates the universal CPU-runnable constraint.
 - ❌ Don't propose Llama-family bases — license is more restrictive than Apache-2.0.
-- ❌ Don't start fitz-gov v6 (long-context / domain expansion) before release #1 ships.
+- ❌ Don't start fitz-gov v6 (long-context / domain expansion) before a pyrrho **v2** ships. Release #1 is now in production (fitz-sage v0.13.0); the gate moved to v2 so v6 data work doesn't outrun model validation.
 - ❌ Don't rebrand pyrrho — chosen after going through Doxa/Aegis/Sift/Minos/Themis.
 - ❌ Don't generate emojis in code/docs unless explicitly asked.
+- ❌ Don't propose running pyrrho as a remote endpoint / hosted service. It runs CPU-side via INT8 ONNX inside fitz-sage — that's the architectural commitment (no embeddings, no vector DB, no per-vendor providers in fitz-sage's hot path).
 
 ## Where to look for more
 
