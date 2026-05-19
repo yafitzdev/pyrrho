@@ -8,7 +8,7 @@ Run from project root:
     python scripts/build_model_card.py \\
         --checkpoint outputs/multi_seed/seed_42/checkpoint-730 \\
         --summary outputs/multi_seed/summary.json \\
-        --output models/pyrrho-modernbert-base-v1/README.md
+        --output models/pyrrho-nano-g1/README.md
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--summary", type=Path, required=True, help="outputs/multi_seed/summary.json (3-seed aggregate)")
     p.add_argument("--eval-report", type=Path, default=None, help="Optional eval_report.json with per-breakdown metrics")
     p.add_argument("--output", type=Path, required=True, help="Where to write README.md")
-    p.add_argument("--model-id", type=str, default="yafitzdev/pyrrho-modernbert-base-v1")
+    p.add_argument("--model-id", type=str, default="yafitzdev/pyrrho-nano-g1")
     p.add_argument("--base-model", type=str, default="answerdotai/ModernBERT-base")
     p.add_argument("--fitz-gov-version", type=str, default="V5.1")
     return p.parse_args()
@@ -102,7 +102,7 @@ def main() -> int:
     fitz_commit = fitz_gov_commit()
 
     card = f"""---
-license: apache-2.0
+license: cc-by-nc-4.0
 library_name: transformers
 pipeline_tag: text-classification
 language:
@@ -283,7 +283,7 @@ fitz-gov commit at training time: `{fitz_commit}`
 
 ## License
 
-Apache 2.0 — see [LICENSE](https://github.com/yafitzdev/pyrrho/blob/main/LICENSE).
+CC BY-NC 4.0 — see [LICENSE](https://github.com/yafitzdev/pyrrho/blob/main/LICENSE). Free for research, evaluation, and personal use; commercial use requires a separate license.
 
 ## Related projects
 

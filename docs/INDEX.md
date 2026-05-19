@@ -35,7 +35,7 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 
 ## Headline result so far
 
-`pyrrho-modernbert-base-v1` (3-seed mean ± std, vs published fitz-sage v0.11 sklearn baseline):
+`pyrrho-nano-g1` (3-seed mean ± std, vs published fitz-sage v0.11 sklearn baseline):
 
 - Overall accuracy: **86.13 ± 0.86%** (baseline: 78.7%, **Δ +7.43**)
 - False-trustworthy rate: **5.27 ± 0.21%** (baseline: 5.7%, **safer**)

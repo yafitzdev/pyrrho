@@ -13,6 +13,27 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-20 (morning) — Model rename to pyrrho-nano-g1; relicense to CC BY-NC 4.0; fitz-gov dataset moves to HF-only
+
+**What landed:**
+
+- **Model rename on HF.** `yafitzdev/pyrrho-modernbert-base-v1` → `yafitzdev/pyrrho-nano-g1`, aligning with the new naming convention in [ROADMAP.md §2](ROADMAP.md) (`pyrrho-{tier}-{generation}`, where tier ∈ {nano, small, MoE} and generation ∈ {g1, g1.1, g2, ...}). Updated all in-repo references: README badges/links/code samples, `scripts/{push_to_hub,build_model_card,export_onnx,train_encoder}.py` defaults, `configs/encoder/modernbert_base{,_4class}.yaml` (`run_name` + `output_path`), `docs/{HANDOFF,PROJECT,METHODOLOGY,INDEX}.md`, and `CLAUDE.md`'s naming-convention rule. Historical entries in this LOG retain the old name.
+- **License change (both repos).** pyrrho and fitz-gov are now both **CC BY-NC 4.0**, was Apache-2.0 (pyrrho) / MIT (fitz-gov). Updated `LICENSE`, `pyproject.toml` (`license` field + classifier in fitz-gov), README badges + license sections, `build_model_card.py` (YAML frontmatter + footer of generated HF model card), `upload_to_hf.py` (YAML frontmatter + footer of generated HF dataset card), `PROJECT.md §18.3`, `CLAUDE.md` hard constraint. Fitz-gov pyproject author also updated from "Fitz AI" to "Yan Fitzner".
+- **Dataset gitignored in fitz-gov.** `data/` (12 files: `corpus/`, `queries/`, `tier0_sanity/`, `tier1_core/`, `validation/`) added to `.gitignore` and untracked via `git rm -r --cached data/`. The dataset is now distributed via HuggingFace only (`yafitzdev/fitz-gov`); the GitHub repo carries schema docs, generation tooling, and the package code. Local copies remain on disk (cached untracking).
+- **CLAUDE.md updated.** New hard constraints captured: license is CC BY-NC 4.0 (don't re-permissive), HF naming follows `pyrrho-{tier}-{generation}`, dataset lives on HF only. Reading order now includes `ROADMAP.md` as #2 (between HANDOFF and LOG), since it supersedes PROJECT.md §10.
+- **Track A reconciled to new naming.** README Track A table and PROJECT.md §10 rows for the old `pyrrho-modernbert-base-v2-long` and `pyrrho-deberta-v3-large-v1` entries replaced with `pyrrho-nano-g1.1` (V5.1-enriched retrain, ROADMAP Phase 1) and `pyrrho-nano-g2` (V6 retrain, ROADMAP Phase 3). README's roadmap link now points at ROADMAP.md first, PROJECT.md §10 second (for historical context).
+
+**What was learned:**
+
+- Track B (SLMs) in README still uses the old `pyrrho-{base}-{size}-v1` scheme (qwen3.5-0.8b-v1, lfm2.5-1.2b-v1, etc.). Not rewritten in this pass — the user asked only for the two encoder entries. ROADMAP.md collapses these into `pyrrho-small-{generation}` so a future pass can reconcile them.
+- The Apache-2.0 reference at PROJECT.md §6 ("Stick to 2026-vintage Apache-2.0-compatible models") and HANDOFF.md "Things NOT to do" (Llama license comparison) are about *base model* selection, not pyrrho's own license — left alone. Same for configs/slm/lfm2*.yaml warnings.
+- LOG.md historical entries (2026-05-15 and earlier) reference the old name and old license. Per the project's append-only convention, those are not edited.
+- `git rm --cached` worked cleanly on the 12 tracked dataset files; files remain on disk for local development. Next `git commit` in fitz-gov will land both the deletions and the license + .gitignore + README changes in one go.
+
+**Next:** Commit both repos. In pyrrho, this rename + license update is also a good moment to either rewrite the README's Track A/B tables to match ROADMAP.md's `nano/small/MoE` scheme, or replace them with a one-line pointer to ROADMAP.md.
+
+---
+
 ## 2026-05-15 — pyrrho is in production: fitz-sage v0.13.0 shipped
 
 The moat-realizing step landed. pyrrho-modernbert-base-v1 is now the

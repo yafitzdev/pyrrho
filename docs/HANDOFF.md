@@ -18,7 +18,7 @@ The brand name is from Pyrrho of Elis — the Greek philosopher whose school pra
 
 | Release | Status |
 |---|---|
-| `pyrrho-modernbert-base-v1` | Trained + 3-seed validated. On HuggingFace. **In production — it is the governance backend of fitz-sage v0.13.0.** |
+| `pyrrho-nano-g1` | Trained + 3-seed validated. On HuggingFace. **In production — it is the governance backend of fitz-sage v0.13.0.** |
 | #2–#10 (Track A long-context / accuracy mode, Track B SLMs, grounding sidecar) | Not started |
 
 ## Validated v1 metrics (3-seed mean ± std on fitz-gov v5 eval hold-out, 584 cases)
@@ -60,10 +60,10 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 
 ## What's live
 
-- **pyrrho model on HF**: https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1 (public, Apache-2.0, 1.35 GB: safetensors + FP32 ONNX + INT8 ONNX). Model card aligned to user's trimmed shape (no philosophical aside, no uncalibrated table) — `build_model_card.py` produces this by default. Cross-linked to `yafitzdev/fitz-gov` dataset.
-- **fitz-gov dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, MIT, V5.1, three configs: tier1_core / tier0_sanity / validation). Verified `load_dataset(...)` loads cleanly.
+- **pyrrho model on HF**: https://huggingface.co/yafitzdev/pyrrho-nano-g1 (public, CC BY-NC 4.0, 1.35 GB: safetensors + FP32 ONNX + INT8 ONNX). Model card aligned to user's trimmed shape (no philosophical aside, no uncalibrated table) — `build_model_card.py` produces this by default. Cross-linked to `yafitzdev/fitz-gov` dataset. (Was `pyrrho-modernbert-base-v1` + Apache-2.0 through 2026-05-19; renamed under the new `pyrrho-{tier}-{generation}` scheme.)
+- **fitz-gov dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, CC BY-NC 4.0, V5.1, three configs: tier1_core / tier0_sanity / validation). Verified `load_dataset(...)` loads cleanly.
 - **pyrrho GitHub repo**: public, redesigned README in the fitz-sage style.
-- **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-modernbert-base-v1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
+- **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-nano-g1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
   - Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
   - PyPI: https://pypi.org/project/fitz-sage/0.13.0/
 
@@ -75,7 +75,7 @@ upside on an already-live baseline; nothing here blocks anything.
 
 1. **SLM track** — fine-tune Qwen3.5-0.8B to see if it fixes `multi_source_convergence` (v1's only real failure mode — see Known limitations #1). Pretraining world knowledge + reasoning depth should address it. ~1 hr for the fine-tune.
 
-2. **v2 augmentation set** — bigger / more diverse data (~100-200 cases per failing subcategory, plus boundary counter-examples in the DISPUTED class) targeting both known limitations, then retrain `pyrrho-modernbert-base-v2`.
+2. **v2 augmentation set** — bigger / more diverse data (~100-200 cases per failing subcategory, plus boundary counter-examples in the DISPUTED class) targeting both known limitations, then retrain as `pyrrho-nano-g1.1` (V5.1-enriched apples-to-apples retrain — see [ROADMAP.md §8 Phase 1](ROADMAP.md)) before scaling to `pyrrho-nano-g2` on fitz-gov V6.
 
 3. **Cross-architecture validation** (optional). Train DeBERTa-v3-base with the same encoder config. Defensive content for a v1.5 model card. ~10 min.
 

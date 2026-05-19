@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Fine-tuned classification models for RAG quality (governance + grounding)"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
-license = { text = "Apache-2.0" }
+license = { text = "CC-BY-NC-4.0" }
 authors = [
     { name = "Yan Fitzner", email = "yanfitzner@yahoo.de" }
 ]

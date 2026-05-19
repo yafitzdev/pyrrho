@@ -5,7 +5,7 @@ The FP32 ONNX is a fallback for environments where INT8 quantization causes accu
 
 Run from project root:
     python scripts/export_onnx.py --checkpoint outputs/multi_seed/seed_42/checkpoint-730
-    python scripts/export_onnx.py --checkpoint <path> --output models/pyrrho-modernbert-base-v1
+    python scripts/export_onnx.py --checkpoint <path> --output models/pyrrho-nano-g1
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--output",
         type=Path,
-        default=Path("models/pyrrho-modernbert-base-v1"),
-        help="Where to write the ONNX artifacts (default: models/pyrrho-modernbert-base-v1)",
+        default=Path("models/pyrrho-nano-g1"),
+        help="Where to write the ONNX artifacts (default: models/pyrrho-nano-g1)",
     )
     p.add_argument(
         "--skip-quantization",

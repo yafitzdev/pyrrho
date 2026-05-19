@@ -1,6 +1,6 @@
 """train_encoder.py — Fine-tune a HuggingFace encoder on the prepared fitz-gov splits.
 
-Default target: release #1 (`pyrrho-modernbert-base-v1`). Driven by a YAML config so
+Default target: release #1 (`pyrrho-nano-g1`). Driven by a YAML config so
 the same script works for ModernBERT-base / DeBERTa-v3-base / DeBERTa-v3-large with
 no code change.
 

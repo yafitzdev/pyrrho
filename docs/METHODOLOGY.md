@@ -141,7 +141,7 @@ A release SHOULD also:
 When `--no-wandb` is not passed, training scripts log to W&B with:
 
 - **Project**: `pyrrho`
-- **Run name**: from config `training.run_name`, e.g. `pyrrho-modernbert-base-v1`
+- **Run name**: from config `training.run_name`, e.g. `pyrrho-nano-g1`
 - **Tags**: `["v1", "encoder", "modernbert"]` or equivalent. Set in config.
 - **Logged metrics** (every epoch + final): accuracy, macro_f1, per-class P/R/F1,
   false_trustworthy_rate, ft_penalized_accuracy.

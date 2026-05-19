@@ -9,8 +9,8 @@ Requires `huggingface_hub` installed (pyproject extra `[hub]`) and the user
 authenticated via `huggingface-cli login` (one-time).
 
 Run from project root:
-    python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1 --dry-run
-    python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1 --repo-id yafitzdev/pyrrho-modernbert-base-v1
+    python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g1 --dry-run
+    python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g1 --repo-id yafitzdev/pyrrho-nano-g1
 """
 
 from __future__ import annotations
@@ -30,10 +30,10 @@ OPTIONAL_FILES = ("model.safetensors", "model.onnx", "model_quantized.onnx", "sp
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--release-dir", type=Path, required=True, help="Directory containing model + README + ONNX")
-    p.add_argument("--repo-id", type=str, default="yafitzdev/pyrrho-modernbert-base-v1")
+    p.add_argument("--repo-id", type=str, default="yafitzdev/pyrrho-nano-g1")
     p.add_argument("--private", action="store_true", help="Create the repo private (default: public)")
     p.add_argument("--dry-run", action="store_true", help="List what would be uploaded but don't push")
-    p.add_argument("--commit-message", type=str, default="Initial release: pyrrho-modernbert-base-v1")
+    p.add_argument("--commit-message", type=str, default="Release: pyrrho-nano-g1")
     return p.parse_args()
 
 

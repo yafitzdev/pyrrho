@@ -1,5 +1,5 @@
-# pyrrho-modernbert-base-v1 — Track A1
-# Production governance head for fitz-sage. CPU target after INT8 ONNX export.
+# pyrrho-nano-g1 (ModernBERT-base encoder) — production governance head
+# CPU target after INT8 ONNX export. Backs fitz-sage's governance path.
 #
 # Expected wall-clock on RTX 5090: 15-30 min
 # Expected accuracy: 82-86% overall, 78-84% trustworthy recall, 3-5% false-trustworthy
@@ -97,7 +97,7 @@ training:
 
   logging_steps: 20
   report_to: [wandb]
-  run_name: pyrrho-modernbert-base-v1
+  run_name: pyrrho-nano-g1
   seed: 42
 
 eval:
@@ -117,4 +117,4 @@ eval:
 export:
   format: onnx
   quantization: int8
-  output_path: ./models/pyrrho-modernbert-base-v1.onnx
+  output_path: ./models/pyrrho-nano-g1.onnx

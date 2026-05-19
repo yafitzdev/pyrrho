@@ -94,7 +94,7 @@ Encoders also give us:
 
 **Track A — Production workhorse (fitz-sage default)**: encoder family. ModernBERT-base first, DeBERTa-v3-large as "accuracy mode" later.
 
-**Track B — Portfolio showcase (HuggingFace)**: generative SLM family. Qwen3.5-0.8B → 2B → 4B, QLoRA fine-tuned. Positioned as "premium / GPU-accelerated / rationale-producing." Each model card explicitly says "for CPU use, see `pyrrho-modernbert-base`."
+**Track B — Portfolio showcase (HuggingFace)**: generative SLM family. Qwen3.5-0.8B → 2B → 4B, QLoRA fine-tuned. Positioned as "premium / GPU-accelerated / rationale-producing." Each model card explicitly says "for CPU use, see `pyrrho-nano`."
 
 Same fitz-gov dataset, same eval protocol, same naming convention. Two architectures, one coherent family.
 
@@ -345,12 +345,12 @@ Ten releases plus the grounding sidecar. Three architectures (encoder, generativ
 
 | # | Release | Type | Trained on | Target metric | Headline claim |
 |---|---|---|---|---|---|
-| **1** | `pyrrho-modernbert-base-v1` | Encoder 149M | fitz-gov v5.1 short-context | ≥82% overall, ≤5% false-trustworthy | "Single 30ms forward pass replaces the constraint+sklearn pipeline" |
+| **1** | `pyrrho-nano-g1` | Encoder 149M | fitz-gov v5.1 short-context | ≥82% overall, ≤5% false-trustworthy | "Single 30ms forward pass replaces the constraint+sklearn pipeline" |
 | 2 | `pyrrho-qwen3.5-0.8b-v1` | Generative QLoRA dense | fitz-gov v5.1 | Match encoder ±2 points | "Smallest credible generative governance head — sub-1B floor of the family" |
-| 3 | `pyrrho-modernbert-base-v2-long` | Encoder 149M | fitz-gov v5.1 + 500 synthetic long-context | ≥80% on long-context split | "Handles 5K-50K token sources (ECU logs, test reports)" |
+| 3 | `pyrrho-nano-g1.1` | Encoder 149M | fitz-gov V5.1-enriched (schema-retrofitted, same 2,920 cases) | Match g1 ±1 pt, clean V5.1-enriched baseline | "Apples-to-apples baseline on the enriched schema before scaling to V6" (ROADMAP Phase 1) |
 | 4a | `pyrrho-qwen3.5-2b-v1` | Generative QLoRA dense | fitz-gov v5.1 | Beat #2 by 2-3 pts | "Transformer scaling from 0.8B → 2B in the same family" |
 | **4b** *(alternative to 4a)* | `pyrrho-lfm2.5-1.2b-v1` | Generative QLoRA Liquid hybrid | fitz-gov v5.1 | Beat #2 by 2-3 pts | "Non-transformer architecture — Liquid hybrid claims 2× CPU speedup over similar-size transformers; direct head-to-head with #4a" |
-| 5 | `pyrrho-deberta-v3-large-v1` | Encoder 435M | fitz-gov v5.1 | +2–4 points over ModernBERT-base | "Accuracy mode for users with spare CPU budget" |
+| 5 | `pyrrho-nano-g2` | Encoder 149M | fitz-gov V6 (5K–10K cases, expanded evidence patterns + long-context) | ≥+2 pts vs g1; addresses v1's multi-source-convergence failure | "First retrain on the scaled benchmark — V6 lands the synthetic-data pipeline" (ROADMAP Phase 3) |
 | 6 | `pyrrho-gemma-4-E2B-v1` | Generative QLoRA dense | fitz-gov v6 | ≥85% overall | "Cross-family transformer anchor — Gemma 4 at 2B class, 256K context" |
 | 7 | `pyrrho-qwen3.5-4b-v1` | Generative QLoRA dense | fitz-gov v6 | ≥86% overall | "Same-family scaling: Qwen3.5 0.8B → 2B → 4B clean curve" |
 | 8 | `pyrrho-gemma-4-E4B-v1` | Generative QLoRA dense | fitz-gov v6 | ≥86% overall | "Apples-to-apples cross-family at 4B (Qwen3.5-4B vs Gemma 4 E4B, same data same task same size)" |
@@ -505,7 +505,7 @@ pyrrho/
 - [ ] Write `scripts/eval.py` matching fitz-sage's 5-fold CV protocol
 - [ ] Run v1 training; verify pass/fail bar
 - [ ] Write model card
-- [ ] Push to HF as `yafitzdev/pyrrho-modernbert-base-v1`
+- [ ] Push to HF as `yafitzdev/pyrrho-nano-g1`
 - [ ] Open fitz-sage PR to add pyrrho as optional governance backend
 
 ---
@@ -514,7 +514,7 @@ pyrrho/
 
 1. **Label space**: stick with 3-class (ABSTAIN/DISPUTED/TRUSTWORTHY) or expose 4-class (split TRUSTWORTHY into HEDGED/DIRECT)? Recommend 3-class for v1 (matches fitz-sage production), revisit later.
 2. **HF organization name**: ship under `yafitzdev/` (personal) or create a `fitz/` org? Personal is faster; org reads more serious. Recommend org once v1 ships with real numbers.
-3. **License**: Apache-2.0 for both code and models. Permissive enough that fitz-sage users adopt it without legal review.
+3. **License**: CC BY-NC 4.0 for both code and models (changed 2026-05-20, was Apache-2.0). Allows free research/evaluation/personal use; commercial deployment requires a separate license. fitz-sage itself remains permissive — pyrrho is invoked as a runtime artifact, not redistributed.
 4. **Should v1 ship a CLI binary?** `pyrrho predict --query "..." --contexts ...`? Probably not — direct Python/Transformers usage is enough, and a CLI feels like demo bloat.
 5. **Multilingual?** fitz-gov is English-only. Multilingual is a v3+ consideration, possibly using XLM-RoBERTa-large, ModernBERT-multilingual, or Qwen3.5 (which is natively multilingual) when that ships.
 6. **LFM2 LoRA target naming**: LFM2 is a hybrid architecture (multiplicative gates, short convolutions) — not a standard transformer. Before training releases #4b and #10, run `for n, _ in model.named_modules(): print(n)` and identify the actual attention/MLP/expert paths. PEFT may need patches if module types are non-standard. Budget half a day before either LFM2 release.

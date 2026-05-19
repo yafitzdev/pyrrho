@@ -7,12 +7,12 @@
 ### Fine-tuned classification models that decide when your RAG should answer — without an LLM call.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v1-green.svg)](docs/LOG.md)
-[![🤗 Model](https://img.shields.io/badge/🤗%20Model-yafitzdev%2Fpyrrho--modernbert--base--v1-yellow)](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1)
+[![🤗 Model](https://img.shields.io/badge/🤗%20Model-yafitzdev%2Fpyrrho--nano--g1-yellow)](https://huggingface.co/yafitzdev/pyrrho-nano-g1)
 [![🤗 Dataset](https://img.shields.io/badge/🤗%20Dataset-yafitzdev%2Ffitz--gov-yellow)](https://huggingface.co/datasets/yafitzdev/fitz-gov)
 
-[Why pyrrho?](#why-pyrrho) • [Results](#headline-results) • [Roadmap](#family-roadmap) • [Usage](#-where-to-start) • [Docs](#documentation) • [GitHub](https://github.com/yafitzdev/pyrrho) • [🤗 HuggingFace](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1)
+[Why pyrrho?](#why-pyrrho) • [Results](#headline-results) • [Roadmap](#family-roadmap) • [Usage](#-where-to-start) • [Docs](#documentation) • [GitHub](https://github.com/yafitzdev/pyrrho) • [🤗 HuggingFace](https://huggingface.co/yafitzdev/pyrrho-nano-g1)
 
 </div>
 
@@ -41,7 +41,7 @@ Requires:  local LLM or paid cloud API
 </pre>
     </td>
     <td align="center" width="50%">
-      <strong>🛡️ pyrrho-modernbert-base-v1</strong>
+      <strong>🛡️ pyrrho-nano-g1</strong>
 <pre>
 1 forward pass. No features. No LLM.
 Verdict: DISPUTED  (correct, P(D)=0.55)
@@ -61,14 +61,14 @@ Requires:  nothing — self-contained
 ### 🚀 Where to start
 
 > [!IMPORTANT]
-> The model lives on **🤗 HuggingFace** as [`yafitzdev/pyrrho-modernbert-base-v1`](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1). Drop it into any RAG pipeline that needs a governance gate.
+> The model lives on **🤗 HuggingFace** as [`yafitzdev/pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1). Drop it into any RAG pipeline that needs a governance gate.
 
 ```python
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
-tokenizer = AutoTokenizer.from_pretrained("yafitzdev/pyrrho-modernbert-base-v1")
-model = AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-modernbert-base-v1").eval()
+tokenizer = AutoTokenizer.from_pretrained("yafitzdev/pyrrho-nano-g1")
+model = AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-nano-g1").eval()
 
 query = "Has the company achieved profitability?"
 contexts = [
@@ -83,7 +83,7 @@ print({"ABSTAIN": probs[0], "DISPUTED": probs[1], "TRUSTWORTHY": probs[2]})
 # → DISPUTED ≈ 0.55
 ```
 
-For **production CPU inference at ~30 ms/query**, use the INT8 ONNX variant via `optimum`. Full usage in the [model card](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1#cpu-optimized-onnx--int8).
+For **production CPU inference at ~30 ms/query**, use the INT8 ONNX variant via `optimum`. Full usage in the [model card](https://huggingface.co/yafitzdev/pyrrho-nano-g1#cpu-optimized-onnx--int8).
 
 ---
 
@@ -101,7 +101,7 @@ Yan Fitzner — ([LinkedIn](https://www.linkedin.com/in/yan-fitzner/), [GitHub](
 
 ### Headline results
 
-Release v1 — `pyrrho-modernbert-base-v1` vs the published `fitz-sage` v0.11 sklearn baseline. 3-seed mean ± std on the [`fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov) V5.1 eval hold-out (584 cases, stratified 20% from `tier1_core`):
+Release v1 — `pyrrho-nano-g1` vs the published `fitz-sage` v0.11 sklearn baseline. 3-seed mean ± std on the [`fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov) V5.1 eval hold-out (584 cases, stratified 20% from `tier1_core`):
 
 | Metric | **pyrrho v1** | sklearn baseline | Δ |
 |---|---|---|---|
@@ -113,7 +113,7 @@ Release v1 — `pyrrho-modernbert-base-v1` vs the published `fitz-sage` v0.11 sk
 | CPU inference (estimated) | **~30 ms** | ~500–2000 ms (5 LLM calls) | **~50× faster** |
 | External dependencies | **none** | requires LLM | self-contained |
 
-Every margin is multiple standard deviations larger than seed noise — not a lucky-run artifact. Independently verifiable by running the published model against the published benchmark: `load_dataset("yafitzdev/fitz-gov")` + `AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-modernbert-base-v1")`.
+Every margin is multiple standard deviations larger than seed noise — not a lucky-run artifact. Independently verifiable by running the published model against the published benchmark: `load_dataset("yafitzdev/fitz-gov")` + `AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-nano-g1")`.
 
 > [!NOTE]
 > **Known limitation:** the model occasionally classifies *multi-source-convergence* cases (multiple authoritative sources agreeing within measurement tolerance) as `DISPUTED`. ~57% error on this fitz-gov subcategory (n=7). Fixed in v2 with augmented training data. Documented in the model card.
@@ -122,7 +122,7 @@ Every margin is multiple standard deviations larger than seed noise — not a lu
 
 ### Why `pyrrho`?
 
-**No LLM dependency 🪶** → [Model card](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1)
+**No LLM dependency 🪶** → [Model card](https://huggingface.co/yafitzdev/pyrrho-nano-g1)
 > Standard governance pipelines route every query through 5+ LLM calls to extract constraint signals (contradiction detection, evidence sufficiency, causal attribution, …) before the classifier even fires. `pyrrho` reads the raw query and contexts and emits a verdict in **one forward pass**. No cloud API spend, no GPU swap, no rate limits.
 
 **Beats the baseline by 7 points 📊** → [Benchmark](https://huggingface.co/datasets/yafitzdev/fitz-gov)
@@ -131,7 +131,7 @@ Every margin is multiple standard deviations larger than seed noise — not a lu
 **Safer than the baseline 🛡️**
 > False-trustworthy rate (the production safety metric: how often a *confident hallucination path* gets greenlit) is **5.27%**, below the prior pipeline's 5.7%. Threshold calibration on top can push this lower at a small accuracy cost.
 
-**Production-grade CPU inference ⚡** → [INT8 ONNX](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1/blob/main/model_quantized.onnx)
+**Production-grade CPU inference ⚡** → [INT8 ONNX](https://huggingface.co/yafitzdev/pyrrho-nano-g1/blob/main/model_quantized.onnx)
 > ~30 ms per query on commodity CPU after INT8 dynamic quantization. Ship the 150 MB `model_quantized.onnx` and serve governance inline — no GPU, no API, no LLM. Fits into latency-sensitive RAG paths that previously couldn't afford a governance step.
 
 **Reproducible end-to-end 🔬**
@@ -152,9 +152,9 @@ Two tracks. **Track A** ships into `fitz-sage` as the default governance backend
 
 | Model | Params | Status |
 |---|---|---|
-| [`pyrrho-modernbert-base-v1`](https://huggingface.co/yafitzdev/pyrrho-modernbert-base-v1) | 149M | ✅ **live on HF** |
-| `pyrrho-modernbert-base-v2-long` | 149M | planned — long-context augmentation |
-| `pyrrho-deberta-v3-large-v1` | 435M | planned — accuracy-mode variant |
+| [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | 149M | ✅ **live on HF** (fitz-gov V5.1) |
+| `pyrrho-nano-g1.1` | 149M | planned — V5.1-enriched apples-to-apples retrain (ROADMAP Phase 1) |
+| `pyrrho-nano-g2` | 149M | planned — fitz-gov V6 retrain, 5K–10K cases (ROADMAP Phase 3) |
 
 **Track B — generative SLMs (all CPU-runnable):**
 
@@ -171,7 +171,7 @@ Two tracks. **Track A** ships into `fitz-sage` as the default governance backend
 
 **Sidecar:** `pyrrho-grounding-modernbert-base-v1` — answer-level grounding/hallucination detection. Companion to the governance head.
 
-Full release roadmap and rationale in [`docs/PROJECT.md §10`](docs/PROJECT.md).
+Full release roadmap and rationale in [`docs/ROADMAP.md`](docs/ROADMAP.md) (current vision: `nano` / `small` / `MoE` tiers, generations by fitz-gov data version). Older 10-release breakdown in [`docs/PROJECT.md §10`](docs/PROJECT.md) for historical context.
 
 ---
 
@@ -185,7 +185,7 @@ Full release roadmap and rationale in [`docs/PROJECT.md §10`](docs/PROJECT.md).
 pyrrho/
 ├── README.md           ← you are here
 ├── CLAUDE.md           ← project conventions (HANDOFF/LOG update rules, banned models, style)
-├── LICENSE             ← Apache 2.0
+├── LICENSE             ← CC BY-NC 4.0
 ├── pyproject.toml      ← Python deps; encoder / slm / hub / dev extras
 ├── docs/
 │   ├── INDEX.md        ← reading-order entry point for any new contributor
@@ -278,4 +278,4 @@ The three projects form a triangle: `fitz-gov` defines the eval contract, `pyrrh
 
 ### License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+CC BY-NC 4.0 — see [LICENSE](LICENSE). Free for research, evaluation, and personal use; commercial use requires a separate license.
