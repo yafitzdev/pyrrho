@@ -144,34 +144,24 @@ Every margin is multiple standard deviations larger than seed noise — not a lu
 
 ### Family roadmap
 
-Two tracks. **Track A** ships into `fitz-sage` as the default governance backend. **Track B** is a HuggingFace portfolio of generative SLMs that prove the architecture generalizes — every one **CPU-runnable** (≤8 GB RAM at Q4).
+Three tiers, generation-suffixed by the fitz-gov data version they were trained on. All CPU-runnable.
+
+- **`pyrrho-nano`** — fine-tuned encoder (ModernBERT-class). Single forward pass, fastest, smallest. The production governance head.
+- **`pyrrho-small`** — fine-tuned generative SLM (1–3B dense). Classification + reasoning trace.
+- **`pyrrho-MoE`** — sparse Mixture-of-Experts trained from scratch (4B total / 0.4B active). The terminal architecture; covers 16 RAG governance capabilities in v1.
 
 <br>
 
-**Track A — production encoders (CPU-only):**
+| Model | Tier | Params | Status |
+|---|---|---|---|
+| [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | encoder | 149M | ✅ **live on HF** (fitz-gov V5.1) |
+| `pyrrho-nano-g1.1` | encoder | 149M | planned — V5.1-enriched apples-to-apples retrain (ROADMAP Phase 1) |
+| `pyrrho-nano-g2` | encoder | 149M | planned — fitz-gov V6 retrain, 5K–10K cases (ROADMAP Phase 3) |
+| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — first SLM on V6, classification + rationale, RL fine-tuned (ROADMAP Phase 3) |
+| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | planned — trained from scratch on V7; 7–8 domain experts + conflict-detection meta-expert; full 16-capability RAG runtime (ROADMAP Phase 5) |
+| `pyrrho-MoE-g4` | sparse MoE | 4B total / 0.4B active | planned — V8+ retrain, infrastructure-grade reliability (ROADMAP Phase 6) |
 
-| Model | Params | Status |
-|---|---|---|
-| [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | 149M | ✅ **live on HF** (fitz-gov V5.1) |
-| `pyrrho-nano-g1.1` | 149M | planned — V5.1-enriched apples-to-apples retrain (ROADMAP Phase 1) |
-| `pyrrho-nano-g2` | 149M | planned — fitz-gov V6 retrain, 5K–10K cases (ROADMAP Phase 3) |
-
-**Track B — generative SLMs (all CPU-runnable):**
-
-| Model | Params | Status |
-|---|---|---|
-| `pyrrho-qwen3.5-0.8b-v1` | 0.8B dense | planned — first SLM, validates the multi-source-convergence hypothesis |
-| `pyrrho-qwen3.5-2b-v1` | 2B dense | planned |
-| `pyrrho-lfm2.5-1.2b-v1` | 1.2B Liquid hybrid | planned — non-transformer architecture variant |
-| `pyrrho-gemma-4-E2B-v1` | 2.3B dense | planned — cross-family transformer anchor |
-| `pyrrho-qwen3.5-4b-v1` | 4B dense | planned |
-| `pyrrho-gemma-4-E4B-v1` | 4.5B dense | planned |
-| `pyrrho-phi-4-mini-v1` | 3.8B dense | planned — synthetic-data architecture probe |
-| `pyrrho-lfm2-8b-a1b-v1` | 8B / 1B-active MoE | planned — CPU-runnable MoE |
-
-**Sidecar:** `pyrrho-grounding-modernbert-base-v1` — answer-level grounding/hallucination detection. Companion to the governance head.
-
-Full release roadmap and rationale in [`docs/ROADMAP.md`](docs/ROADMAP.md) (current vision: `nano` / `small` / `MoE` tiers, generations by fitz-gov data version). Older 10-release breakdown in [`docs/PROJECT.md §10`](docs/PROJECT.md) for historical context.
+Full release roadmap, expert specifications, evaluation metrics, and publication strategy in [`docs/ROADMAP.md`](docs/ROADMAP.md). The older 10-release breakdown in [`docs/PROJECT.md §10`](docs/PROJECT.md) is retained for historical context but superseded.
 
 ---
 
