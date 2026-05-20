@@ -13,6 +13,28 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-21 (00:30) — V6 completion finished: 2,979/2,980 (99.97%), HF re-upload live
+
+**What landed:**
+
+- **2,979 of 2,980 cases** now carry all 4 new MoE-training fields (per-chunk `boundary_quality`, per-case `governance.evidence_bias_score`, multi-chunk `input.evidence_chain.{order,reasoning}`, TRUSTWORTHY `meta.grounding_targets.{gold_answer, sentences[].attributions}`). Single holdout: `t1_qualify_medium_101` (Terravax vaccine query) — Sonnet's safety classifier denies every retry attempt regardless of batch size or prompt wording. Can be backfilled via LM Studio later.
+- **Re-uploaded `yafitzdev/fitz-gov` v6.0.0** — file size grew 12.9 MB → 16.4 MB on the addition of `gold_answer` text + per-sentence attribution lists for the 1,596 TRUSTWORTHY cases.
+- **New merge script:** `fitz-gov/scripts/sdgp_merge_v6_outputs.py` — reads Sonnet subagent outputs from `data/sdgp_handoff_v6/out/` (and unmerged files from `out/merged/`), applies `merge_v6_completion`, archives processed files. Idempotent.
+- **Throughput stats over the whole pass:**
+  - LM Studio: ~16s/case, 100% parse success after the `_strip_thinking` + max_tokens=4000 fix.
+  - Sonnet subagents: ~5–8s/case effective, processed 2,800+ cases in ~3 hours of wall-clock across ~80 agent invocations.
+  - Two failure modes observed: (1) API rate limits when 25+ agents in flight simultaneously (mitigated by capping at ~5–10 concurrent), (2) safety-classifier denials on specific topic clusters (vaccines, certain medical queries) — Sonnet refuses these even in single-case batches.
+
+**What was learned:**
+
+- The combined-prompt design (1 LLM call → 4 conditional fields) held up across both providers. Zero parse failures on the Sonnet side. Output quality consistently strong — boundary scores well-calibrated, evidence_chain orderings logical, gold_answers grounded.
+- The safety classifier is the long-tail bottleneck on subagent-based data work. ~0.3% of cases (10 of 2,980) hit denials, then narrowed to 1 of 2,980 after smaller batches and topic-isolation retries. Worth budgeting for in future passes — those cases need a non-Sonnet path.
+- Sub-30-case batches dramatically reduce the chance a single sensitive case taints the whole batch. ~10-case singletons are safer when the input set has known-sensitive content.
+
+**Next:** pyrrho-nano-g1.1 Phase 1 — update `pyrrho/scripts/prepare_data.py` to read the V6 vault JSONL schema (it currently expects the legacy flat tier JSON layout). Then retrain encoder on V6 as the apples-to-apples baseline.
+
+---
+
 ## 2026-05-20 (evening) — V6 completion pass started: 4 missing MoE-training fields
 
 **What landed:**
