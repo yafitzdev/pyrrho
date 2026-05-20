@@ -128,7 +128,7 @@ The integration milestone is **closed** — pyrrho v1 is shipped and
 `pyrrho-small-g1` is the first generative SLM data point in the family.
 Everything below is model-quality upside on an already-live baseline.
 
-1. **Phase 0: V5.1 schema enrichment** — per [ROADMAP.md §8 Phase 0](ROADMAP.md). Retrofit the MoE schema fields (routing, conflict_density, evidence_sufficiency, boundary_proximity, etc.) onto the existing 2,900 V5.1 cases. Cheaper than scaling data first — discoveries here directly improve the synthetic pipeline prompts for V6.
+1. ~~**Phase 0: V5.1 schema enrichment**~~ **COMPLETE (2026-05-20).** All 2,980 V5.1 cases LLM-enriched with V6+ schema fields (query_rewritten, context summaries, governance signals, boundary_proximity, near_miss_reason) via Sonnet subagents + LM Studio local worker. 0 TODO markers remain in vault. See LOG 2026-05-20 evening.
 
 2. **Phase 1: `pyrrho-nano-g1.1`** — retrain the encoder on V5.1-enriched as the apples-to-apples baseline before scaling.
 
