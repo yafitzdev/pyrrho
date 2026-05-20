@@ -1,4 +1,5 @@
 # Pyrrho Training Roadmap
+
 > Comprehensive specification for finetuning, training, and reinforcement learning path toward pyrrho-MoE — a CPU-native sparse Mixture-of-Experts RAG runtime engine.
 
 ---
@@ -37,6 +38,7 @@ Generations are suffixed by dataset version trained on:
 | etc. | Increments with each major dataset version |
 
 ### Examples
+
 - `pyrrho-nano-g1` — ModernBERT encoder fine-tuned on fitz-gov V5.1 (current published model)
 - `pyrrho-nano-g2` — same architecture, retrained on fitz-gov V6 for apples-to-apples comparison
 - `pyrrho-small-g2` — generative SLM fine-tuned on fitz-gov V6
@@ -74,10 +76,111 @@ The distribution matters more than total count. Monitor and enforce:
 - **Expert domain balance** — rough parity across all 7–8 MoE expert domains
 - **Governance class balance per expert** — not just globally; each expert needs ABSTAIN/DISPUTED/TRUSTWORTHY representation
 - **Difficulty distribution** — hard/medium/easy ratio maintained per expert
-- **Evidence pattern coverage** — absent, conflicting, partial, present all represented
+- **Taxonomy pattern coverage** — all patterns represented within each expert domain (see taxonomy below)
 - **Near-miss ratio** — 20–25% of every expert's data must be borderline/near-miss cases
 - **Query type diversity** — what, how, why, when, who distributed across experts
 - **Reasoning type coverage** — factual, inferential, comparative, causal all represented
+
+---
+
+### Case Taxonomy
+
+The governance classification problem is not infinitely varied. Failure modes are finite and enumerable. The taxonomy defines canonical evidence patterns that map deterministically to governance labels. This is the skeleton the entire dataset hangs on.
+
+**The generation space is three-dimensional:**
+
+```
+case_taxonomy  ×  domain  ×  difficulty
+```
+
+All three dimensions are enumerable and controllable. Every generated case instantiates a specific cell in this matrix. The distribution monitor tracks cell coverage, not just marginal counts. A cell below minimum threshold gets prioritized in the next generation batch.
+
+**Matrix size estimate:**
+
+- Case taxonomy: ~18 patterns (6 per governance class)
+- Domains: 7–8 expert domains
+- Difficulty: 3 levels (easy / medium / hard)
+
+→ ~18 × 8 × 3 = **~432 cells**. At 20 examples per cell: ~8,600 cases with guaranteed full coverage. At 25 per cell: ~10,800 cases. You hit the V6 target AND guarantee no taxonomy blind spots.
+
+#### ABSTAIN Patterns
+
+| Pattern | Description | Example signal |
+|---|---|---|
+| `wrong_specificity` | Right entity, wrong aspect or sub-topic | Hannibal/Alps when asked about Zama |
+| `wrong_entity` | Evidence covers a different entity entirely | Apple iPhone when asked about apple fruit prices |
+| `partial_overlap` | Evidence touches the topic but cannot answer the specific question | General medical info when asked about a specific drug dosage |
+| `evidence_absent` | Nothing retrieved is remotely relevant | Complete topic mismatch |
+| `too_general` | Evidence is true but too broad to answer the specific query | "Germany has a market economy" when asked for specific GDP figure |
+| `temporal_mismatch` | Evidence exists but is anchored to the wrong time period | 2019 regulation when asked about current law |
+
+#### DISPUTED Patterns
+
+| Pattern | Description | Example signal |
+|---|---|---|
+| `numerical_conflict` | Multiple sources provide different numerical values for the same entity and attribute | Apple costs €5 vs €3 in Germany |
+| `temporal_conflict` | Sources describe different states at different times presented without temporal framing | Source A: X was true in 2020 / Source B: Y is true now |
+| `definitional_conflict` | Sources disagree on what something IS | Two sources define the same medical term differently |
+| `factual_contradiction` | Direct logical incompatibility between sources | Source A: person X was born in Berlin / Source B: person X was born in Munich |
+| `authority_conflict` | One high-authority source contradicts one low-authority source | Peer-reviewed paper vs blog post on same claim |
+| `scope_conflict` | Sources are both correct but apply to different scopes presented as equivalent | EU regulation vs German national regulation on same topic |
+
+#### TRUSTWORTHY Patterns
+
+| Pattern | Description | Example signal |
+|---|---|---|
+| `multi_source_corroboration` | Multiple independent sources agree on the same claim | Three sources confirm same historical date |
+| `single_authoritative` | One high-authority source, no contradictions, directly answers query | Official government source answers a policy question |
+| `consistent_chain` | Multiple chunks from same or related sources form a coherent evidence chain | Wikipedia + cited source both support same factual claim |
+| `quantitative_consensus` | Multiple sources provide same or consistent numerical values | Three sources agree price is approximately €3 |
+| `expert_consensus` | Multiple domain-expert sources converge on same conclusion | Multiple medical studies agree on treatment efficacy |
+| `direct_answer` | Single chunk directly and completely answers the query with no ambiguity | Definition query answered by a definitional source |
+
+#### Taxonomy Schema Field
+
+Every row carries the taxonomy classification as a structured field:
+
+```json
+"taxonomy": {
+  "governance_class": "ABSTAIN",
+  "pattern": "wrong_specificity",
+  "pattern_description": "evidence covers the right entity but addresses a different aspect than the query requires",
+  "cell_id": "wrong_specificity__history_geography__hard"
+}
+```
+
+`cell_id` is the unique identifier for the taxonomy × domain × difficulty cell. Used by the distribution monitor to track coverage and by the generator to receive cell-specific prompts.
+
+#### How Taxonomy Changes the Generator
+
+The case generator takes a cell specification as input rather than an open-ended gap vector:
+
+```python
+generate(
+  taxonomy_pattern = "numerical_conflict",
+  domain = "medical",
+  difficulty = "hard",
+  expert = "science_medicine"
+)
+```
+
+The generator's job is now constrained: instantiate a known pattern in a specific domain at a specific difficulty. This is a well-defined creative task — not inventing governance scenarios from scratch. Generator reliability improves significantly because the output is structurally checkable against the pattern specification.
+
+The validator's job also sharpens: not "is this label correct in the abstract" but "does this case correctly instantiate the specified taxonomy pattern." That is a structural yes/no check, not an open-ended quality judgment.
+
+#### Taxonomy as Interpretability Signal
+
+In deployed pyrrho-MoE, the taxonomy pattern becomes an output signal alongside the governance classification:
+
+```json
+{
+  "classification": "DISPUTED",
+  "taxonomy_pattern": "numerical_conflict",
+  "signals": { ... }
+}
+```
+
+Downstream agents and systems receive not just the governance verdict but which canonical failure mode triggered it. A `numerical_conflict` DISPUTED warrants different handling than a `scope_conflict` DISPUTED — the taxonomy makes that distinction actionable.
 
 ### Schema: Target Data Row (fitz-gov V6+)
 
@@ -183,15 +286,15 @@ Fields that must be added to every row for MoE training that do not exist in V5.
 ### Architecture
 
 ```
-Distribution Monitor (tracks gaps in real time)
+Distribution Monitor (tracks cell coverage in real time)
         ↓
-Gap Vector (which expert / class / difficulty / pattern is underrepresented)
+Cell Gap Vector (which taxonomy × domain × difficulty cell is underrepresented)
         ↓
-Case Generator (Claude or Codex, prompted with gap target)
+Case Generator (Claude or Codex, prompted with cell specification)
         ↓
 Label Validator (opposite model — if Claude generates, Codex validates)
         ↓
-Consistency Checker (schema validation, internal signal coherence)
+Consistency Checker (schema validation, internal signal coherence, taxonomy pattern match)
         ↓
 Conflict Resolver (disagreements → human review queue)
         ↓
@@ -201,26 +304,29 @@ Distribution Monitor (updated)
 ### Core Principles
 
 - **Generator and validator must never be the same model.** Claude generates, Codex scores — or vice versa. Disagreements flag for human review, never auto-resolved.
-- **Schema is the consistency guarantee.** A well-prompted generator produces internally consistent cases. The validator catches failures.
-- **Generation targets gaps, not volume.** The distribution monitor drives what gets generated next. History full → stop generating history, route to law or medicine.
-- **Borderline cases are first-class.** 20–25% of every expert's data must be near-miss rows. These are the rows that teach calibrated uncertainty.
-- **Every case has provenance.** Generated to fill gap X in domain Y at difficulty Z. Auditable for benchmark credibility.
+- **Taxonomy defines the generation space.** The generator receives a cell specification (taxonomy pattern × domain × difficulty), not an open-ended prompt. This constrains output to structurally checkable cases.
+- **Generation targets cells, not volume.** The distribution monitor tracks coverage across all ~432 cells. Full cells stop generating; sparse cells get prioritized. Total count is a byproduct of full coverage, not a target in itself.
+- **Borderline cases are first-class.** 20–25% of every expert's data must be near-miss rows at decision boundaries. These teach calibrated uncertainty.
+- **Every case has provenance.** Generated to fill cell `{pattern}__{domain}__{difficulty}`. Auditable for benchmark credibility. Version-to-version deltas are explainable by which cells were filled.
 
 ### Consistency Checks Per Row
 
-- Governance signals internally coherent (e.g. high ABSTAIN + high hallucination_pressure, not high TRUSTWORTHY + high hallucination_pressure)
+- Governance signals internally coherent (e.g. high ABSTAIN + high `hallucination_pressure`, not high TRUSTWORTHY + high `hallucination_pressure`)
+- `taxonomy.pattern` correctly instantiated — does the generated evidence actually exhibit the specified pattern
+- `taxonomy.cell_id` matches `routing.expert_fired` + `meta.difficulty` combination
 - Routing assignment matches domain label
-- Evidence pattern matches governance classification
 - Near-miss class differs from classification
-- Per-chunk relevance scores consistent with overall query_evidence_alignment
-- Authority scores consistent with source_type
+- Per-chunk relevance scores consistent with overall `query_evidence_alignment`
+- Authority scores consistent with `source_type`
+- `conflict_density` consistent with taxonomy class (DISPUTED patterns should have high conflict density, TRUSTWORTHY patterns low)
 
 ### What the Monitor Tracks
 
+- **Cell coverage** — count per `taxonomy × domain × difficulty` cell vs minimum threshold (primary signal)
 - Expert domain count vs target (per expert)
 - Governance class distribution per expert (not just global)
 - Difficulty ratio per expert
-- Evidence pattern coverage per expert
+- Taxonomy pattern distribution per expert — all 18 patterns represented within each domain
 - Near-miss ratio per expert
 - Query type distribution
 - Reasoning type distribution
@@ -440,19 +546,22 @@ The complete output of a pyrrho-MoE inference pass:
 
 ### Phase 2 — Synthetic data pipeline + fitz-gov V6
 
-**Goal:** Scale to 5,000–10,000 cases with distribution-aware synthetic generation.
+**Goal:** Scale to 5,000–10,000 cases with taxonomy × domain × difficulty matrix coverage.
 
-- Build distribution monitor: tracks expert domain, class, difficulty, evidence pattern, near-miss ratio per expert
-- Build case generator: Claude or Codex, prompted with gap vector from monitor
+- Define final taxonomy: 18 patterns across 3 governance classes (6 per class)
+- Map existing V5.1-enriched cases to taxonomy cells — retroactively assign `taxonomy.cell_id` to all 2,900 rows
+- Identify which cells are empty or sparse after mapping — these are the generation targets
+- Build distribution monitor: tracks coverage across all ~432 cells (taxonomy × domain × difficulty)
+- Build case generator: Claude or Codex, prompted with cell specification `(pattern, domain, difficulty, expert)`
 - Build label validator: opposite model from generator, independent scoring
-- Build consistency checker: schema validation + signal coherence rules
+- Build consistency checker: schema validation + signal coherence + taxonomy pattern match verification
 - Build conflict resolver: disagreements → human review queue
-- Generate toward gaps until distribution targets met
+- Generate toward empty/sparse cells until all cells meet minimum threshold (target: 20–25 examples per cell)
 - Maintain 20–25% near-miss / borderline cases per expert
 - Add evidence chain construction cases (multi-chunk ordered reasoning) — new evidence pattern not in V5.1
 - Add reference chunk summaries to all cases
 
-**Output:** fitz-gov V6, 5,000–10,000 cases, fully enriched schema, balanced distribution, auditable provenance.
+**Output:** fitz-gov V6, 5,000–10,000 cases, fully enriched schema, complete taxonomy × domain × difficulty coverage, auditable cell provenance.
 
 ---
 
@@ -485,14 +594,16 @@ The complete output of a pyrrho-MoE inference pass:
 
 **Goal:** Scale to 15,000–20,000 cases with adversarial and uncertainty-focused data.
 
-- Continue synthetic pipeline with updated gap targets
-- Add adversarial cases: designed to fool the model, edge cases from underrepresented domains
+- Continue synthetic pipeline with updated cell targets — increase minimum per cell to 40–50 examples
+- Add adversarial variants of existing cells: same taxonomy pattern × domain × difficulty but designed to fool the model on exactly the pattern it should be most reliable on
+- Systematically target cells where pyrrho-nano-g2 and pyrrho-small-g2 show lowest accuracy — taxonomy makes this surgical rather than speculative
 - Add cases where correct answer requires chaining evidence across chunks in specific order
-- Deliberately over-sample borderline cases — near decision boundaries teach uncertainty calibration
+- Deliberately over-sample borderline cells — cases that sit at the boundary between two taxonomy patterns
 - Add `confidence_level` and `near_miss_reason` fields with careful annotation for borderline rows
 - Adversarial evaluation set held out — not used for training, only evaluation
+- Publish adversarial cell distribution alongside dataset so others can target the same failure modes
 
-**Output:** fitz-gov V7, 15,000–20,000 cases. Adversarial eval set published separately.
+**Output:** fitz-gov V7, 15,000–20,000 cases. Adversarial eval set published separately with cell-level breakdown.
 
 ---
 

@@ -13,6 +13,30 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-20 (late morning) — ROADMAP.md: case taxonomy + 3-dimension data-generation logic
+
+User-supplied roadmap revision lands as the canonical version of [docs/ROADMAP.md](ROADMAP.md). +135 / -24 lines. Substantive structural change to the data-generation strategy; phase numbering, model-naming convention, and MoE architecture spec are all unchanged.
+
+**What landed (all in ROADMAP.md):**
+
+- **New §3 "Case Taxonomy" subsection.** Defines 18 canonical evidence patterns — 6 per governance class — as the skeleton of the dataset. Each pattern is a named, structurally-checkable failure mode (e.g. ABSTAIN: `wrong_specificity`, `wrong_entity`, `partial_overlap`, `evidence_absent`, `too_general`, `temporal_mismatch`; DISPUTED: `numerical_conflict`, `temporal_conflict`, `definitional_conflict`, `factual_contradiction`, `authority_conflict`, `scope_conflict`; TRUSTWORTHY: `multi_source_corroboration`, `single_authoritative`, `consistent_chain`, `quantitative_consensus`, `expert_consensus`, `direct_answer`).
+- **3-dimension generation space:** `case_taxonomy × domain × difficulty` → ~18 × 8 × 3 = **~432 cells**. The distribution monitor now tracks cell coverage (primary signal), not just marginal counts. 20–25 examples per cell hits the V6 target with guaranteed coverage of every taxonomy × domain × difficulty combination.
+- **Taxonomy schema field** added to the spec: `{governance_class, pattern, pattern_description, cell_id}`, where `cell_id = "{pattern}__{domain}__{difficulty}"`. Used both by the monitor (coverage tracking) and the generator (cell-specific prompts).
+- **§4 Pipeline rewritten.** Architecture flow now uses "Cell Gap Vector" instead of generic "Gap Vector"; generator receives a cell specification `(pattern, domain, difficulty, expert)` rather than an open-ended prompt; consistency checker verifies `taxonomy.pattern` is actually instantiated and `taxonomy.cell_id` aligns with `routing.expert_fired` + `meta.difficulty`. Monitor's primary signal moved to cell coverage.
+- **§8 Phase 2 (V6 generation)** restructured to be taxonomy-first: define the 18 patterns, retro-map V5.1-enriched cases to cells, identify empty/sparse cells, generate against the gap until all cells meet the minimum threshold.
+- **§8 Phase 4 (V7)** updated with cell-level adversarial targeting: bump minimum to 40–50 examples per cell, add adversarial variants of existing cells, surgically target cells where g2 models show lowest accuracy.
+- **Interpretability angle:** taxonomy pattern becomes an output signal alongside the governance class in the deployed MoE — a `numerical_conflict` DISPUTED is actionable in a different way than a `scope_conflict` DISPUTED. The taxonomy makes the classifier's reasoning legible.
+
+**What was learned:**
+
+- The original §3 had a vague "Distribution Requirements" bullet for "Evidence pattern coverage" referencing four pattern names (absent/conflicting/partial/present) that didn't map to anything operational. The new taxonomy makes those concrete — 18 named patterns with descriptions, examples, and a structural test (does the generated evidence actually exhibit the named pattern?). Generator reliability and validator sharpness both improve because both have a defined target instead of a vague quality bar.
+- 432 cells × 20–25 examples = 8,600–10,800 cases is exactly the V6 target. So Phase 2's volume goal and coverage goal collapse into the same number, which is the right shape — total count becomes a byproduct of full coverage, not an independent target.
+- Phase numbering didn't change (Phase 0–6 still). HANDOFF.md's references to "ROADMAP §8 Phase 1" / "ROADMAP §8 Phase 3" remain accurate. No knock-on updates needed.
+
+**Next:** Phase 0 V5.1 enrichment is still the immediate-next-action per HANDOFF; the taxonomy work is groundwork for Phase 2 (V6 generation). When Phase 2 starts, the first concrete deliverable is "map all 2,900 V5.1-enriched cases to taxonomy cells" — that's what tells us which cells are already represented vs which need synthetic fill.
+
+---
+
 ## 2026-05-20 (night) — pyrrho-small-g1.1: class-weight + label-smoothing respin of g1, FT 12.13 → 9.31% (still misses gate)
 
 User asked for a re-spin after g1's headline result (high accuracy, fails FT
