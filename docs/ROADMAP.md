@@ -33,16 +33,18 @@ Generations are suffixed by dataset version trained on:
 | Suffix | Meaning |
 |---|---|
 | `-g1` | Trained on fitz-gov V5.1 |
-| `-g2` | Trained on fitz-gov V6 |
-| `-g3` | Trained on fitz-gov V7 |
+| `-g1.x` | Trained on fitz-gov V6 (V5.1 + LLM-enriched schema overlay; same case IDs) |
+| `-g2` | Trained on fitz-gov V7 |
+| `-g3` | Trained on fitz-gov V8 |
 | etc. | Increments with each major dataset version |
 
 ### Examples
 
-- `pyrrho-nano-g1` — ModernBERT encoder fine-tuned on fitz-gov V5.1 (current published model)
-- `pyrrho-nano-g2` — same architecture, retrained on fitz-gov V6 for apples-to-apples comparison
-- `pyrrho-small-g2` — generative SLM fine-tuned on fitz-gov V6
-- `pyrrho-MoE-g3` — full sparse MoE trained from scratch on fitz-gov V7
+- `pyrrho-nano-g1` — ModernBERT encoder fine-tuned on fitz-gov V5.1 (live on HF as `yafitzdev/pyrrho-nano-g1`)
+- `pyrrho-nano-g1.1` — same architecture, retrained on fitz-gov V6 for apples-to-apples comparison on the enriched schema
+- `pyrrho-nano-g2` — retrained on fitz-gov V7 (SDGP-scaled, 5K–10K cases)
+- `pyrrho-small-g2` — generative SLM fine-tuned on fitz-gov V7
+- `pyrrho-MoE-g3` — full sparse MoE trained from scratch on fitz-gov V8
 
 ---
 
@@ -54,11 +56,11 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 
 | Version | Target size | Primary goal |
 |---|---|---|
-| V5.1 | 2,900 cases | Current published baseline |
-| V5.1-enriched | 2,900 cases | Retrofit new schema fields onto existing cases |
-| V6 | 5,000–10,000 cases | Controlled apples-to-apples benchmark, MoE training base |
-| V7 | 15,000–20,000 cases | Generalization, uncertainty calibration, adversarial cases |
-| V8+ | 30,000+ cases | Infrastructure-grade reliability, false-trustworthy floor |
+| V5.1 | 2,980 cases | Original baseline (no schema enrichment) |
+| **V6** | **2,980 cases** | **LLM-enriched schema overlay on V5.1 — CURRENT PUBLISHED VERSION (`yafitzdev/fitz-gov` v6.0.0, shipped 2026-05-20)** |
+| V7 | 5,000–10,000 cases | SDGP-scaled benchmark, taxonomy × domain × difficulty matrix coverage, MoE training base |
+| V8 | 15,000–20,000 cases | Generalization, uncertainty calibration, adversarial cases |
+| V9+ | 30,000+ cases | Infrastructure-grade reliability, false-trustworthy floor |
 
 ### Data Volume vs. Capability
 
@@ -512,9 +514,9 @@ The complete output of a pyrrho-MoE inference pass:
 
 ## 8. Training Path
 
-### Phase 0 — Schema enrichment (fitz-gov V5.1 → V5.1-enriched)
+### Phase 0 — Schema enrichment (fitz-gov V5.1 → V6) — **COMPLETE 2026-05-20**
 
-**Goal:** Retrofit all new schema fields onto existing 2,900 validated cases before generating any new data.
+**Goal:** Retrofit all new schema fields onto existing 2,980 validated cases before generating any new data.
 
 - Map existing 17 domains to 7–8 MoE expert domains → add `routing.expert_fired`
 - Derive temporality signals from existing `domain` and `evidence_pattern` fields programmatically
@@ -524,7 +526,7 @@ The complete output of a pyrrho-MoE inference pass:
 - Add `evidence_chain` ordering labels for multi-chunk cases
 - Add reference `summary` per context chunk
 
-**Output:** 2,900 fully enriched rows in new schema. This is the canonical V5.1-enriched dataset.
+**Output:** 2,980 fully enriched rows in the V6 schema. Published as `yafitzdev/fitz-gov` v6.0.0 on 2026-05-20.
 
 **Why first:** Enrichment teaches you which fields are hard to label consistently before you scale. Discoveries here directly improve synthetic pipeline prompts. Cheaper to learn on 2,900 rows than 10,000.
 
@@ -532,10 +534,10 @@ The complete output of a pyrrho-MoE inference pass:
 
 ### Phase 1 — pyrrho-nano-g1.1 (apples-to-apples baseline)
 
-**Goal:** Retrain the encoder on V5.1-enriched for a clean controlled comparison.
+**Goal:** Retrain the encoder on fitz-gov V6 for a clean controlled comparison.
 
 - Same ModernBERT architecture as g1
-- Trained and evaluated on V5.1-enriched (fixed dataset)
+- Trained and evaluated on fitz-gov V6 (fixed dataset)
 - Produces three-way comparison: ML classifier vs pyrrho-nano-g1 vs pyrrho-nano-g1.1
 - Cleans up version drift in existing benchmark numbers
 - Documents evaluation methodology before scaling
@@ -544,12 +546,12 @@ The complete output of a pyrrho-MoE inference pass:
 
 ---
 
-### Phase 2 — Synthetic data pipeline + fitz-gov V6
+### Phase 2 — Synthetic data pipeline + fitz-gov V7
 
 **Goal:** Scale to 5,000–10,000 cases with taxonomy × domain × difficulty matrix coverage.
 
 - Define final taxonomy: 18 patterns across 3 governance classes (6 per class)
-- Map existing V5.1-enriched cases to taxonomy cells — retroactively assign `taxonomy.cell_id` to all 2,900 rows
+- Map existing V6 cases to taxonomy cells — retroactively assign `taxonomy.cell_id` to all 2,980 rows (already in V6 vault)
 - Identify which cells are empty or sparse after mapping — these are the generation targets
 - Build distribution monitor: tracks coverage across all ~432 cells (taxonomy × domain × difficulty)
 - Build case generator: Claude or Codex, prompted with cell specification `(pattern, domain, difficulty, expert)`
@@ -558,21 +560,21 @@ The complete output of a pyrrho-MoE inference pass:
 - Build conflict resolver: disagreements → human review queue
 - Generate toward empty/sparse cells until all cells meet minimum threshold (target: 20–25 examples per cell)
 - Maintain 20–25% near-miss / borderline cases per expert
-- Add evidence chain construction cases (multi-chunk ordered reasoning) — new evidence pattern not in V5.1
+- Add evidence chain construction cases (multi-chunk ordered reasoning) — new evidence pattern not in V6
 - Add reference chunk summaries to all cases
 
-**Output:** fitz-gov V6, 5,000–10,000 cases, fully enriched schema, complete taxonomy × domain × difficulty coverage, auditable cell provenance.
+**Output:** fitz-gov V7, 5,000–10,000 cases, fully enriched schema, complete taxonomy × domain × difficulty coverage, auditable cell provenance.
 
 ---
 
 ### Phase 3 — pyrrho-nano-g2 + pyrrho-small-g2
 
-**Goal:** Establish encoder and SLM benchmarks on V6 before MoE training begins.
+**Goal:** Establish encoder and SLM benchmarks on V7 before MoE training begins.
 
 #### pyrrho-nano-g2
-- ModernBERT fine-tune on fitz-gov V6
+- ModernBERT fine-tune on fitz-gov V7
 - Classification only + signal suite
-- Establishes V6 accuracy baseline
+- Establishes V7 accuracy baseline
 - Comparison point for MoE paper
 
 #### pyrrho-small-g2
@@ -590,7 +592,7 @@ The complete output of a pyrrho-MoE inference pass:
 
 ---
 
-### Phase 4 — fitz-gov V7
+### Phase 4 — fitz-gov V8
 
 **Goal:** Scale to 15,000–20,000 cases with adversarial and uncertainty-focused data.
 
@@ -603,13 +605,13 @@ The complete output of a pyrrho-MoE inference pass:
 - Adversarial evaluation set held out — not used for training, only evaluation
 - Publish adversarial cell distribution alongside dataset so others can target the same failure modes
 
-**Output:** fitz-gov V7, 15,000–20,000 cases. Adversarial eval set published separately with cell-level breakdown.
+**Output:** fitz-gov V8, 15,000–20,000 cases. Adversarial eval set published separately with cell-level breakdown.
 
 ---
 
 ### Phase 5 — pyrrho-MoE-g3 (train from scratch)
 
-**Goal:** Train the terminal architecture on fitz-gov V7.
+**Goal:** Train the terminal architecture on fitz-gov V8.
 
 #### Architecture decisions
 - 4B total / 0.4B active parameters
@@ -621,7 +623,7 @@ The complete output of a pyrrho-MoE inference pass:
 #### Training stages
 
 **Stage 1 — Supervised multi-task pre-training**
-- All 16 v1 output heads trained simultaneously on fitz-gov V7
+- All 16 v1 output heads trained simultaneously on fitz-gov V8
 - Routing loss + per-task losses combined
 - Verify expert specialization emerging every few epochs: inspect which experts fire on which domains
 
@@ -636,7 +638,7 @@ The complete output of a pyrrho-MoE inference pass:
 - RL shapes risk aversion directly — more principled than adding labeled data for edge cases
 
 **Stage 3 — Adversarial hardening**
-- Fine-tune on adversarial eval set from V7
+- Fine-tune on adversarial eval set from V8
 - Focus on false-trustworthy rate specifically
 - Re-evaluate on held-out adversarial cases
 
@@ -648,7 +650,7 @@ The complete output of a pyrrho-MoE inference pass:
 
 ---
 
-### Phase 6 — fitz-gov V8+ and pyrrho-MoE-g4
+### Phase 6 — fitz-gov V9+ and pyrrho-MoE-g4
 
 **Goal:** Infrastructure-grade reliability.
 

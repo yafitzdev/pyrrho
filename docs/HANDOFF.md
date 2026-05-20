@@ -130,7 +130,7 @@ Everything below is model-quality upside on an already-live baseline.
 
 1. ~~**Phase 0: V5.1 schema enrichment**~~ **COMPLETE (2026-05-20).** All 2,980 V5.1 cases LLM-enriched with V6+ schema fields (query_rewritten, context summaries, governance signals, boundary_proximity, near_miss_reason) via Sonnet subagents + LM Studio local worker. 0 TODO markers remain in vault. See LOG 2026-05-20 evening.
 
-2. **Phase 1: `pyrrho-nano-g1.1`** — retrain the encoder on V5.1-enriched as the apples-to-apples baseline before scaling.
+2. **Phase 1: `pyrrho-nano-g1.1`** — retrain the encoder on fitz-gov V6 (the V5.1-enriched dataset now live on HF) as the apples-to-apples baseline before scaling. First step: update `scripts/prepare_data.py` to read the V6 vault JSONL schema instead of the legacy flat tier JSON files.
 
 3. **`pyrrho-small-g1.2` (optional, only if SLM is on critical path)** — g1.1 closed ~40% of the FT gap with the encoder's recipe. Next lever set: more aggressive class weights (e.g., 5.0/5.0/1.0), stronger label smoothing (0.25+), `ft_penalized_accuracy` checkpoint selection, or threshold-based post-processing on the TRUSTWORTHY token logit at decode time. Cleanest fix is DPO/GRPO with asymmetric FT reward but that's properly a Phase 3 (V6) item. Skip if the team is happy to wait for `small-g2` on V6.
 

@@ -154,12 +154,12 @@ Three tiers, generation-suffixed by the fitz-gov data version they were trained 
 
 | Model | Tier | Params | Status |
 |---|---|---|---|
-| [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | encoder | 149M | ✅ **live on HF** (fitz-gov V5.1) |
-| `pyrrho-nano-g1.1` | encoder | 149M | planned — V5.1-enriched apples-to-apples retrain (ROADMAP Phase 1) |
-| `pyrrho-nano-g2` | encoder | 149M | planned — fitz-gov V6 retrain, 5K–10K cases (ROADMAP Phase 3) |
-| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — first SLM on V6, classification + rationale, RL fine-tuned (ROADMAP Phase 3) |
-| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | planned — trained from scratch on V7; 7–8 domain experts + conflict-detection meta-expert; full 16-capability RAG runtime (ROADMAP Phase 5) |
-| `pyrrho-MoE-g4` | sparse MoE | 4B total / 0.4B active | planned — V8+ retrain, infrastructure-grade reliability (ROADMAP Phase 6) |
+| [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | encoder | 149M | ✅ **live on HF** (trained on fitz-gov V5.1) |
+| `pyrrho-nano-g1.1` | encoder | 149M | planned — fitz-gov V6 apples-to-apples retrain (V5.1-enriched schema; ROADMAP Phase 1) |
+| `pyrrho-nano-g2` | encoder | 149M | planned — fitz-gov V7 retrain, 5K–10K cases (ROADMAP Phase 3) |
+| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — first SLM on V7, classification + rationale, RL fine-tuned (ROADMAP Phase 3) |
+| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | planned — trained from scratch on V8; 7–8 domain experts + conflict-detection meta-expert; full 16-capability RAG runtime (ROADMAP Phase 5) |
+| `pyrrho-MoE-g4` | sparse MoE | 4B total / 0.4B active | planned — V9+ retrain, infrastructure-grade reliability (ROADMAP Phase 6) |
 
 Full release roadmap, expert specifications, evaluation metrics, and publication strategy in [`docs/ROADMAP.md`](docs/ROADMAP.md). The older 10-release breakdown in [`docs/PROJECT.md §10`](docs/PROJECT.md) is retained for historical context but superseded.
 
