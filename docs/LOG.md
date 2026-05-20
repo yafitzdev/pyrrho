@@ -13,6 +13,52 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-20 (evening) — pyrrho-small-g1 (Qwen3.5-0.8B QLoRA SFT) trained on V5.1, 3-seed validated
+
+First generative SLM data point in the pyrrho family. Trained on the same V5.1
+splits as `pyrrho-nano-g1` so the encoder-vs-SLM comparison is apples-to-apples.
+
+**What landed:**
+
+- **Training pipeline (new):** [`scripts/train_slm.py`](train_slm.py) — TRL `SFTTrainer` + PEFT QLoRA, 4-bit NF4 + bf16 compute, `assistant_only_loss=True` so the loss only fires on the assistant label tokens. Decode-based eval pass (greedy generation + parse) runs after training and writes `final_metrics.json` in the SLM-shaped schema (`eval`/`tier0_sanity` blocks with classification + `decode_health.fraction_fallback`).
+- **Config (new):** [`configs/slm/qwen3.5_0.8b_qlora.yaml`](../configs/slm/qwen3.5_0.8b_qlora.yaml). LoRA r=16/alpha=32/dropout=0.05 on the standard transformer projections (`q/k/v/o_proj`, `gate/up/down_proj`); skipped the Gated DeltaNet `in_proj_*` / `out_proj` modules — they're stateful linear-attention blocks that LoRA doesn't usefully decompose for short classification.
+- **Patched chat template (new):** [`configs/slm/qwen3_5_training_chat_template.jinja`](../configs/slm/qwen3_5_training_chat_template.jinja) — Qwen3.5's stock chat template lacks `{% generation %}` markers, so TRL 1.4's `get_training_chat_template()` refuses to patch it (Qwen3.5 isn't in its supported list — Qwen3 and Qwen3.6 are). We snapshot the Qwen3 patched template, which renders identically for our messages, as the training-time `chat_template_path`.
+- **Multi-seed aggregator (new):** [`scripts/aggregate_slm_seeds.py`](aggregate_slm_seeds.py) — the encoder's `run_seeds.py` expects `eval_calibrated`/`eval_uncalibrated`/`threshold` which the SLM doesn't produce. New aggregator reads the SLM schema and writes a `summary.json` consumable by the model card builder.
+- **Model card builder (new):** [`scripts/build_slm_model_card.py`](build_slm_model_card.py) — produces a CC BY-NC 4.0 HF model card pinned to the 3-seed mean ± std with both the sklearn baseline and `pyrrho-nano-g1` as comparison rows.
+- **Release dir (staged, not pushed):** `models/pyrrho-small-g1/` contains the LoRA adapter + tokenizer + chat template + 3-seed model card. Adapter is from seed 42.
+- **Env bump:** `transformers` 4.57.6 → 5.8.1 (Qwen3.5 model_type `qwen3_5` was added 2026-02-09, requires ≥ 4.58). `pyproject.toml` constraint updated; `verify_env.py` model id corrected from `Qwen/Qwen3.5-0.8B-Instruct` (doesn't exist) to `Qwen/Qwen3.5-0.8B` (the unified post-trained model). Encoder smoke test (9 passed, 2 xfailed) confirms no regression in the encoder path.
+
+**3-seed numbers (mean ± std on V5.1 eval, 584 cases, seeds 42 / 1337 / 7):**
+
+| Metric | pyrrho-small-g1 | nano-g1 | sklearn baseline |
+|---|---|---|---|
+| Overall accuracy | **90.01 ± 0.55%** | 86.13 | 78.7 |
+| **False-trustworthy rate** | **12.13 ± 1.27%** | **5.27** | **5.7** |
+| Trustworthy recall | 92.09 ± 0.19% | 79.38 | 70.0 |
+| Disputed recall | 87.16 ± 1.54% | 94.81 | 86.1 |
+| Abstain recall | 88.08 ± 2.23% | 92.94 | 86.5 |
+| Tier0 sanity acc | **99.44 ± 0.96%** | ~83 | n/a |
+| Decode fallback rate | 0.00% (all 584 cases parseable) | n/a | n/a |
+| Per-seed FT rate | 11.40 / 11.40 / 13.60 | — | — |
+
+**What was learned:**
+
+- **The SLM hypothesis was right on accuracy, wrong on safety.** Pre-trained world knowledge + reasoning depth genuinely lift overall accuracy (+3.88 vs encoder) and nearly perfect tier0 (+~16). Trustworthy recall jumps from 79% to 92% — the model is more willing to confidently say TRUSTWORTHY when sources actually support an answer.
+- **But: false-trustworthy more than doubles vs the encoder (12.13% vs 5.27%) — fails the safety gate (5.7%).** The FT rate is essentially deterministic across seeds (11.40 / 11.40 / 13.60), so it's a recipe finding, not noise. Root cause: plain SFT has *no* safety-asymmetric signal. `nano-g1` had three things the SLM doesn't: class weights `[2.3, 2.3, 1.0]` (penalize TRUSTWORTHY predictions when wrong), label smoothing 0.15 (reduce overconfidence), and `ft_penalized_accuracy` as the checkpoint selection metric. Strip all three, and the model learns the task well but optimizes the wrong axis.
+- **The decoder is well-behaved.** 0/584 fallback to the default ABSTAIN label across all seeds — every generated output contained a parseable `ABSTAIN`/`DISPUTED`/`TRUSTWORTHY` token. The think-block stripping + first-label-found parsing logic in `train_slm.py:parse_label_from_text` worked as designed.
+- **Multi_source_convergence question: partially answered.** The SLM beating the encoder on overall trustworthy recall is consistent with the hypothesis that world knowledge fixes the multi-source-convergence failure mode. Need a category breakdown to confirm definitively (TODO for a follow-up `eval_report_slm.py`). But the *direction* is clear: the SLM is more willing to call TRUSTWORTHY, both correctly (TR up) and incorrectly (FT up). World knowledge alone doesn't tell the model to be cautious — that's a *training-objective* property, not a *base-model* property.
+- **Training cost.** ~38 min per seed on RTX 5090 (~2,293 sec mean), ~80 sec for the post-training decode-based eval (584 + 60 cases). 3 seeds end-to-end: ~2 hours. Trainable params: 6.39M (1.25% of 510M total) — adapter is tiny. Output adapter ~26 MB on disk.
+- **TRL 1.4 + Windows UTF-8 gotcha.** TRL's `read_text()` on .jinja chat-template files defaults to `cp1252` on Windows, which crashes on the DeepSeek-V3 template's non-cp1252 bytes. Workaround: `os.environ.setdefault("PYTHONUTF8", "1")` at the top of `train_slm.py` before `import trl`.
+- **Blackwell + bitsandbytes 4-bit + Qwen3.5: works.** sm_120 detected, bnb_4bit_compute_dtype=bfloat16, LoRA fits in <16 GB VRAM at batch=4 × accum=4. No fallback to WSL2 or Unsloth needed.
+
+**Why we didn't push to HuggingFace.**
+
+`pyrrho-small-g1` is not shipped because deploying it as the production governance backend would *double* the false-trustworthy rate vs `nano-g1` (5.27% → 12.13%). That's exactly the safety axis the encoder was tuned to protect. The release dir is staged at `models/pyrrho-small-g1/` and can be pushed as a research artifact (with the FT failure clearly called out in the model card) if the team wants the public data point — but doing it as the default for `fitz-sage` would be a regression on the metric users care about most.
+
+**Next:** Either fix `pyrrho-small-g1` (re-spin with class weights + label smoothing, or DPO/GRPO with FT-penalized reward) to land a publishable `small-g1.1` — *or* skip ahead to Phase 0 V5.1 enrichment per ROADMAP.md, then redo the SLM with the asymmetric training signal as `pyrrho-small-g2` on V6. Per HANDOFF.md, the team's preferred path was Phase 0 first.
+
+---
+
 ## 2026-05-20 (morning) — Model rename to pyrrho-nano-g1; relicense to CC BY-NC 4.0; fitz-gov dataset moves to HF-only
 
 **What landed:**

@@ -17,7 +17,7 @@ keywords = ["rag", "governance", "hallucination", "classification", "modernbert"
 dependencies = [
     # PyTorch is installed separately with --index-url https://download.pytorch.org/whl/cu128
     # See SETUP.md
-    "transformers>=4.46",
+    "transformers>=4.58",  # Qwen3.5 (model_type qwen3_5) requires >=4.58
     "datasets>=3.0",
     "accelerate>=1.0",
     "evaluate>=0.4",

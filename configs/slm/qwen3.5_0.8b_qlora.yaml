@@ -1,0 +1,116 @@
+# pyrrho-small-g1 (Qwen3.5-0.8B QLoRA) — first generative SLM in the family
+# Trained on fitz-gov V5.1 (same split as pyrrho-nano-g1) so the encoder-vs-SLM
+# comparison is apples-to-apples. Classification only — no rationale generation,
+# no MoE schema fields, no RL. SFT on the assistant label tokens only.
+#
+# Rationale for this slot per HANDOFF.md "Immediate next actions":
+# - Validate whether pre-trained world knowledge + reasoning depth fixes v1's
+#   only real failure mode (multi_source_convergence misclassified as DISPUTED).
+# - Establish the three-architecture story (encoder / SLM / MoE) on the same
+#   benchmark before the V5.1-enrichment work begins (ROADMAP Phase 0).
+#
+# Architecture notes:
+# - Qwen3.5-0.8B is a 24-layer Gated DeltaNet (linear attention, 18 layers) +
+#   Gated Attention (6 layers, full) hybrid, 1024 hidden, 248K vocab, native
+#   262K context (we cap at 4K for RAG). Apache 2.0.
+# - Loads as Qwen3_5ForCausalLM via AutoModelForCausalLM (no vision tower in
+#   the text path). Requires transformers >= 4.58 — qwen3_5 model_type was
+#   added 2026-02-09; we run on transformers 5.8.1.
+# - LoRA targets cover the standard transformer projections only; the Gated
+#   DeltaNet linear-attention modules (in_proj_a, in_proj_b, in_proj_qkv,
+#   in_proj_z, out_proj) are skipped — they're stateful linear-attention
+#   blocks that LoRA doesn't usefully decompose for short classification.
+#
+# Expected wall-clock on RTX 5090: ~45-75 min per seed (3-seed total ~2.5-4h).
+# Expected accuracy: aiming to match or beat pyrrho-nano-g1 (86.13 ± 0.86%).
+# Selection metric: ft_penalized_accuracy (same as encoder).
+
+model:
+  base_model: Qwen/Qwen3.5-0.8B
+  trust_remote_code: false
+  attn_implementation: eager  # flash-linear-attention not installed; eager is safe fallback
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  task_type: CAUSAL_LM
+  # Standard transformer projections only — skip linear-attention in_proj_* and out_proj.
+  # Full-attn layers: q_proj/k_proj/v_proj/o_proj (6 layers).
+  # MLP layers: gate_proj/up_proj/down_proj (24 layers, present in every block).
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+data:
+  processed_path: data/processed
+  max_length: 4096        # matches encoder's max_seq_length on the same data
+  pack_examples: false    # no packing — keep classification rows independent
+  # TRL 1.4's get_training_chat_template doesn't recognize Qwen3.5 yet (supports
+  # Qwen3 + Qwen3.6). The Qwen3 patched template renders identically for our
+  # messages — same <|im_start|>/<|im_end|> structure, same <think>\n\n</think>
+  # prefix — and adds the {% generation %} markers that SFTTrainer needs for
+  # assistant_only_loss masking. We snapshot it next to this config.
+  chat_template_path: configs/slm/qwen3_5_training_chat_template.jinja
+
+training:
+  output_dir: outputs/qwen3.5_0.8b_qlora_v1
+  num_train_epochs: 3
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 4   # effective batch = 16, matches encoder
+  gradient_checkpointing: true
+
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: paged_adamw_8bit
+
+  # NEFTune injects noise into embeddings — helps generalization on small SFT.
+  neftune_noise_alpha: 5
+
+  # We rebuild the prompt → label sequence and rely on TRL's assistant_only_loss
+  # to mask everything outside the assistant turn (including the empty
+  # <think></think> prefix that Qwen3.5's chat template inserts).
+  assistant_only_loss: true
+  completion_only_loss: null
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  # Eval-time selection key. We attach our 3-class metrics under prefix "eval_"
+  # in compute_metrics, so the key here matches the standard ft_penalized_accuracy.
+  metric_for_best_model: ft_penalized_accuracy
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: []
+  run_name: pyrrho-small-g1
+  seed: 42
+
+# Inference / eval settings — used during the per-epoch decode pass and the
+# final eval_report-style breakdown.
+inference:
+  max_new_tokens: 16        # plenty of headroom: TRUSTWORTHY is 5 tokens + im_end
+  do_sample: false          # greedy decode for deterministic classification
+  temperature: null
+  # Output parsing: search the decoded string for the first label keyword that
+  # appears after the </think> close. Fall back to any label substring if the
+  # think block is malformed. Unparseable outputs are scored as ABSTAIN.
+  fallback_label: ABSTAIN
