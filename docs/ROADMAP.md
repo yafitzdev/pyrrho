@@ -514,19 +514,17 @@ The complete output of a pyrrho-MoE inference pass:
 
 ## 8. Training Path
 
-### Phase 0 — Schema enrichment (fitz-gov V5.1 → V6) — **COMPLETE 2026-05-20**
+### Phase 0 — Schema enrichment (fitz-gov V5.1 → V6) — **COMPLETE 2026-05-21**
 
 **Goal:** Retrofit all new schema fields onto existing 2,980 validated cases before generating any new data.
 
-- Map existing 17 domains to 7–8 MoE expert domains → add `routing.expert_fired`
-- Derive temporality signals from existing `domain` and `evidence_pattern` fields programmatically
-- Bootstrap authority scores from `source_type` and context content
-- LLM-assisted annotation for fields requiring reasoning: `query_rewritten`, `near_miss_reason`, `hallucination_pressure`, `retrieval_retry_value`, per-chunk `relevance_to_query`
-- Spot-check enriched fields for consistency, do not auto-accept LLM annotations blindly
-- Add `evidence_chain` ordering labels for multi-chunk cases
-- Add reference `summary` per context chunk
+**Phase 0a — programmatic:** mapped 17 domains to 7 MoE expert domains (added `routing.expert_fired`), derived temporality signals from `domain`/`evidence_pattern`, bootstrapped authority scores from `source_type`, added 18-pattern taxonomy + `cell_id`. No LLM cost.
 
-**Output:** 2,980 fully enriched rows in the V6 schema. Published as `yafitzdev/fitz-gov` v6.0.0 on 2026-05-20.
+**Phase 0b — LLM core governance signals:** `query_rewritten`, per-chunk `summary`/`relevance_to_query`/`temporality.anchor_period`, governance scalars (`hallucination_pressure`, `retrieval_retry_value`, `query_evidence_alignment`, `answer_coverage`, `boundary_proximity.distance`), and `meta.near_miss_reason`.
+
+**Phase 0c — LLM multi-task MoE training ground truth:** per-chunk `boundary_quality` (0–1 cut quality), per-case `governance.evidence_bias_score` (0–1 source one-sidedness), per-case `input.evidence_chain` (`order` + `reasoning`; multi-chunk only), per-case `meta.grounding_targets` (`gold_answer` + per-sentence chunk `attributions`; TRUSTWORTHY only).
+
+**Output:** 2,980 fully enriched rows in the V6 schema. Published as `yafitzdev/fitz-gov` v6.0.0 (16.4 MB).
 
 **Why first:** Enrichment teaches you which fields are hard to label consistently before you scale. Discoveries here directly improve synthetic pipeline prompts. Cheaper to learn on 2,900 rows than 10,000.
 
