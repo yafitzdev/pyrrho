@@ -13,6 +13,54 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-20 (night) — pyrrho-small-g1.1: class-weight + label-smoothing respin of g1, FT 12.13 → 9.31% (still misses gate)
+
+User asked for a re-spin after g1's headline result (high accuracy, fails FT
+gate). Hypothesis was: transplant the encoder's anti-FT recipe
+(`class_weights=[2.3, 2.3, 1.0]` + `label_smoothing=0.15`) onto the SLM's
+token-level CE loss and see how much of the gap it closes.
+
+**What landed:**
+
+- **WeightedLossSFTTrainer (new, in [`scripts/train_slm.py`](train_slm.py)).** Subclass of TRL's SFTTrainer that overrides `compute_loss`. For each example: detect which class label is in the unmasked assistant tokens (scan for the unique start token of `ABSTAIN` (id 1803), `DISPUTED` (20552), or `TRUSTWORTHY` (2301)), compute per-token CE with `F.cross_entropy(label_smoothing=...)`, average over the assistant tokens, multiply by `class_weights[label_id]`, weighted-mean over batch. Auto-used when the config sets `training.class_weights` or `training.label_smoothing`; otherwise plain SFTTrainer.
+- **Config (new):** [`configs/slm/qwen3.5_0.8b_qlora_v1.1.yaml`](../configs/slm/qwen3.5_0.8b_qlora_v1.1.yaml). Identical to v1 except `class_weights: [2.3, 2.3, 1.0]` + `label_smoothing: 0.15`. Same base model, same LoRA shape, same data, same 3 seeds.
+- **Eval-only recovery script (new):** [`scripts/eval_slm.py`](eval_slm.py). Loads a saved adapter (base + PeftModel) and runs the same decode-based eval as `train_slm.py`. Written after seed 1337's in-script decode-eval hung — see "Surprises" below.
+- **Release dir staged:** `models/pyrrho-small-g1.1/` (gitignored) with the seed-42 adapter + the 3-seed-aggregated model card. Not pushed to HF.
+
+**3-seed numbers (mean ± std on V5.1 eval, 584 cases, seeds 42 / 1337 / 7):**
+
+| Metric | g1.1 | g1 | nano-g1 |
+|---|---|---|---|
+| Overall accuracy | **89.55 ± 1.40%** | 90.01 | 86.13 |
+| **False-trustworthy rate** | **9.31 ± 1.06%** | **12.13** | **5.27** |
+| Trustworthy recall | 89.00 ± 2.45% | 92.09 | 79.38 |
+| Disputed recall | 91.60 ± 1.13% | 87.16 | 94.81 |
+| Abstain recall | 88.81 ± 2.56% | 88.08 | 92.94 |
+| Tier0 sanity acc | 96.67 ± 0.00% | 99.44 | ~83 |
+| Decode fallback rate | 0.00% (all 584 parseable) | 0.00% | n/a |
+| Per-seed FT | 8.09 / 9.93 / 9.93 | 11.40 / 11.40 / 13.60 | — |
+
+**What was learned:**
+
+- **Recipe direction is right, magnitude is off.** Class weights penalize wrong A/D predictions more heavily, so the model becomes less aggressive on T. The signature is in the per-class movement: trustworthy recall ↓ 3.09 (model holds back more), disputed recall ↑ 4.44 (more cases routed to D instead of T), FT ↓ 2.82. Exactly what the recipe predicts. But the absolute landing point — 9.31% FT — is still ~3.6 pts above the 5.7% gate. The encoder running the *same* class weight vector lands 5.27% FT; the SLM lands 9.31%. Why the gap?
+- **Token-level CE diffuses the safety pressure.** The encoder applies class weights to a single classification-head logit per example. The SLM applies them to ~11 token-level losses per example (the assistant turn: 6 think-block tokens + 3-5 label tokens + im_end). Per-token CE means the safety signal is averaged over many positions, most of which are "predict the boilerplate think block" — not "predict the right label class". So a 2.3x weight on the example becomes a much smaller effective weight on the label-token loss. Same magnitude that worked for the encoder isn't sufficient here.
+- **Path to a g1.2.** Probably some combination of: stronger class weights (5/5/1), stronger label smoothing (0.25+), `ft_penalized_accuracy` checkpoint selection (currently `eval_loss`), or threshold post-processing on the TRUSTWORTHY token logit at decode time. The cleanest fix is DPO/GRPO with asymmetric FT reward, but that's properly a Phase 3 (V6) item per ROADMAP. Not pursuing now — flagged in HANDOFF for the user.
+- **The accuracy/FT trade is favorable but small.** Accuracy slipped 0.46 pts (90.01 → 89.55) for a 2.82-pt FT drop. Tier0 slipped 2.77 pts (99.44 → 96.67) — still above the originally-planned 95% gate, but below g1. The recipe is paying its expected price, just not delivering the full reward.
+
+**Surprises (worth recording for future SLM runs):**
+
+- **Decode-eval hang on seed 1337 — stdout buffering trap on Windows.** Seed 1337 trained fine (444 steps), saved the adapter cleanly to `final/`, then entered the post-training `decode_eval()` phase. The log file went silent for 15+ minutes despite the GPU staying at 100% utilization and all 32 GB VRAM allocated. Root cause: Python uses **block-buffered** stdout when stdout is a file (not a terminal), even on `print(...)` calls. The `print()` calls inside `decode_eval` were filling an OS buffer that never flushed because the data volume was below the buffer threshold. The process was alive and working, but invisible. Killed it after 15 min of no log output.
+- **Recovery via `eval_slm.py` (new).** Wrote a standalone eval-only script that loads the saved adapter and re-runs the decode pass with `PYTHONUNBUFFERED=1` + `python -u`. Ran seed 1337's eval in 1.7 min (86.2 s for the 584-case eval split + 9.2 s for tier0). Recovered metrics without needing to retrain — the saved adapter was complete from `trainer.save_model(final_dir)`.
+- **Seed 7 then re-run standalone (not chained) with `PYTHONUNBUFFERED=1` + `python -u`.** Decode-eval streamed progress in real time as expected, finished in ~63 s for both splits. The buffering issue was the *only* difference between the working and hung runs.
+- **Lesson for future SLM training runs:** set `PYTHONUNBUFFERED=1` and pass `-u` on every `train_slm.py` invocation when stdout is redirected to a log file. Or have `train_slm.py` write progress to an explicit log file (with `flush=True`) instead of relying on stdout buffering. The Bash-chain pattern in particular is fragile here because a hung post-training eval blocks the chain indefinitely without surfacing an error.
+- **Seed 1337's training was also unusually slow.** 72 min vs ~38 min for seeds 42 and 7. Probably background GPU contention from another process; nothing model-specific. Eval-only run after the fact got identical generation speed (~6.8 cases/s) to the other seeds, so the slowness was strictly a training-time artifact.
+
+**Comparison with v1's recipe transplant lesson.** g1 → g1.1 shows that the encoder's exact anti-FT recipe doesn't translate 1:1 to SLM SFT. This was foreseeable in hindsight — encoder CE has one logit per example, SLM CE has many — but the *magnitude* of the gap (12.13 → 9.31, only closes ~40% of the way to 5.27) is the actual learning. It tells us a `pyrrho-small-g1.x` line is feasible but needs more aggressive recipe choices, and that the cleanest path to the gate is RL-based (asymmetric reward) rather than SFT-recipe tuning.
+
+**Next:** per HANDOFF, recommendation is to drop the SLM track here and start Phase 0 V5.1 enrichment. The `small` tier comes back via `pyrrho-small-g2` on V6 with the RL recipe per [ROADMAP §8 Phase 3](ROADMAP.md), which directly addresses what g1.1 ran into.
+
+---
+
 ## 2026-05-20 (evening) — pyrrho-small-g1 (Qwen3.5-0.8B QLoRA SFT) trained on V5.1, 3-seed validated
 
 First generative SLM data point in the pyrrho family. Trained on the same V5.1

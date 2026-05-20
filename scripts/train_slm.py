@@ -40,6 +40,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import yaml
 from datasets import Dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
@@ -61,6 +62,95 @@ from pyrrho.metrics import (
 
 
 LABEL_NAMES = ("ABSTAIN", "DISPUTED", "TRUSTWORTHY")
+
+
+class WeightedLossSFTTrainer(SFTTrainer):
+    """SFTTrainer with per-example class-weighted CE + label smoothing.
+
+    For SFT on a constrained 3-class output, transplants the encoder's anti-FT
+    recipe (class_weights=[2.3, 2.3, 1.0] + label_smoothing=0.15) onto the
+    token-level CE loss. Per-example weighting works by detecting which class
+    each row's true assistant content represents (scanning the unmasked labels
+    for the unique start token of ABSTAIN / DISPUTED / TRUSTWORTHY) and
+    multiplying that row's averaged loss by the corresponding class weight.
+
+    Reduces the SLM's false-trustworthy rate by directly penalizing the model
+    when it gets a true ABSTAIN or DISPUTED case wrong (whereas plain SFT
+    treats all wrong predictions equally and ends up biased toward
+    TRUSTWORTHY because of class imbalance).
+    """
+
+    # First (unique) token of each label string under the Qwen3.5 tokenizer.
+    # Probed once at init from the tokenizer to avoid relying on hard-coded ids.
+    def __init__(
+        self,
+        *args,
+        class_weights: list[float] | None = None,
+        label_smoothing: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        cw = class_weights or [1.0, 1.0, 1.0]
+        if len(cw) != 3:
+            raise ValueError(f"class_weights must be a 3-element vector, got {cw!r}")
+        self._class_weights = torch.tensor(cw, dtype=torch.float32)
+        self._label_smoothing = float(label_smoothing)
+
+        tok = self.processing_class
+        self._label_start_ids: dict[int, int] = {}
+        for cls_id, name in enumerate(LABEL_NAMES):
+            ids = tok.encode(name, add_special_tokens=False)
+            if not ids:
+                raise ValueError(f"Tokenizer returned no ids for {name!r}")
+            self._label_start_ids[ids[0]] = cls_id
+
+        if self.is_world_process_zero():
+            print(
+                f"[weighted-loss] class_weights={cw}  label_smoothing={self._label_smoothing}  "
+                f"label_start_ids={self._label_start_ids}"
+            )
+
+    def _infer_class_ids(self, labels: torch.Tensor) -> torch.Tensor:
+        """Return [B] tensor of class ids (0/1/2), defaulting to TRUSTWORTHY (weight 1.0) if not found."""
+        B = labels.size(0)
+        out = torch.full((B,), LABEL2ID["TRUSTWORTHY"], dtype=torch.long, device=labels.device)
+        valid_mask = labels != -100
+        for i in range(B):
+            row = labels[i][valid_mask[i]]
+            for tok_id, cls_id in self._label_start_ids.items():
+                if (row == tok_id).any():
+                    out[i] = cls_id
+                    break
+        return out
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        labels = inputs.pop("labels", None)
+        outputs = model(**inputs)
+        logits = outputs.logits  # [B, T, V]
+        if labels is None:
+            return (outputs.loss, outputs) if return_outputs else outputs.loss
+
+        # Standard causal LM shift.
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+
+        B, T_shift, V = shift_logits.shape
+        per_token_loss = F.cross_entropy(
+            shift_logits.view(-1, V),
+            shift_labels.view(-1),
+            ignore_index=-100,
+            reduction="none",
+            label_smoothing=self._label_smoothing,
+        ).view(B, T_shift)
+
+        mask = (shift_labels != -100).to(per_token_loss.dtype)
+        per_example_loss = (per_token_loss * mask).sum(dim=-1) / mask.sum(dim=-1).clamp_min(1.0)
+
+        class_ids = self._infer_class_ids(shift_labels)
+        weights = self._class_weights.to(per_example_loss.device, dtype=per_example_loss.dtype)[class_ids]
+        loss = (per_example_loss * weights).sum() / weights.sum().clamp_min(1e-6)
+
+        return (loss, outputs) if return_outputs else loss
 
 
 # ---------- CLI ----------------------------------------------------------------
@@ -454,13 +544,31 @@ def main() -> int:
     sft_cfg.metric_for_best_model = "eval_loss"
     sft_cfg.greater_is_better = False
 
-    trainer = SFTTrainer(
-        model=model,
-        args=sft_cfg,
-        train_dataset=train_messages,
-        eval_dataset=eval_messages_with_label,
-        processing_class=tokenizer,
-    )
+    class_weights = t.get("class_weights")
+    label_smoothing = float(t.get("label_smoothing", 0.0))
+    use_weighted = bool(class_weights) or label_smoothing > 0.0
+    if use_weighted:
+        print(
+            f"\nUsing WeightedLossSFTTrainer: class_weights={class_weights or 'uniform'}  "
+            f"label_smoothing={label_smoothing}"
+        )
+        trainer = WeightedLossSFTTrainer(
+            model=model,
+            args=sft_cfg,
+            train_dataset=train_messages,
+            eval_dataset=eval_messages_with_label,
+            processing_class=tokenizer,
+            class_weights=class_weights,
+            label_smoothing=label_smoothing,
+        )
+    else:
+        trainer = SFTTrainer(
+            model=model,
+            args=sft_cfg,
+            train_dataset=train_messages,
+            eval_dataset=eval_messages_with_label,
+            processing_class=tokenizer,
+        )
 
     if args.dry_run:
         print("\n--dry-run set, skipping trainer.train() and final eval.")

@@ -1,0 +1,108 @@
+# pyrrho-small-g1.1 (Qwen3.5-0.8B QLoRA) — recipe fix: class weights + label smoothing
+#
+# Identical to v1 (base model, LoRA targets, batch sizes, schedule, data path,
+# patched chat template) except for two changes that address pyrrho-small-g1's
+# only real failure mode — the 12.13% false-trustworthy rate (vs 5.7% gate):
+#
+#   1. class_weights: [2.3, 2.3, 1.0]
+#      Per-example loss weighting in WeightedLossSFTTrainer.compute_loss.
+#      Examples whose true label is ABSTAIN or DISPUTED get 2.3x the loss
+#      weight of TRUSTWORTHY examples, so the model is penalized harder
+#      when it would have wanted to predict TRUSTWORTHY but should have
+#      predicted A/D. Mirrors pyrrho-nano-g1's encoder recipe exactly
+#      (same [2.3, 2.3, 1.0] vector for the same 53% TRUSTWORTHY class
+#      imbalance in the training data).
+#
+#   2. label_smoothing: 0.15
+#      F.cross_entropy(label_smoothing=0.15) on the assistant tokens.
+#      Reduces overconfidence on the predicted label tokens — the model
+#      is taught that 100% probability on any single token isn't the
+#      target. Helps calibrate P(TRUSTWORTHY) so threshold-style behaviour
+#      naturally falls out without explicit post-hoc calibration.
+#
+# Together these are the encoder's anti-FT recipe transplanted to the SLM
+# loss. Expected effect (modeled on the encoder's experience):
+#   - FT rate ~5-7% (was 12.13%) — the safety axis target.
+#   - Overall accuracy maybe drops 1-2 pts (was 90.01%) — the typical
+#     accuracy/FT trade-off, still well above nano-g1's 86.13%.
+#   - Tier0 sanity may drop a bit from 99.4% — model becomes more cautious.
+#
+# Everything else is identical to v1 for an apples-to-apples diff. Same
+# 3 seeds (42, 1337, 7), same 2,366 train / 584 eval / 60 tier0 splits,
+# same 3 epochs, same LoRA shape, same checkpoint selection by eval_loss.
+
+model:
+  base_model: Qwen/Qwen3.5-0.8B
+  trust_remote_code: false
+  attn_implementation: eager
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  bias: none
+  task_type: CAUSAL_LM
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+data:
+  processed_path: data/processed
+  max_length: 4096
+  pack_examples: false
+  chat_template_path: configs/slm/qwen3_5_training_chat_template.jinja
+
+training:
+  output_dir: outputs/qwen3.5_0.8b_qlora_v1.1
+  num_train_epochs: 3
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 4
+  gradient_checkpointing: true
+
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: paged_adamw_8bit
+
+  neftune_noise_alpha: 5
+
+  assistant_only_loss: true
+  completion_only_loss: null
+
+  # *** The two recipe changes vs v1: ***
+  # Order is [ABSTAIN, DISPUTED, TRUSTWORTHY] — must match LABEL2ID in pyrrho.data.
+  class_weights: [2.3, 2.3, 1.0]
+  label_smoothing: 0.15
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: ft_penalized_accuracy
+  greater_is_better: true
+
+  logging_steps: 20
+  report_to: []
+  run_name: pyrrho-small-g1.1
+  seed: 42
+
+inference:
+  max_new_tokens: 16
+  do_sample: false
+  temperature: null
+  fallback_label: ABSTAIN

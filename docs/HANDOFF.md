@@ -19,7 +19,8 @@ The brand name is from Pyrrho of Elis — the Greek philosopher whose school pra
 | Release | Status |
 |---|---|
 | `pyrrho-nano-g1` (ModernBERT 149M encoder) | Trained + 3-seed validated. On HuggingFace. **In production — it is the governance backend of fitz-sage v0.13.0.** |
-| `pyrrho-small-g1` (Qwen3.5-0.8B + LoRA, V5.1 SFT) | Trained + 3-seed validated locally. **Not on HF — fails the false-trustworthy gate (12.13% vs 5.7% bar).** Release dir staged at `models/pyrrho-small-g1/`. See LOG 2026-05-20 evening for the finding. |
+| `pyrrho-small-g1` (Qwen3.5-0.8B + LoRA, V5.1 plain SFT) | Trained + 3-seed validated locally. **Not on HF — fails the FT gate (12.13% vs 5.7% bar).** Release dir staged at `models/pyrrho-small-g1/`. See LOG 2026-05-20 evening. |
+| `pyrrho-small-g1.1` (Qwen3.5-0.8B + LoRA, V5.1 SFT with class weights + label smoothing) | Trained + 3-seed validated locally. **Still not on HF — FT improved 12.13 → 9.31% but still misses 5.7% gate by ~3.6 pts.** Release dir staged at `models/pyrrho-small-g1.1/`. See LOG 2026-05-20 night. |
 | `pyrrho-nano-g1.1`, `pyrrho-nano-g2`, `pyrrho-small-g2`, `pyrrho-MoE-g3` (and beyond) | Not started. See [ROADMAP.md](ROADMAP.md). |
 
 ## Validated metrics
@@ -49,7 +50,24 @@ Every margin is multiple standard deviations larger than seed noise (LOG 2026-05
 | Tier0 sanity accuracy | **99.44 ± 0.96%** (60-case set) | vs ~83% (encoder) | n/a |
 | Decode-time fallback rate | **0.00%** (every case produced a parseable label) | — | — |
 
-Headline finding: pre-trained world knowledge + reasoning depth genuinely lifts overall accuracy and nearly-perfects tier0, but the SLM systematically over-predicts TRUSTWORTHY because plain SFT has no safety-asymmetric signal (no class weights, no label smoothing, no FT-penalized selection metric — all the things `nano-g1` had). The 12.13% FT rate is stable across seeds (11.40 / 11.40 / 13.60), so it's a recipe-level finding, not noise.
+Headline finding: pre-trained world knowledge + reasoning depth genuinely lifts overall accuracy and nearly-perfects tier0, but the SLM systematically over-predicts TRUSTWORTHY because plain SFT has no safety-asymmetric signal. 12.13% FT rate is stable across seeds (11.40 / 11.40 / 13.60), so it's a recipe-level finding, not noise.
+
+### `pyrrho-small-g1.1` (SLM, same SFT + class_weights=[2.3, 2.3, 1.0] + label_smoothing=0.15, 3-seed mean ± std)
+
+Recipe-fix re-spin of g1 with the encoder's anti-FT regularization transplanted onto the token-level CE loss (per-example weighting in `WeightedLossSFTTrainer`).
+
+| Metric | pyrrho-small-g1.1 | vs g1 | vs `nano-g1` |
+|---|---|---|---|
+| Overall accuracy | **89.55 ± 1.40%** | -0.46 | +3.42 |
+| False-trustworthy rate | **9.31 ± 1.06%** | **-2.82 (improved)** | +4.04 — **still fails gate by ~3.6 pts** |
+| Trustworthy recall | 89.00 ± 2.45% | -3.09 (model less aggressive on T — by design) | +9.62 |
+| Disputed recall | **91.60 ± 1.13%** | **+4.44 (improved)** | -3.21 |
+| Abstain recall | 88.81 ± 2.56% | +0.73 | -4.13 |
+| Tier0 sanity accuracy | **96.67 ± 0.00%** | -2.77 | vs ~83% (encoder) |
+| Decode-time fallback rate | **0.00%** | — | — |
+| Per-seed FT rate | 8.09 / 9.93 / 9.93 | — | — |
+
+Direction is exactly what the recipe predicts: model is less aggressive on TRUSTWORTHY (TR ↓ 3.09), more aggressive on DISPUTED (DR ↑ 4.44), FT drops ~3 pts. But the absolute FT of 9.31% is still ~3.6 pts above the 5.7% gate — the encoder's [2.3, 2.3, 1.0] + 0.15 smoothing recipe lands 5.27% on the encoder but only 9.31% on the SLM. Token-level CE on the assistant turn diffuses the safety pressure across many tokens (~11/example: 6 think-block + 3–5 label tokens + im_end) while the encoder's class-weighted CE on a single classification head concentrates it. Bumping to more aggressive interventions (e.g., class_weights=[5, 5, 1], label_smoothing=0.25, or moving to ft_penalized_accuracy selection / threshold-based post-processing / DPO) is the next lever set for a `small-g1.2`.
 
 ## Known limitations
 
@@ -60,8 +78,13 @@ Headline finding: pre-trained world knowledge + reasoning depth genuinely lifts 
 
 ### `pyrrho-small-g1` (not shipped)
 
-1. **Fails the false-trustworthy gate (12.13% vs 5.7%).** Plain SFT has no anti-FT pressure. Fix paths for a `small-g1.1` re-spin: add class weights / label smoothing to SFT, or — better — do GRPO with asymmetric FT penalty per [ROADMAP §8 Phase 3](ROADMAP.md). Not shipped because deploying it as the production backend would *double* the production false-trustworthy rate vs `nano-g1`, which is exactly the safety axis the encoder was tuned to protect.
+1. **Fails the false-trustworthy gate (12.13% vs 5.7%).** Plain SFT has no anti-FT pressure. See g1.1 below for the partial fix.
 2. **Disputed/abstain recall regressed vs encoder.** The SLM's preference for TRUSTWORTHY pulls cases out of those buckets — same root cause as #1.
+
+### `pyrrho-small-g1.1` (not shipped)
+
+1. **Still fails the false-trustworthy gate (9.31% vs 5.7%).** Class weights + label smoothing closed ~40% of the gap from g1 (12.13 → 9.31), but the encoder-style recipe transplant under-delivers on the SLM because token-level CE diffuses the safety pressure across many assistant-turn tokens. To clear the 5.7% gate without ditching SFT, would need stronger weights (e.g., 5.0/5.0/1.0), stronger smoothing (0.25+), or `ft_penalized_accuracy` checkpoint selection (currently `eval_loss`). Cleaner long-term fix: DPO/GRPO with asymmetric FT-penalized reward per [ROADMAP §8 Phase 3](ROADMAP.md).
+2. **Tier0 dropped from 99.44 → 96.67%.** The class-weight pressure makes the model more cautious in general, costing it 2 tier0 cases. Within the dropped-95%-gate budget, but worth noting.
 
 ## Pipeline / tooling — what exists now
 
@@ -69,7 +92,8 @@ Headline finding: pre-trained world knowledge + reasoning depth genuinely lifts 
 |---|---|
 | [`scripts/prepare_data.py`](../scripts/prepare_data.py) | fitz-gov → train/eval/tier0 splits + HF DatasetDict |
 | [`scripts/train_encoder.py`](../scripts/train_encoder.py) | Single-run encoder fine-tuning, config-driven, writes manifest.json |
-| [`scripts/train_slm.py`](../scripts/train_slm.py) | Single-run SLM QLoRA fine-tune (TRL SFTTrainer + PEFT) with decode-based eval |
+| [`scripts/train_slm.py`](../scripts/train_slm.py) | Single-run SLM QLoRA fine-tune (TRL SFTTrainer + PEFT) with decode-based eval; auto-uses `WeightedLossSFTTrainer` (per-example class weights + label smoothing) when the config sets `training.class_weights` or `training.label_smoothing` |
+| [`scripts/eval_slm.py`](../scripts/eval_slm.py) | Eval-only path for a saved SLM LoRA adapter — re-runs the decode-based eval pass without re-training. Use when the in-script eval was interrupted (e.g., the stdout-buffering hang we hit on g1.1 seed 1337) |
 | [`scripts/run_seeds.py`](../scripts/run_seeds.py) | Multi-seed orchestrator (encoder-shaped output), aggregates mean ± std |
 | [`scripts/aggregate_slm_seeds.py`](../scripts/aggregate_slm_seeds.py) | Multi-seed aggregator for `train_slm.py` outputs (no threshold calibration) |
 | [`scripts/sweep.py`](../scripts/sweep.py) | Hyperparameter sweep (coordinate-descent or grid) |
@@ -94,7 +118,9 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 - **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-nano-g1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
   - Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
   - PyPI: https://pypi.org/project/fitz-sage/0.13.0/
-- **`pyrrho-small-g1` release dir staged locally** at `models/pyrrho-small-g1/` — LoRA adapter (`adapter_model.safetensors` + `adapter_config.json`), tokenizer files, chat template, and a 3-seed model card. **Not on HF** pending a fix for the false-trustworthy gate (see Known limitations above). If the user does want to push it as a research artifact (not a production replacement), `huggingface-cli upload yafitzdev/pyrrho-small-g1 models/pyrrho-small-g1/` after a `huggingface-cli login`.
+- **`pyrrho-small-g1` release dir staged locally** at `models/pyrrho-small-g1/` — LoRA adapter (`adapter_model.safetensors` + `adapter_config.json`), tokenizer files, chat template, and a 3-seed model card. **Not on HF** pending a fix for the false-trustworthy gate (see Known limitations above).
+- **`pyrrho-small-g1.1` release dir staged locally** at `models/pyrrho-small-g1.1/` — same layout, includes the model card that documents the class-weight + label-smoothing recipe. **Not on HF** — still fails the FT gate (9.31% vs 5.7%), though it's strictly closer to the target than g1.
+- **Run `huggingface-cli upload yafitzdev/pyrrho-small-g1.1 models/pyrrho-small-g1.1/`** after `huggingface-cli login` if you want to push either as a research artifact.
 
 ## Immediate next actions
 
@@ -106,7 +132,7 @@ Everything below is model-quality upside on an already-live baseline.
 
 2. **Phase 1: `pyrrho-nano-g1.1`** — retrain the encoder on V5.1-enriched as the apples-to-apples baseline before scaling.
 
-3. **`pyrrho-small-g1.1` (optional fix)** — re-spin the SLM with safety-asymmetric training: either SFT with class weights + label smoothing, or DPO/GRPO with FT-penalized reward. The goal is to land FT ≤ 5.7% while keeping the +3.88 accuracy gain. Skip if the team prefers to wait until V6 and do `pyrrho-small-g2` directly with RL (ROADMAP Phase 3).
+3. **`pyrrho-small-g1.2` (optional, only if SLM is on critical path)** — g1.1 closed ~40% of the FT gap with the encoder's recipe. Next lever set: more aggressive class weights (e.g., 5.0/5.0/1.0), stronger label smoothing (0.25+), `ft_penalized_accuracy` checkpoint selection, or threshold-based post-processing on the TRUSTWORTHY token logit at decode time. Cleanest fix is DPO/GRPO with asymmetric FT reward but that's properly a Phase 3 (V6) item. Skip if the team is happy to wait for `small-g2` on V6.
 
 4. **fitz-gov v6** — only after Phase 1 ships and validates the enriched schema. See "Things NOT to do".
 

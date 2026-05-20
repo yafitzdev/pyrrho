@@ -154,7 +154,7 @@ This is a **LoRA adapter**, not a full fine-tune — load it on top of the base 
 
 3-seed mean ± std on the fitz-gov {args.fitz_gov_version} eval split (584 cases, stratified 20% hold-out from `tier1_core`), seeds {seeds}. Decode-based eval (greedy generation, parse the assistant turn into a label).
 
-| Metric | **pyrrho-small-g1** | pyrrho-nano-g1 (encoder) | sklearn baseline | Δ vs baseline |
+| Metric | **{model_name}** | pyrrho-nano-g1 (encoder) | sklearn baseline | Δ vs baseline |
 |---|---|---|---|---|
 | Overall accuracy | **{fmt_pct(eval_agg['accuracy'])}** | {NANO_G1['accuracy']*100:.2f} | {BASELINE_SKLEARN['accuracy']*100:.1f} | **{fmt_delta(eval_acc['mean'], BASELINE_SKLEARN['accuracy'])}** |
 | False-trustworthy rate (safety) | **{fmt_pct(eval_agg['false_trustworthy_rate'])}** | {NANO_G1['false_trustworthy_rate']*100:.2f} | {BASELINE_SKLEARN['false_trustworthy_rate']*100:.1f} | **{fmt_delta(eval_ft['mean'], BASELINE_SKLEARN['false_trustworthy_rate'])}** |
@@ -165,7 +165,7 @@ This is a **LoRA adapter**, not a full fine-tune — load it on top of the base 
 
 Tier0 sanity (60-case held-out diagnostic, not a release gate):
 
-| Metric | **pyrrho-small-g1** |
+| Metric | **{model_name}** |
 |---|---|
 | Accuracy | {fmt_pct(tier0_agg['accuracy'])} |
 | False-trustworthy rate | {fmt_pct(tier0_agg['false_trustworthy_rate'])} |
@@ -231,11 +231,11 @@ For batch decoding, use left-padding (the tokenizer needs `padding_side='left'`)
 
 ---
 
-## When to use pyrrho-small-g1 vs pyrrho-nano-g1
+## When to use {model_name} vs pyrrho-nano-g1
 
 `pyrrho-nano-g1` (149M ModernBERT encoder, single forward pass, ~30 ms on CPU after INT8 ONNX) is the right default for production. It is faster, smaller, and ships as a self-contained ONNX artifact with no LoRA-adapter loading step.
 
-`pyrrho-small-g1` (this model: 0.8B SLM + 6.4M LoRA, generative) is the right pick when:
+`{model_name}` (this model: 0.8B SLM + 6.4M LoRA, generative) is the right pick when:
 - You want the same governance decision **plus** the model's reasoning trace (this version is trained classification-only, but the architecture supports adding rationale generation in v2).
 - You already have GPU budget on the inference path for a 0.8B SLM.
 - You want to evaluate whether pre-trained world knowledge helps on the multi-source-convergence subcategory that bottlenecks the encoder.
