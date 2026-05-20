@@ -113,7 +113,7 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 ## What's live
 
 - **pyrrho model on HF**: https://huggingface.co/yafitzdev/pyrrho-nano-g1 (public, CC BY-NC 4.0, 1.35 GB: safetensors + FP32 ONNX + INT8 ONNX). Model card aligned to user's trimmed shape (no philosophical aside, no uncalibrated table) — `build_model_card.py` produces this by default. Cross-linked to `yafitzdev/fitz-gov` dataset. (Was `pyrrho-modernbert-base-v1` + Apache-2.0 through 2026-05-19; renamed under the new `pyrrho-{tier}-{generation}` scheme.)
-- **fitz-gov dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, CC BY-NC 4.0, V5.1, three configs: tier1_core / tier0_sanity / validation). Verified `load_dataset(...)` loads cleanly.
+- **fitz-gov dataset on HF**: https://huggingface.co/datasets/yafitzdev/fitz-gov (public, CC BY-NC 4.0, **V6.0.0**, three configs: tier1_core / tier0_sanity / validation). V6 adds LLM-enriched signals to all 2,980 cases: `query_rewritten`, per-context `summary`/`relevance_to_query`/`anchor_period`, governance signals (`hallucination_pressure`, `retrieval_retry_value`, `query_evidence_alignment`, `answer_coverage`, `boundary_proximity.distance`), and `near_miss_reason`. Convenience top-level `label` and `tier` fields added. Uploaded 2026-05-20.
 - **pyrrho GitHub repo**: public, redesigned README in the fitz-sage style.
 - **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-nano-g1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
   - Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
@@ -134,7 +134,7 @@ Everything below is model-quality upside on an already-live baseline.
 
 3. **`pyrrho-small-g1.2` (optional, only if SLM is on critical path)** — g1.1 closed ~40% of the FT gap with the encoder's recipe. Next lever set: more aggressive class weights (e.g., 5.0/5.0/1.0), stronger label smoothing (0.25+), `ft_penalized_accuracy` checkpoint selection, or threshold-based post-processing on the TRUSTWORTHY token logit at decode time. Cleanest fix is DPO/GRPO with asymmetric FT reward but that's properly a Phase 3 (V6) item. Skip if the team is happy to wait for `small-g2` on V6.
 
-4. **fitz-gov v6** — only after Phase 1 ships and validates the enriched schema. See "Things NOT to do".
+4. ~~**fitz-gov v6**~~ **DONE (2026-05-20).** V5.1-enriched = V6 (executive call). Uploaded to `yafitzdev/fitz-gov` as V6.0.0. See LOG 2026-05-20 evening.
 
 ## Release gates (the bar any pyrrho model must clear before shipping)
 
@@ -150,7 +150,7 @@ The originally-planned **tier0 95% sanity gate has been dropped** (see LOG 2026-
 - ❌ Don't propose Qwen 2.5 anything — stale (Nov 2024). Use Qwen 3.5+ family.
 - ❌ Don't propose 35B-class MoE bases — violates the universal CPU-runnable constraint.
 - ❌ Don't propose Llama-family bases — license is more restrictive than Apache-2.0.
-- ❌ Don't start fitz-gov v6 (long-context / domain expansion) before a pyrrho **v2** ships. Release #1 is now in production (fitz-sage v0.13.0); the gate moved to v2 so v6 data work doesn't outrun model validation.
+- ~~❌ Don't start fitz-gov v6~~ fitz-gov V6.0.0 shipped 2026-05-20 (V5.1-enriched schema overlay). Long-context / domain expansion for V7+ still deferred until pyrrho v2.
 - ❌ Don't rebrand pyrrho — chosen after going through Doxa/Aegis/Sift/Minos/Themis.
 - ❌ Don't generate emojis in code/docs unless explicitly asked.
 - ❌ Don't propose running pyrrho as a remote endpoint / hosted service. It runs CPU-side via INT8 ONNX inside fitz-sage — that's the architectural commitment (no embeddings, no vector DB, no per-vendor providers in fitz-sage's hot path).

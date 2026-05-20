@@ -13,6 +13,25 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-20 (evening) — fitz-gov V6.0.0 uploaded to HuggingFace
+
+**What landed:**
+
+- **fitz-gov V6.0.0 live at `yafitzdev/fitz-gov`** — V5.1-enriched vault (2,980 cases) uploaded as V6. Executive decision: V5.1-enriched = V6 (no further generation needed before the pyrrho-nano-g1.1 retrain).
+- New upload script: `fitz-gov/scripts/sdgp_upload_v6_hf.py` — reads vault JSONL, splits by ID prefix (t0/t1), adds top-level `label` + `tier` convenience fields, generates updated dataset card with V6 schema documentation, uploads to HF in one `upload_folder` call.
+- Dataset card updated with full V6 schema table, "What's new in V6" section, and updated class distribution.
+- `fitz-gov/CHANGELOG.md` updated with [6.0.0] entry.
+- Staging size: 13.4 MB (tier1_core.jsonl 12.9 MB, tier0_sanity.jsonl 0.2 MB, validation.jsonl 0.3 MB, README.md 0.01 MB).
+
+**What was learned:**
+
+- Uploading the full vault JSON per-row (not the old flat schema) gives pyrrho-g1.1 access to all V6 signals at training time — multi-task heads on `hallucination_pressure`, `answer_coverage`, etc. are now feasible without any additional preprocessing.
+- Upload took ~3 s for 13 MB (HF upload_folder is fast for small datasets).
+
+**Next:** Phase 1 — retrain `pyrrho-nano-g1.1` on the V6 dataset. Run `scripts/prepare_data.py` with the new vault schema, update the encoder config, and run `scripts/run_seeds.py`.
+
+---
+
 ## 2026-05-20 (evening) — Phase 0b complete: all 2,980 V5.1 cases LLM-enriched
 
 **What landed:**
