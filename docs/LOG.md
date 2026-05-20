@@ -13,6 +13,33 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-20 (evening) — V6 completion pass started: 4 missing MoE-training fields
+
+**What landed:**
+
+- **Gap analysis vs ROADMAP §7 MoE output heads** identified 4 ground-truth fields still missing from V6:
+  - per-chunk `input.contexts[].boundary_quality` (0–1, clean cut vs mid-sentence) — for Chunk Boundary Detection head
+  - per-case `governance.evidence_bias_score` (0–1, one-sided sourcing signal) — for Evidence Bias Detection head
+  - per-case `input.evidence_chain` (`order[]` + `reasoning`, multi-chunk cases only) — for Evidence Chain Construction head
+  - per-case `meta.grounding_targets` (`gold_answer` + `sentences[].attributions`, TRUSTWORTHY only) — for Answer Grounding Verification head
+- Executive call: add all 4 to V6 now (not later as V6.1/V7). Schema overlay, no version bump.
+- **New tooling:**
+  - `fitz_gov/sdgp/llm_enrich_v6.py` — single combined prompt emits all 4 fields per case (conditional blocks: evidence_chain only for multi-chunk, grounding_targets only for TRUSTWORTHY). Reuses `_strip_thinking()` for qwen3.6 reasoning blocks. V5.1 legacy `required_elements` are passed as hints for the TRUSTWORTHY `gold_answer` generation; `forbidden_claims` dropped (they're evaluator regex, not human-readable claims — noise for the LLM).
+  - `scripts/sdgp_enrich_v6_complete.py` — runner script mirroring `sdgp_enrich_v51_llm.py`. Atomic vault rewrite every 25 cases, idempotent skip via `case_needs_v6_completion()`, `--ids-file` support for batching.
+- **Smoke test results (10 cases via LM Studio qwen3.6-35b@Q5):** 10/10 success, no parse fails, ~16s/case. Field quality verified manually on one TRUSTWORTHY multi-chunk case (gold_answer matched required_elements, evidence_chain.order showed clear reasoning, sentence attributions accurate).
+- **Initial parse-fail at 2500 max_tokens** on an ABSTAIN 3-chunk case (`t1_abstain_hard_005`, "First Amendment" query): model overthought, response exceeded budget. Bumped default `max_tokens` to 4000 — re-ran 10 cases at 0 fails.
+- **Workload split:** 2,966 remaining cases (out of 2,980 — 14 already done by smoke tests) split 50/50 into `data/sdgp_handoff_v6/lm_studio_ids.txt` (1,483 t1) and `data/sdgp_handoff_v6/sonnet_ids.txt` (1,423 t1 + 60 tier0). LM Studio worker kicked off in background (task `bltlcb9w5`) — ETA ~6.5h. Sonnet half not yet launched.
+
+**What was learned:**
+
+- Combined-prompt strategy (1 LLM call → 4 fields) is cleaner than per-field passes and stays within qwen3.6's context budget even on 4-chunk cases.
+- The V5.1 `required_elements` field (preserved in `meta.v51_legacy` for all 1,596 TRUSTWORTHY cases) gives the gold-answer generation a strong consistency anchor — useful free-lunch hint.
+- 16s/case × 2,980 cases = ~13h via LM Studio alone. Halving by parallelizing with Sonnet subagent waves is cheap on wall-clock but ~2.5M tokens — likely overkill if overnight completion is acceptable.
+
+**Next:** Let LM Studio finish overnight. Tomorrow morning: run Sonnet subagent waves on the Sonnet half (or extend LM Studio to it if no rush). After all 2,980 cases complete: re-run `scripts/sdgp_upload_v6_hf.py` to refresh `yafitzdev/fitz-gov` v6.0.0 on HuggingFace (same version — schema overlay update).
+
+---
+
 ## 2026-05-20 (evening) — fitz-gov V6.0.0 uploaded to HuggingFace
 
 **What landed:**
