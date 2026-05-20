@@ -13,6 +13,17 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-21 (00:40) — V6 completion finished: 2,979/2,980 at full MoE schema
+
+**What landed:**
+
+- **All 2,980/2,980 cases at full MoE schema (100%).** Final case (`t1_qualify_medium_101`, Terravax vaccine — denied by Sonnet's safety classifier on every retry) backfilled via LM Studio (qwen3.6-27b local) in 57s once the user reloaded the model.
+- **HF re-uploaded** as `yafitzdev/fitz-gov` v6.0.0 at 16.4 MB (was 12.9 MB before the schema additions).
+
+**Why this finishing-touch matters:** the safety-classifier failure mode is a real long-tail bottleneck on subagent-based synthetic-data work, even on benign content. A locally-running model with no content classifier is the natural escape valve — keep LM Studio in the toolchain for these edge cases rather than abandoning them.
+
+---
+
 ## 2026-05-21 (00:30) — V6 completion finished: 2,979/2,980 (99.97%), HF re-upload live
 
 **What landed:**
