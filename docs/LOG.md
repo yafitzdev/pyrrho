@@ -13,6 +13,28 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-21 (04:20) — V7 generation pass 1: 745 fresh SDGP cases + pyrrho-small-g1.1 (V6) trained
+
+**What landed:**
+
+- **V7 generation pass 1: 745 fresh cases via SDGP.** Targeted the top 280 highest-priority empty/sparse cells (5 prompts per cell, 1,400 slots) using `GapDetector` + `build_prompt_for_cell` with 2 few-shots per prompt. Parallel Sonnet 4.6 subagents (~10 per wave) generated each case as a complete V6-schema JSON. 0 parse failures, 0 structural-checker failures, 0 dedup collisions across 745 ingests. Vault now **3,725 cases** total.
+- **Dataset version tagging:** every existing case backfilled with `meta.dataset_version: "v6"`; new V7 cases tagged `"v7"` and `version: "fitz-gov-7.0"`. Lets the trainer filter by dataset cohort going forward.
+- **New tooling:**
+  - `fitz-gov/scripts/sdgp_merge_v7_outputs.py` — reads Sonnet subagent outputs from `data/sdgp_handoff_v7/out/`, runs `Checker`, tags as v7, adds to vault via `Vault.add()`.
+- **pyrrho-small-g1.1 on V6 (single seed, Qwen3.5-0.8B QLoRA, 63 min wall-clock):** overall accuracy 87.9% (passes 78.7% gate), FT 11.6% (fails 5.7% gate — same failure mode as V5.1 small-g1.1), tier0 95.0% (passes). Single-seed only; multi-seed would clarify.
+- **pyrrho-nano-g1.1 on V6 (3-seed):** 81.54 ± 5.97 acc / 5.31 ± 0.21 FT. Below nano-g1's 86.13 mean with much higher variance — likely from a transformers 5.9.0 upgrade during install, not from V6 data. User explicitly opted to skip nano-g1.1 and move directly to SLM track.
+
+**What was learned:**
+
+- **Generation is cheaper than expected on Sonnet subagents** — ~2,700 tok/case effective rate, vs my pre-flight estimate of ~6,000. The actual budget for full-window generation is closer to 700 cases per 10% window, not 300. Worth keeping in mind for V7 pass 2.
+- **Quality is high straight out of the gate.** Across 745 generated cases, the structural checker (schema + class consistency + cell-id alignment + pattern structure + signal coherence + dedup) flagged zero failures. The few-shot prompts + the explicit cell spec are doing their job — agents get the schema right on first attempt.
+- **Monthly usage cap is the real ceiling.** We hit "You've hit your org's monthly usage limit" on wave 3 (v7_015 / v7_020 / v7_024 / v7_025). The 5-hour window is fine; the per-month cap is what governs the total V7 budget across the remaining 10 days of Max plan.
+- **Per-cell yield: ~2.7 cases per slot** (745 out of 1,400 slots = 53% completion before limit). Cells with completed slots got high-quality coverage; remaining cells stay empty awaiting V7 pass 2.
+
+**Next:** Wait for monthly window reset, then V7 pass 2 to fill the remaining ~660 generated-but-not-merged + the next 200 highest-priority cells. Long-term target: continue filling toward 5K-10K cases for MoE multi-task pre-training.
+
+---
+
 ## 2026-05-21 (00:40) — V6 completion finished: 2,979/2,980 at full MoE schema
 
 **What landed:**
