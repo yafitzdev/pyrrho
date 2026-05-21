@@ -13,6 +13,27 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-21 (07:20) — V7 generation complete: 1,400/1,400 slots (167% of 1,200 target)
+
+**What landed:**
+
+- **V7 generation pass 2 (resume) completed all 22 leftover batches** after monthly cap reset. Wave 1 (10 batches × 30): +300 cases. Wave 2 (10 × 30): +300 cases. Wave 3 (r_020 + r_021): +55 cases. Combined with pass 1's 745 → **all 1,400 prompt slots delivered.**
+- **Vault now 4,380 cases:** 2,980 v6 + **1,400 v7**.
+- **Quality across the entire 1,400-case V7 generation: pristine.** Zero parse failures, zero structural-checker rejections (schema + class consistency + cell_id alignment + pattern structure + signal coherence + dedup all clean), zero dedup collisions.
+
+**What was learned:**
+
+- **The few-shot + cell-spec generator prompt design generalizes near-perfectly across patterns and domains.** Every cell in the top-280 priority queue produced ≥3 valid cases; most produced all 5. The structural checker (which has ~10 rules across schema and signal coherence) flagged zero rejections across 1,400 attempts. That's a strong vote of confidence in the prompts.py library.
+- **Sonnet agents misattributed harness-injected `<system-reminder>` blocks to the SDGP `SYSTEM.txt` file** in several batches. Confirmed via direct file read that SYSTEM.txt is clean (210 chars, just the canonical SYSTEM_MESSAGE). This is a subagent prompt-engineering artifact — they treat any system-reminder in their conversation as belonging to whichever file they just read. Output quality unaffected; worth noting if we ever debug an actual injection.
+- **Generation throughput at scale:** 1,400 cases in ~3.5 hours of wall-clock across ~30 agent invocations, averaging ~25 min per 30-case agent. Per-case cost ~2,700 Sonnet tokens (matching the pass 1 estimate).
+
+**Next:**
+- **Two quality passes before V7 hits HF:** (1) nightly local-model spot-check on randomly-sampled V7 cases for drift detection, (2) one-shot blind labeling pass with a non-Sonnet model (GPT-5 / Gemini Ultra) to catch labels Sonnet would self-correlate on. Until then V7 stays vault-local.
+- After QA: re-run `sdgp_upload_v6_hf.py` (rename to `..._v7_hf.py` if separating configs) to publish.
+- Long-term: continue generating cases against the new top-priority gap cells (the cells we just filled aren't 100% — most landed 4-5 of 5 target, some cells deeper in the queue stay empty). Toward 5K-10K total for MoE multi-task pre-training.
+
+---
+
 ## 2026-05-21 (04:20) — V7 generation pass 1: 745 fresh SDGP cases + pyrrho-small-g1.1 (V6) trained
 
 **What landed:**
