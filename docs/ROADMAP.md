@@ -42,7 +42,7 @@ Generations are suffixed by dataset version trained on:
 
 - `pyrrho-nano-g1` — ModernBERT encoder fine-tuned on fitz-gov V5.1 (live on HF as `yafitzdev/pyrrho-nano-g1`)
 - `pyrrho-nano-g1.1` — same architecture, retrained on fitz-gov V6 for apples-to-apples comparison on the enriched schema
-- `pyrrho-nano-g2` — retrained on fitz-gov V7 (SDGP-scaled, 5K–10K cases)
+- `pyrrho-nano-g2` — retrained on fitz-gov V7.0.1 (SDGP-scaled, schema-clean; 10,500 rows published on Hugging Face)
 - `pyrrho-small-g2` — generative SLM fine-tuned on fitz-gov V7
 - `pyrrho-MoE-g3` — full sparse MoE trained from scratch on fitz-gov V8
 
@@ -57,9 +57,9 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | Version | Target size | Primary goal |
 |---|---|---|
 | V5.1 | 2,980 cases | Original baseline (no schema enrichment) |
-| **V6** | **2,980 cases** | **LLM-enriched schema overlay on V5.1 — CURRENT PUBLISHED VERSION (`yafitzdev/fitz-gov` v6.0.0, shipped 2026-05-20)** |
-| V7 | 5,000–10,000 cases | SDGP-scaled benchmark, taxonomy × domain × difficulty matrix coverage, MoE training base |
-| V8 | 15,000–20,000 cases | Generalization, uncertainty calibration, adversarial cases |
+| **V6** | **2,980 cases** | **LLM-enriched schema overlay on V5.1. Published 2026-05-20 as `yafitzdev/fitz-gov` v6.0.0; now the enriched-baseline reference, not the current default contract.** |
+| V7 | Published as V7.0.1 | SDGP-scaled benchmark across the existing 7 primary domains, taxonomy × domain × difficulty matrix coverage, MoE training base. **Current `g2` HF contract: 10,500 rows = 2,980 V6 + 7,520 V7, default `v7` query-grouped splits, strict V6/V7 schema complete, canonical `evaluation` block complete, target 25/cell complete, blind-label/cross-label QA passed, public rows schema-clean with no pre-SDGP report axes.** |
+| V8 | 15,000–20,000 cases | Generalization, uncertainty calibration, adversarial cases, and focused single-domain expansions where a domain merits deeper specialist coverage |
 | V9+ | 30,000+ cases | Infrastructure-grade reliability, false-trustworthy floor |
 
 ### Data Volume vs. Capability
@@ -71,6 +71,8 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | 15,000–30,000 | Generalization kicks in. Governance signals become calibrated, not just directional |
 | 30,000+ | False-trustworthy approaches floor. Routing stable enough to expose as signal. Infrastructure-grade |
 
+Current status as of 2026-05-24: fitz-gov V7.0.1 is published on Hugging Face as the `g2` training contract. It has **10,500 rows** with default `v7` query-grouped splits (train=8,400 / validation=1,050 / test=1,050), complete V6/MoE training schema on all **7,520 V7** rows, canonical `evaluation` on every row, and evaluator quality constraints on all **2,348 V7 TRUSTWORTHY** rows. V7.0.1 is schema-clean: public rows use `taxonomy.pattern`, `taxonomy.cell_id`, `routing.expert_fired`, and `meta.difficulty` rather than old report axes. Target 25/cell is complete across all 378 primary cells using the original 7 primary domains. Full LM Studio `qwen3.6-35b-a3b` blind-label QA is **7,520 / 7,520 validated** with **0 triage**; cross-label exact-query review has **0 unresolved pairs**. New domain additions, including automotive/ECU test analysis, are deferred to V8 so V7 stays a balanced baseline rather than shifting scope mid-release.
+
 ### Distribution Requirements
 
 The distribution matters more than total count. Monitor and enforce:
@@ -80,8 +82,8 @@ The distribution matters more than total count. Monitor and enforce:
 - **Difficulty distribution** — hard/medium/easy ratio maintained per expert
 - **Taxonomy pattern coverage** — all patterns represented within each expert domain (see taxonomy below)
 - **Near-miss ratio** — 20–25% of every expert's data must be borderline/near-miss cases
-- **Query type diversity** — what, how, why, when, who distributed across experts
-- **Reasoning type coverage** — factual, inferential, comparative, causal all represented
+- **Query-form diversity** — what, how, why, when, who represented in query text across experts
+- **Reasoning-pattern coverage** — factual, inferential, comparative, causal behaviors represented through SDGP patterns and examples
 
 ---
 
@@ -243,11 +245,6 @@ Every row must carry multi-task ground truth for all pyrrho-MoE output heads sim
 
   "meta": {
     "difficulty": "hard",
-    "subcategory": "wrong_specificity",
-    "domain": "history",
-    "query_type": "what",
-    "reasoning_type": "factual",
-    "evidence_pattern": "absent",
     "confidence_level": "high",
     "near_miss_class": "DISPUTED",
     "near_miss_reason": "contexts discuss Hannibal authoritatively but cover wrong battles entirely, not conflicting evidence",
@@ -319,7 +316,7 @@ Distribution Monitor (updated)
 - Routing assignment matches domain label
 - Near-miss class differs from classification
 - Per-chunk relevance scores consistent with overall `query_evidence_alignment`
-- Authority scores consistent with `source_type`
+- Authority scores consistent with per-context `authority_signal`
 - `conflict_density` consistent with taxonomy class (DISPUTED patterns should have high conflict density, TRUSTWORTHY patterns low)
 
 ### What the Monitor Tracks
@@ -542,6 +539,8 @@ The complete output of a pyrrho-MoE inference pass:
 
 **Why:** Current comparisons are muddied by dataset version differences. This establishes a clean baseline the paper can cite.
 
+**Status 2026-05-21:** Attempted locally and not released. The 3-seed V6 retrain landed at **81.54 ± 5.97%** accuracy and **5.31 ± 0.21%** false-trustworthy, with high variance after toolchain drift. The team explicitly skipped a `g1.1` release and moved to the V7 `pyrrho-nano-g2` baseline.
+
 ---
 
 ### Phase 2 — Synthetic data pipeline + fitz-gov V7
@@ -561,7 +560,9 @@ The complete output of a pyrrho-MoE inference pass:
 - Add evidence chain construction cases (multi-chunk ordered reasoning) — new evidence pattern not in V6
 - Add reference chunk summaries to all cases
 
-**Output:** fitz-gov V7, 5,000–10,000 cases, fully enriched schema, complete taxonomy × domain × difficulty coverage, auditable cell provenance.
+**Output:** fitz-gov V7, 10,500 cases, fully enriched schema, complete taxonomy × domain × difficulty coverage, auditable cell provenance.
+
+**Status 2026-05-24:** V7.0.1 is published on Hugging Face. The release has **10,500 rows** (2,980 V6 + 7,520 V7), strict full-schema completion on **7,520/7,520 V7** rows, canonical evaluator fields complete on **10,500/10,500** rows, target 25/cell complete across all **378/378** primary cells, query-grouped splits with **0 leakage**, full blind-label coverage at **7,520 validated / 0 triage**, and cross-label exact-query review passed with **0 unresolved pairs**. V7.0.1 removes the old public report axes and exposes SDGP/expert/difficulty fields only. Target 30/cell remains a future stretch (20 / 378 cells at target; remaining gap 1,575), and domain-specific expansion is reserved for V8.
 
 ---
 
@@ -575,8 +576,10 @@ The complete output of a pyrrho-MoE inference pass:
 - Establishes V7 accuracy baseline
 - Comparison point for MoE paper
 
+**Status 2026-05-24:** Complete and published to Hugging Face as [`yafitzdev/pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2). Validated against published fitz-gov V7.0.1 default `v7` splits (train=8,400 / validation=1,050 / test=1,050); V7.0.1 has the same rows/splits/labels as the original V7.0.0 training run, so no retrain was required. Three-seed held-out test result: **95.24 ± 0.48% accuracy / 3.48 ± 0.40% false-trustworthy**, with every seed passing gates. Training artifacts live under `outputs/multi_seed_g2/`; local HF release mirror is `models/pyrrho-nano-g2/`.
+
 #### pyrrho-small-g2
-- Generative SLM fine-tune (1–3B dense, e.g. Phi-3-mini, Qwen2.5-1.5B, or Gemma-3-1B)
+- Generative SLM fine-tune (1–3B dense; choose the specific permissive 2026 base only after a fresh model-state search)
 - Classification + reasoning trace output
 - Tests whether rationale generation improves accuracy
 - Introduces RL fine-tuning:
@@ -595,6 +598,7 @@ The complete output of a pyrrho-MoE inference pass:
 **Goal:** Scale to 15,000–20,000 cases with adversarial and uncertainty-focused data.
 
 - Continue synthetic pipeline with updated cell targets — increase minimum per cell to 40–50 examples
+- Add focused domain packs one at a time when the domain deserves specialist coverage. First candidate: `automotive_embedded` / ECU test analysis under an industrial embedded systems umbrella.
 - Add adversarial variants of existing cells: same taxonomy pattern × domain × difficulty but designed to fool the model on exactly the pattern it should be most reliable on
 - Systematically target cells where pyrrho-nano-g2 and pyrrho-small-g2 show lowest accuracy — taxonomy makes this surgical rather than speculative
 - Add cases where correct answer requires chaining evidence across chunks in specific order

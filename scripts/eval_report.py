@@ -1,8 +1,8 @@
 """eval_report.py — Load a trained checkpoint and emit a full evaluation report.
 
 Goes beyond train_encoder.py's end-of-run summary by producing per-breakdown
-metrics across every categorical axis in fitz-gov: domain, difficulty,
-reasoning_type, evidence_pattern, query_type, source_type, subcategory.
+metrics across the canonical V7 axes: difficulty, expert, taxonomy pattern,
+and taxonomy cell.
 
 Used for:
 - Diagnosing where a model wins vs sklearn baseline
@@ -42,12 +42,9 @@ from pyrrho.metrics import (
 
 BREAKDOWN_FIELDS = (
     "difficulty",
-    "domain",
-    "reasoning_type",
-    "evidence_pattern",
-    "query_type",
-    "source_type",
-    "subcategory",
+    "expert",
+    "taxonomy_pattern",
+    "taxonomy_cell_id",
 )
 
 
@@ -197,7 +194,12 @@ def main() -> int:
     print(f"Checkpoint   : {ckpt}")
 
     ds = load_processed(args.data_dir)
-    print(f"Splits       : train={len(ds['train'])}  eval={len(ds['eval'])}  tier0={len(ds['tier0_sanity'])}")
+    test_msg = f"  test={len(ds['test'])}" if "test" in ds else ""
+    tier0_msg = f"  tier0={len(ds['tier0_sanity'])}" if "tier0_sanity" in ds else ""
+    print(
+        f"Splits       : train={len(ds['train'])}  eval={len(ds['eval'])}"
+        f"{test_msg}{tier0_msg}"
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(ckpt)
     model = AutoModelForSequenceClassification.from_pretrained(ckpt)
@@ -210,25 +212,33 @@ def main() -> int:
 
     print("\nRunning inference on eval split...")
     eval_logits = infer_logits(model, tokenizer, ds["eval"], args.max_seq_length, device)
-    print("Running inference on tier0_sanity split...")
-    tier0_logits = infer_logits(model, tokenizer, ds["tier0_sanity"], args.max_seq_length, device)
+    test_logits = None
+    if "test" in ds:
+        print("Running inference on test split...")
+        test_logits = infer_logits(model, tokenizer, ds["test"], args.max_seq_length, device)
+    tier0_logits = None
+    if "tier0_sanity" in ds:
+        print("Running inference on tier0_sanity split...")
+        tier0_logits = infer_logits(model, tokenizer, ds["tier0_sanity"], args.max_seq_length, device)
 
     eval_labels = np.array(ds["eval"]["label_id"])
-    tier0_labels = np.array(ds["tier0_sanity"]["label_id"])
 
-    # Find τ that hits FT target on eval (same logic as train_encoder.py).
+    # Find τ that hits FT target on eval/validation (same logic as train_encoder.py).
     best_thr = find_optimal_threshold(
         eval_logits,
         eval_labels,
-        aux_logits=tier0_logits,
-        aux_labels=tier0_labels,
         num_classes=num_classes,
     )
     tau = float(best_thr["threshold"])
     print(f"\nSelected tau : {tau:.3f}  (target_met={best_thr['target_met']})")
 
-    eval_report = report_split("EVAL  (tier1 80/20 hold-out)", ds["eval"], eval_logits, tau, args.min_bucket_size)
-    tier0_report = report_split("TIER0 (sanity, held-out)", ds["tier0_sanity"], tier0_logits, tau, args.min_bucket_size)
+    eval_report = report_split("EVAL  (validation)", ds["eval"], eval_logits, tau, args.min_bucket_size)
+    test_report = None
+    if test_logits is not None:
+        test_report = report_split("TEST  (held-out)", ds["test"], test_logits, tau, args.min_bucket_size)
+    tier0_report = None
+    if tier0_logits is not None:
+        tier0_report = report_split("TIER0 (sanity, held-out)", ds["tier0_sanity"], tier0_logits, tau, args.min_bucket_size)
 
     payload = {
         "checkpoint": str(ckpt),
@@ -237,6 +247,7 @@ def main() -> int:
         "threshold": tau,
         "threshold_target_met": bool(best_thr["target_met"]),
         "eval": eval_report,
+        "test": test_report,
         "tier0_sanity": tier0_report,
     }
 

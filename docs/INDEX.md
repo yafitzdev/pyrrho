@@ -43,12 +43,22 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 
 Full validation methodology and per-seed numbers in [HANDOFF.md](HANDOFF.md). Pipeline that produced these in [METHODOLOGY.md](METHODOLOGY.md). The story of how we got these numbers (5 hyperparameter attempts, 3-seed validation, smoke test) lives in [LOG.md](LOG.md).
 
+`pyrrho-nano-g2` is now published at [`yafitzdev/pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2). Held-out V7 test, 3-seed mean ± std: **95.24 ± 0.48%** accuracy and **3.48 ± 0.40%** false-trustworthy. The local release mirror is `models/pyrrho-nano-g2/`.
+
 ---
 
-## If you're a Claude session, also check memory
+## Current dataset state
+
+Published benchmark contract for new `g2` work: `yafitzdev/fitz-gov` **V7.0.1**, 10,500 query-grouped rows. V6.0.0 remains the 2,980-row enriched baseline for V6 apples-to-apples comparisons.
+
+Published V7: `yafitzdev/fitz-gov` **v7.0.1** on Hugging Face, **10,500 rows** total: 2,980 V6 + 7,520 V7. Default config `v7` has query-grouped splits: train=8,400 / validation=1,050 / test=1,050. V7.0.1 is schema-clean: public rows expose SDGP/expert/difficulty fields and do not include the old report axes. Target 25/cell is complete across all 378 primary cells, V6/V7 strict rich-schema audit is clean, canonical `evaluation` is complete across all rows, blind-label QA is **7,520 / 7,520 validated** with **0 triage**, and cross-label exact-query review has **0 unresolved pairs**. V7 is now the published `g2` training contract.
+
+---
+
+## If you're a Codex or Claude session, also check memory
 
 Persistent memory for this project lives at:
-`C:\Users\yanfi\.claude\projects\C--Users-yanfi-PycharmProjects-pyrrho\memory\`
+`C:\Users\yanfi\.Codex\projects\C--Users-yanfi-PycharmProjects-pyrrho\memory\`
 
 `MEMORY.md` is the index. The user-role, feedback, and reference files there capture conventions that aren't repeated in these docs:
 - The user is a senior IC. Terse, concrete, no hand-waving.

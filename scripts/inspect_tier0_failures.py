@@ -130,9 +130,9 @@ def main() -> int:
         )
         print(f"\n[case_id={ex['id']}] {true_lbl_full} -> {pred_lbl_full}  P({prob_parts})")
         print(f"  category    : {ex.get('category', '')}")
-        print(f"  subcategory : {ex.get('subcategory', '')}")
-        print(f"  domain      : {ex.get('domain', '')}")
-        print(f"  reasoning   : {ex.get('reasoning_type', '')}")
+        print(f"  pattern     : {ex.get('taxonomy_pattern', '')}")
+        print(f"  expert      : {ex.get('expert', '')}")
+        print(f"  cell        : {ex.get('taxonomy_cell_id', '')}")
         print(f"  query       : {ex.get('query', '')}")
         for i, ctx in enumerate(ex.get("contexts", []), start=1):
             ctx_str = str(ctx).strip()

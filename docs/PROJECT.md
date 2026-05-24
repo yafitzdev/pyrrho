@@ -4,7 +4,9 @@
 
 **Owner:** Yan Fitzner
 **Created:** 2026-05-13
-**Status:** Planning complete, ready to start v1
+**Status:** Historical vision doc. `pyrrho-nano-g1` is shipped; current state lives in [HANDOFF.md](HANDOFF.md), and the active model/data roadmap lives in [ROADMAP.md](ROADMAP.md).
+
+> 2026-05-24 note: this document still preserves the original planning record. Treat §10 release sequencing and older V6/V7 naming as superseded by [ROADMAP.md](ROADMAP.md). Current published fitz-gov is V7.0.1 on Hugging Face: 10,500 rows, default `v7` query-grouped splits, schema-clean public rows, strict V6/V7 schema complete, canonical evaluator fields complete, blind-label QA clean (7,520 / 7,520 V7 rows validated, 0 triage), and cross-label exact-query review clean. `pyrrho-nano-g2` is the published V7 encoder baseline: https://huggingface.co/yafitzdev/pyrrho-nano-g2.
 
 ---
 

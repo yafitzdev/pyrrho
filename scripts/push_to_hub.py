@@ -11,6 +11,7 @@ authenticated via `huggingface-cli login` (one-time).
 Run from project root:
     python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g1 --dry-run
     python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g1 --repo-id yafitzdev/pyrrho-nano-g1
+    python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g2 --repo-id yafitzdev/pyrrho-nano-g2 --large-folder
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--repo-id", type=str, default="yafitzdev/pyrrho-nano-g1")
     p.add_argument("--private", action="store_true", help="Create the repo private (default: public)")
     p.add_argument("--dry-run", action="store_true", help="List what would be uploaded but don't push")
-    p.add_argument("--commit-message", type=str, default="Release: pyrrho-nano-g1")
+    p.add_argument("--large-folder", action="store_true", help="Use Hugging Face's resumable large-folder uploader")
+    p.add_argument("--commit-message", type=str, default=None)
     return p.parse_args()
 
 
@@ -60,7 +62,8 @@ def main() -> int:
     total_bytes = sum(f.stat().st_size for f in files)
     print(f"Total size    : {total_bytes / 1e6:.1f} MB")
     print(f"Target repo   : {args.repo_id} ({'private' if args.private else 'public'})")
-    print(f"Commit message: {args.commit_message}")
+    commit_message = args.commit_message or f"Release: {release.name}"
+    print(f"Commit message: {commit_message}")
     print()
 
     # Show file list, sorted by size
@@ -80,13 +83,25 @@ def main() -> int:
     print("Creating repo (no-op if it already exists)...")
     create_repo(repo_id=args.repo_id, private=args.private, exist_ok=True)
 
-    print("Uploading folder...")
     api = HfApi()
-    api.upload_folder(
-        folder_path=str(release),
-        repo_id=args.repo_id,
-        commit_message=args.commit_message,
-    )
+    if args.large_folder:
+        print("Uploading folder with resumable large-folder uploader...")
+        api.upload_large_folder(
+            folder_path=str(release),
+            repo_id=args.repo_id,
+            repo_type="model",
+            private=args.private,
+            num_workers=4,
+            print_report=True,
+            print_report_every=60,
+        )
+    else:
+        print("Uploading folder...")
+        api.upload_folder(
+            folder_path=str(release),
+            repo_id=args.repo_id,
+            commit_message=commit_message,
+        )
 
     print(f"\nDONE. Live at: https://huggingface.co/{args.repo_id}")
     return 0

@@ -2,10 +2,10 @@
 aggregate failure patterns + show representative misclassified cases.
 
 Tier1 has ~584 cases vs tier0's 60, so we *aggregate* before showing details.
-For each grouping axis (subcategory, domain, reasoning_type, query_type,
-evidence_pattern), shows top-N failing buckets ranked by error count, with
-a couple sample cases per bucket. Also flags "high-confidence wrong" cases
-(model was very sure but wrong) — the most concerning failure mode.
+For each canonical grouping axis (difficulty, expert, taxonomy_pattern,
+taxonomy_cell_id), shows top-N failing buckets ranked by error count. Also
+flags "high-confidence wrong" cases (model was very sure but wrong) — the
+most concerning failure mode.
 
 Used to diagnose what the model is *actually* bad at on the publishable
 benchmark, not the noisy 60-case tier0 diagnostic.
@@ -34,7 +34,7 @@ from pyrrho.data import ID2LABEL, ID2LABEL_4CLASS, load_processed
 from pyrrho.metrics import _softmax
 
 
-GROUPING_AXES = ("subcategory", "domain", "reasoning_type", "query_type", "evidence_pattern")
+GROUPING_AXES = ("difficulty", "expert", "taxonomy_pattern", "taxonomy_cell_id")
 
 
 def latest_checkpoint(search_dirs: list[Path]) -> Path | None:
@@ -191,12 +191,12 @@ def main() -> int:
             print(f"  {bucket:<42s} {errs:>5d} {total:>6d}  {rate:>8.1%}")
         print()
 
-    # Show sample failures per top subcategory (since subcategory is most diagnostic)
-    if "subcategory" in eval_ds.column_names:
+    # Show sample failures per top taxonomy pattern.
+    if "taxonomy_pattern" in eval_ds.column_names:
         print("=" * 100)
-        print(f"SAMPLE FAILURES — top subcategories ({args.samples_per_bucket} per bucket)")
+        print(f"SAMPLE FAILURES — top taxonomy patterns ({args.samples_per_bucket} per bucket)")
         print("=" * 100)
-        values = eval_ds["subcategory"]
+        values = eval_ds["taxonomy_pattern"]
         bucket_fail_indices: dict[str, list[int]] = defaultdict(list)
         for i, v in enumerate(values):
             if i in fail_set:
@@ -206,7 +206,7 @@ def main() -> int:
         )[: args.top_buckets]
 
         for bucket, indices in ranked:
-            print(f"\n--- subcategory: {bucket} ({len(indices)} failures) ---")
+            print(f"\n--- taxonomy_pattern: {bucket} ({len(indices)} failures) ---")
             for idx in indices[: args.samples_per_bucket]:
                 ex = eval_ds[idx]
                 true_lbl = id2label_full[int(labels[idx])]
@@ -217,7 +217,10 @@ def main() -> int:
                 print(
                     f"  [id={ex['id']}]  {true_lbl} -> {pred_lbl}  ({probs_str})"
                 )
-                print(f"    domain: {ex.get('domain', '')}  reasoning: {ex.get('reasoning_type', '')}  difficulty: {ex.get('difficulty', '')}")
+                print(
+                    f"    expert: {ex.get('expert', '')}  cell: {ex.get('taxonomy_cell_id', '')}  "
+                    f"difficulty: {ex.get('difficulty', '')}"
+                )
                 print(f"    query : {ex.get('query', '')}")
                 for i_ctx, ctx in enumerate(ex.get("contexts", []) or [], 1):
                     ctx_str = str(ctx).strip()
@@ -239,7 +242,10 @@ def main() -> int:
                 f"{id2label_full[i]}={probs[idx, i]:.3f}" for i in range(num_labels)
             )
             print(f"\n[id={ex['id']}]  {true_lbl} -> {pred_lbl}  (max_p={max_p:.3f})  ({probs_str})")
-            print(f"  subcat: {ex.get('subcategory', '')}  domain: {ex.get('domain', '')}  reasoning: {ex.get('reasoning_type', '')}")
+            print(
+                f"  pattern: {ex.get('taxonomy_pattern', '')}  expert: {ex.get('expert', '')}  "
+                f"cell: {ex.get('taxonomy_cell_id', '')}"
+            )
             print(f"  query : {ex.get('query', '')}")
             for i_ctx, ctx in enumerate(ex.get("contexts", []) or [], 1):
                 ctx_str = str(ctx).strip()

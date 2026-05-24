@@ -93,7 +93,7 @@ Most RAG governance is either **(a) a black-box LLM call** ("ask GPT-4 if these 
 
 The architecture call: pure encoder (ModernBERT-base, 149M params) — not a generative SLM, not an LLM. For 3-class classification with constrained label space, encoder + INT8 ONNX is 50–100× faster on CPU than the same task with a generative model, and **doesn't lose accuracy** when the labels are categorical and the input fits in 4K tokens (as RAG retrievals almost always do).
 
-It's the model that powers governance in [`fitz-sage`](https://github.com/yafitzdev/fitz-sage) (the RAG library) and is benchmarked against [`fitz-gov`](https://github.com/yafitzdev/fitz-gov) (2,920 adversarial cases, 5-fold CV). The three projects form a triangle — benchmark, models, library.
+It's the model that powers governance in [`fitz-sage`](https://github.com/yafitzdev/fitz-sage) (the RAG library). `pyrrho-nano-g1` is benchmarked against the original [`fitz-gov`](https://github.com/yafitzdev/fitz-gov) V5.1 eval hold-out; [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) is the published encoder baseline for the fitz-gov V7.0.1 contract with 10,500 query-grouped rows. The three projects form a triangle — benchmark, models, library.
 
 Yan Fitzner — ([LinkedIn](https://www.linkedin.com/in/yan-fitzner/), [GitHub](https://github.com/yafitzdev)).
 
@@ -113,10 +113,22 @@ Release v1 — `pyrrho-nano-g1` vs the published `fitz-sage` v0.11 sklearn basel
 | CPU inference (estimated) | **~30 ms** | ~500–2000 ms (5 LLM calls) | **~50× faster** |
 | External dependencies | **none** | requires LLM | self-contained |
 
-Every margin is multiple standard deviations larger than seed noise — not a lucky-run artifact. Independently verifiable by running the published model against the published benchmark: `load_dataset("yafitzdev/fitz-gov")` + `AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-nano-g1")`.
+Every margin is multiple standard deviations larger than seed noise — not a lucky-run artifact. Independently verifiable by running the published model against the original V5.1/V6-era eval contract rather than the new default V7 config.
 
 > [!NOTE]
 > **Known limitation:** the model occasionally classifies *multi-source-convergence* cases (multiple authoritative sources agreeing within measurement tolerance) as `DISPUTED`. ~57% error on this fitz-gov subcategory (n=7). Fixed in v2 with augmented training data. Documented in the model card.
+
+V7 baseline — `pyrrho-nano-g2` on published fitz-gov V7.0.1 default `v7` splits. V7.0.1 is schema-clean and has the same rows/splits/labels as V7.0.0, so no retrain was needed. 3-seed mean ± std on the 1,050-row held-out test split; validation is used only for checkpoint and threshold selection:
+
+| Metric | **pyrrho-nano-g2** | release gate / baseline | Δ |
+|---|---|---|---|
+| Overall accuracy | **95.24 ± 0.48 %** | 78.7 % | **+16.54** |
+| False-trustworthy rate (safety) | **3.48 ± 0.40 %** | 5.7 % | **-2.22** (safer) |
+| Trustworthy recall | **93.66 ± 0.30 %** | 70.0 % | **+23.66** |
+| Disputed recall | **97.00 ± 1.17 %** | 86.1 % | **+10.90** |
+| Abstain recall | **95.25 ± 0.00 %** | 86.5 % | **+8.75** |
+
+Artifacts: [`yafitzdev/pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2), local mirror `models/pyrrho-nano-g2/`, `outputs/multi_seed_g2/summary.json`, `outputs/multi_seed_g2/seed_*/best_model/`, and `configs/encoder/modernbert_base_g2.yaml`.
 
 ---
 
@@ -150,14 +162,16 @@ Three tiers, generation-suffixed by the fitz-gov data version they were trained 
 - **`pyrrho-small`** — fine-tuned generative SLM (1–3B dense). Classification + reasoning trace.
 - **`pyrrho-MoE`** — sparse Mixture-of-Experts trained from scratch (4B total / 0.4B active). The terminal architecture; covers 16 RAG governance capabilities in v1.
 
+Dataset status, 2026-05-24: published fitz-gov is **V7.0.1** on HuggingFace. Default config `v7` has **10,500 rows** (2,980 V6 + 7,520 V7) with query-grouped splits: train=8,400 / validation=1,050 / test=1,050. V7.0.1 is the schema-clean contract: public rows use SDGP fields and do not expose the old `meta.domain`, `meta.subcategory`, `meta.reasoning_type`, `meta.query_type`, or `meta.evidence_pattern` axes. Target-25 coverage is complete across all 378 primary cells, strict V6/V7 schema completion is clean, canonical `evaluation` is complete, blind-label QA is **7,520 validated / 0 triage**, and cross-label exact-query review has **0 unresolved pairs**. V7 is now the `g2` training contract.
+
 <br>
 
 | Model | Tier | Params | Status |
 |---|---|---|---|
 | [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | encoder | 149M | ✅ **live on HF** (trained on fitz-gov V5.1) |
-| `pyrrho-nano-g1.1` | encoder | 149M | planned — fitz-gov V6 apples-to-apples retrain (V5.1-enriched schema; ROADMAP Phase 1) |
-| `pyrrho-nano-g2` | encoder | 149M | planned — fitz-gov V7 retrain, 5K–10K cases (ROADMAP Phase 3) |
-| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — first SLM on V7, classification + rationale, RL fine-tuned (ROADMAP Phase 3) |
+| `pyrrho-nano-g1.1` | encoder | 149M | local V6 retrain attempted; not released; superseded by `pyrrho-nano-g2` |
+| [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) | encoder | 149M | **live on HF** (trained on fitz-gov V7.0.1 schema-clean contract); **95.24 ± 0.48% acc / 3.48 ± 0.40% FT** on held-out V7 test |
+| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — first SLM on QA-passed V7, classification + rationale, RL fine-tuned (ROADMAP Phase 3) |
 | `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | planned — trained from scratch on V8; 7–8 domain experts + conflict-detection meta-expert; full 16-capability RAG runtime (ROADMAP Phase 5) |
 | `pyrrho-MoE-g4` | sparse MoE | 4B total / 0.4B active | planned — V9+ retrain, infrastructure-grade reliability (ROADMAP Phase 6) |
 
@@ -215,24 +229,23 @@ python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\Activate.
 pip install torch --index-url https://download.pytorch.org/whl/cu128   # Blackwell wheels
 pip install -e ".[encoder,hub,dev]"
 
-# 2. Prepare data — either pull from the published HF dataset,
-# or use a local clone of yafitzdev/fitz-gov.
-python scripts/prepare_data.py --fitz-gov ../fitz-gov/data --output data/processed
+# 2. Prepare V7 data from the published HF dataset
+python scripts/prepare_data.py --output data/processed_v7
 
 # 3. Verify the environment (driver / CUDA / bitsandbytes / Blackwell)
 python scripts/verify_env.py
 
-# 4. Train release #1 (~80–500 s on RTX 5090 depending on contention)
-python scripts/train_encoder.py --config configs/encoder/modernbert_base.yaml --no-wandb
+# 4. Train the V7 encoder baseline (~3–5 min/run on RTX 5090 depending on contention)
+python scripts/train_encoder.py --config configs/encoder/modernbert_base_g2.yaml --data-dir data/processed_v7 --no-wandb
 
 # 5. Multi-seed validation — produces the published mean ± std
-python scripts/run_seeds.py --seeds 42 1337 7
+python scripts/run_seeds.py --config configs/encoder/modernbert_base_g2.yaml --data-dir data/processed_v7 --base-output-dir outputs/multi_seed_g2 --seeds 42 1337 7
 
-# 6. Full per-breakdown evaluation (per domain / difficulty / reasoning_type / subcategory)
-python scripts/eval_report.py --checkpoint outputs/multi_seed/seed_42/checkpoint-XXX
+# 6. Full per-breakdown evaluation (difficulty / expert / taxonomy_pattern / taxonomy_cell_id)
+python scripts/eval_report.py --checkpoint outputs/multi_seed_g2/seed_42/best_model --data-dir data/processed_v7 --output outputs/multi_seed_g2/seed_42/eval_report.json
 
 # 7. Compare to the sklearn baseline OR an existing pyrrho release
-python scripts/compare_runs.py baseline outputs/multi_seed/summary.json
+python scripts/compare_runs.py baseline outputs/multi_seed_g2/summary.json
 
 # 8. Smoke test regression guard (10 handcrafted cases)
 pytest tests/test_smoke.py -v
@@ -260,7 +273,7 @@ Full methodology, release gates, and W&B conventions in [`docs/METHODOLOGY.md`](
 ### Related projects
 
 - [**`fitz-sage`**](https://github.com/yafitzdev/fitz-sage) — production RAG library that uses `pyrrho` for governance.
-- [**`fitz-gov`**](https://github.com/yafitzdev/fitz-gov) — 2,980-case benchmark for RAG epistemic honesty. The dataset `pyrrho` is trained and evaluated against. Also on HF: [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov).
+- [**`fitz-gov`**](https://github.com/yafitzdev/fitz-gov) — benchmark for RAG epistemic honesty. Published HF version is V7.0.1 with 10,500 query-grouped rows. Also on HF: [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov).
 
 The three projects form a triangle: `fitz-gov` defines the eval contract, `pyrrho` produces the models, `fitz-sage` consumes them in production.
 

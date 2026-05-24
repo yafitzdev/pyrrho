@@ -144,7 +144,11 @@ def main() -> int:
     ds = load_processed(args.data_dir)
     print(f"  train         : {len(ds['train'])}")
     print(f"  eval          : {len(ds['eval'])}")
-    print(f"  tier0_sanity  : {len(ds['tier0_sanity'])}")
+    if "test" in ds:
+        print(f"  test          : {len(ds['test'])}")
+    has_tier0 = "tier0_sanity" in ds and len(ds["tier0_sanity"]) > 0
+    if has_tier0:
+        print(f"  tier0_sanity  : {len(ds['tier0_sanity'])}")
 
     base_model = cfg["model"]["base_model"]
     max_length = int(cfg["data"]["max_seq_length"])
@@ -168,7 +172,8 @@ def main() -> int:
     print("\nTokenizing splits...")
     train_ds = tokenize_dataset(ds["train"], tokenizer, max_length)
     eval_ds = tokenize_dataset(ds["eval"], tokenizer, max_length)
-    tier0_ds = tokenize_dataset(ds["tier0_sanity"], tokenizer, max_length)
+    test_ds = tokenize_dataset(ds["test"], tokenizer, max_length) if "test" in ds else None
+    tier0_ds = tokenize_dataset(ds["tier0_sanity"], tokenizer, max_length) if has_tier0 else None
 
     output_dir = args.output_dir or Path(cfg["training"]["output_dir"])
     output_dir = Path(output_dir).resolve()
@@ -261,64 +266,106 @@ def main() -> int:
             preds = np.where(preds >= 2, 2, preds)
         return preds
 
-    print("\n=== FINAL EVAL (tier1 eval split, uncalibrated argmax, 3-class space) ===")
+    print("\n=== VALIDATION EVAL (checkpoint/threshold split, uncalibrated argmax, 3-class space) ===")
     eval_pred = trainer.predict(eval_ds)
     eval_labels_3 = collapse_labels(eval_pred.label_ids)
     eval_preds_3 = collapsed_argmax(eval_pred.predictions)
     eval_metrics = compute_classification_metrics(eval_preds_3, eval_labels_3)
     print(format_metrics_table(eval_metrics))
 
-    print("\n=== TIER0 SANITY (uncalibrated argmax, must hit >=95%) ===")
-    tier0_pred = trainer.predict(tier0_ds)
-    tier0_labels_3 = collapse_labels(tier0_pred.label_ids)
-    tier0_preds_3 = collapsed_argmax(tier0_pred.predictions)
-    tier0_metrics = compute_classification_metrics(tier0_preds_3, tier0_labels_3)
-    print(format_metrics_table(tier0_metrics))
+    test_pred = None
+    test_labels_3 = None
+    test_metrics = None
+    if test_ds is not None:
+        print("\n=== HELD-OUT TEST (uncalibrated argmax, 3-class space) ===")
+        test_pred = trainer.predict(test_ds)
+        test_labels_3 = collapse_labels(test_pred.label_ids)
+        test_preds_3 = collapsed_argmax(test_pred.predictions)
+        test_metrics = compute_classification_metrics(test_preds_3, test_labels_3)
+        print(format_metrics_table(test_metrics))
 
-    print("\n=== THRESHOLD CALIBRATION (sweep τ on eval, with tier0 sanity gate) ===")
+    tier0_pred = None
+    tier0_labels_3 = None
+    tier0_metrics = None
+    if tier0_ds is not None:
+        print("\n=== TIER0 SANITY (uncalibrated argmax, diagnostic only) ===")
+        tier0_pred = trainer.predict(tier0_ds)
+        tier0_labels_3 = collapse_labels(tier0_pred.label_ids)
+        tier0_preds_3 = collapsed_argmax(tier0_pred.predictions)
+        tier0_metrics = compute_classification_metrics(tier0_preds_3, tier0_labels_3)
+        print(format_metrics_table(tier0_metrics))
+
+    print("\n=== THRESHOLD CALIBRATION (sweep τ on validation eval) ===")
     best_thr = find_optimal_threshold(
         eval_pred.predictions,
         eval_labels_3,
-        aux_logits=tier0_pred.predictions,
-        aux_labels=tier0_labels_3,
         num_classes=num_labels,
     )
     tau = best_thr["threshold"]
     print(f"  selected τ          : {tau:.4f}")
     print(f"  eval FT target met  : {best_thr['target_met']}")
-    print(f"  tier0 acc target met: {best_thr.get('aux_target_met', False)}")
+    if tier0_ds is not None:
+        print("  tier0 acc target met: diagnostic only (not a release gate)")
 
     full_sweep = sweep_thresholds(eval_pred.predictions, eval_labels_3, num_classes=num_labels)
-    tier0_sweep = sweep_thresholds(tier0_pred.predictions, tier0_labels_3, num_classes=num_labels)
-    print("\n  Sweep table (eval_acc / eval_FT / tier0_acc / tier0_FT):")
-    print(f"  {'tau':>6s}  {'eval_acc':>9s}  {'eval_FT':>8s}  {'t0_acc':>7s}  {'t0_FT':>7s}")
-    for s, t0 in zip(full_sweep, tier0_sweep):
-        marker = " <--" if abs(s["threshold"] - tau) < 1e-6 else ""
-        print(
-            f"  {s['threshold']:6.3f}  {s['accuracy']:9.4f}  "
-            f"{s['false_trustworthy_rate']:8.4f}  "
-            f"{t0['accuracy']:7.4f}  {t0['false_trustworthy_rate']:7.4f}{marker}"
-        )
+    if tier0_pred is not None and tier0_labels_3 is not None:
+        tier0_sweep = sweep_thresholds(tier0_pred.predictions, tier0_labels_3, num_classes=num_labels)
+        print("\n  Sweep table (eval_acc / eval_FT / tier0_acc / tier0_FT):")
+        print(f"  {'tau':>6s}  {'eval_acc':>9s}  {'eval_FT':>8s}  {'t0_acc':>7s}  {'t0_FT':>7s}")
+        for s, t0 in zip(full_sweep, tier0_sweep):
+            marker = " <--" if abs(s["threshold"] - tau) < 1e-6 else ""
+            print(
+                f"  {s['threshold']:6.3f}  {s['accuracy']:9.4f}  "
+                f"{s['false_trustworthy_rate']:8.4f}  "
+                f"{t0['accuracy']:7.4f}  {t0['false_trustworthy_rate']:7.4f}{marker}"
+            )
+    else:
+        print("\n  Sweep table (eval_acc / eval_FT):")
+        print(f"  {'tau':>6s}  {'eval_acc':>9s}  {'eval_FT':>8s}")
+        for s in full_sweep:
+            marker = " <--" if abs(s["threshold"] - tau) < 1e-6 else ""
+            print(
+                f"  {s['threshold']:6.3f}  {s['accuracy']:9.4f}  "
+                f"{s['false_trustworthy_rate']:8.4f}{marker}"
+            )
 
     print(f"\n  calibrated eval:")
     print(format_metrics_table(best_thr))
 
-    print("\n=== TIER0 SANITY (calibrated with τ) ===")
-    tier0_calibrated_preds = gated_predictions(tier0_pred.predictions, tau, num_classes=num_labels)
-    tier0_calibrated = compute_classification_metrics(tier0_calibrated_preds, tier0_labels_3)
-    print(format_metrics_table(tier0_calibrated))
+    tier0_calibrated = None
+    if tier0_pred is not None and tier0_labels_3 is not None:
+        print("\n=== TIER0 SANITY (calibrated with τ) ===")
+        tier0_calibrated_preds = gated_predictions(tier0_pred.predictions, tau, num_classes=num_labels)
+        tier0_calibrated = compute_classification_metrics(tier0_calibrated_preds, tier0_labels_3)
+        print(format_metrics_table(tier0_calibrated))
+
+    test_calibrated = None
+    if test_pred is not None and test_labels_3 is not None:
+        print("\n=== HELD-OUT TEST (calibrated with validation-selected τ) ===")
+        test_calibrated_preds = gated_predictions(test_pred.predictions, tau, num_classes=num_labels)
+        test_calibrated = compute_classification_metrics(test_calibrated_preds, test_labels_3)
+        print(format_metrics_table(test_calibrated))
 
     all_metrics = {
         "eval_uncalibrated": eval_metrics,
-        "tier0_uncalibrated": tier0_metrics,
         "eval_calibrated": {k: v for k, v in best_thr.items() if not k.startswith("_")},
-        "tier0_calibrated": tier0_calibrated,
         "threshold": tau,
         "target_met_on_eval": best_thr["target_met"],
+        "target_met_on_test": bool(
+            test_calibrated
+            and test_calibrated["accuracy"] >= 0.787
+            and test_calibrated["false_trustworthy_rate"] <= 0.057
+        ),
         "config_path": str(args.config),
         "base_model": base_model,
         "seed": seed,
     }
+    if test_metrics is not None and test_calibrated is not None:
+        all_metrics["test_uncalibrated"] = test_metrics
+        all_metrics["test_calibrated"] = test_calibrated
+    if tier0_metrics is not None and tier0_calibrated is not None:
+        all_metrics["tier0_uncalibrated"] = tier0_metrics
+        all_metrics["tier0_calibrated"] = tier0_calibrated
     metrics_path = output_dir / "final_metrics.json"
     with metrics_path.open("w", encoding="utf-8") as fh:
         json.dump(all_metrics, fh, indent=2)
@@ -341,13 +388,17 @@ def main() -> int:
             "target_met_on_eval": bool(best_thr["target_met"]),
             "train_size": len(train_ds),
             "eval_size": len(eval_ds),
-            "tier0_size": len(tier0_ds),
+            "test_size": len(test_ds) if test_ds is not None else 0,
+            "tier0_size": len(tier0_ds) if tier0_ds is not None else 0,
         },
     )
     print(f"Wrote manifest      -> {manifest_path}")
 
-    passed, gates = check_release_gates(best_thr, tier0_calibrated)
+    gate_metrics = test_calibrated if test_calibrated is not None else best_thr
+    gate_split = "held-out test" if test_calibrated is not None else "eval"
+    passed, gates = check_release_gates(gate_metrics, tier0_calibrated)
     print("\n=== RELEASE GATES ===")
+    print(f"  split: {gate_split}")
     for name, ok, detail in gates:
         status = "PASS" if ok else "FAIL"
         print(f"  [{status}] {name}  ({detail})")

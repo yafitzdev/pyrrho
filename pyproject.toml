@@ -33,6 +33,7 @@ dependencies = [
 encoder = [
     "optimum[onnxruntime]>=1.23",
     "onnxruntime>=1.20",
+    "onnxscript>=0.7",
 ]
 slm = [
     "trl>=0.12",

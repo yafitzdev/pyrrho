@@ -13,6 +13,454 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-24 (evening) — V7.0.1 schema-clean contract
+
+**What landed:**
+
+- Republished `yafitzdev/fitz-gov` as **v7.0.1** with the same 10,500 rows, labels, and query-grouped splits as v7.0.0, but with pre-SDGP report axes removed from public rows.
+- HF dataset commit/tag: `b74c085c0261369c05dc318bab36c3ae48adc27c` / `v7.0.1`. Verified `get_dataset_config_names(..., revision="v7.0.1") == ["v7"]` and no rows contain `meta.domain`, `meta.subcategory`, `meta.reasoning_type`, `meta.query_type`, or `meta.evidence_pattern`.
+- Patched fitz-gov completeness/export tooling so canonical V7 means `taxonomy.pattern`, `taxonomy.cell_id`, `routing.expert_fired`, and `meta.difficulty`, not old report axes. Local fitz-gov vault was stripped too; strict audit remains **2,980/2,980 V6** and **7,520/7,520 V7** complete.
+- Updated pyrrho `scripts/prepare_data.py`, `scripts/eval_report.py`, failure-inspection scripts, and `configs/encoder/modernbert_base_g2.yaml` to use fitz-gov `v7.0.1` and canonical breakdown columns only.
+- Regenerated `data/processed_v7` and seed-42 `outputs/multi_seed_g2/seed_42/eval_report.json`; processed rows now expose no old columns (`domain`, `subcategory`, `reasoning_type`, `query_type`, `evidence_pattern`, `source_type`).
+- Regenerated and uploaded the `pyrrho-nano-g2` model card against fitz-gov `v7.0.1`. HF model card commit: `83453ad96c31250dd4f5d000dfaf8974a1daf42d`.
+
+**What was learned:**
+
+- No retrain was needed. The old fields were dropped before tokenization/training; `pyrrho-nano-g2` learned from only query/context text and labels. V7.0.1 changes schema/reporting, not examples, labels, or splits.
+- The earlier “clean data” work validated labels, QA, leakage, dedup, evaluator fields, and SDGP coverage. The missing gate was a minimal public-schema audit that made old report axes forbidden.
+
+**Next:** Treat `fitz-gov` `v7.0.1` as the published `g2` contract. Future reports and model cards should use SDGP/expert/difficulty axes only.
+
+---
+
+## 2026-05-24 (evening) — g2 model card wording clarified
+
+**What landed:**
+
+- Replaced the vague `legacy V5/V6 compatibility metadata` wording in the `pyrrho-nano-g2` model card with the actual field names.
+- Regenerated `models/pyrrho-nano-g2/README.md` and uploaded it to Hugging Face.
+- HF card-only commit: `3d81feed7e1947971240ef84fb1a5b4b3160f22b`.
+
+**What was learned:**
+
+- The phrase was misleading. It referred only to V5/V6-compatible breakdown fields kept so older pyrrho reports still run: `meta.domain`, `meta.subcategory`, `meta.reasoning_type`, `meta.query_type`, and `meta.evidence_pattern`, alongside SDGP fields like `taxonomy.pattern`, `taxonomy.cell_id`, and `routing.expert_fired`.
+
+**Next:** Continue the g2 validation sprint: cross-benchmark sanity, g2 failure audit, then fitz-sage integration trial.
+
+---
+
+## 2026-05-24 (evening) — pyrrho-nano-g2 published to Hugging Face
+
+**What landed:**
+
+- Published `pyrrho-nano-g2` to Hugging Face: https://huggingface.co/yafitzdev/pyrrho-nano-g2
+- HF model commit: `2da40f066802e1593b191cc98f0e511246b98ae6`.
+- Remote file verification passed: 10 files present (`.gitattributes`, README, config, tokenizer, safetensors, FP32 ONNX + external data, INT8 ONNX + external data).
+- Used `scripts/push_to_hub.py --large-folder` after the one-shot upload path timed out and left only `.gitattributes`.
+
+**What was learned:**
+
+- The standard `upload_folder` path is fragile for this 1.506 GB release dir on this connection; Hugging Face's resumable `upload_large_folder` completed cleanly.
+- The release card now pins the actual fitz-gov HF dataset commit (`c41e5aa113699273240c6cc5ab2e8357c6d518cd`) rather than the dirty local fitz-gov git SHA.
+
+**Next:** Treat `pyrrho-nano-g2` as the published V7 encoder baseline. Next model-work item is `pyrrho-small-g2`: update the SLM path for V7's train/validation/test split shape, then choose a current permissive CPU-runnable base after a fresh model-state search.
+
+---
+
+## 2026-05-24 (afternoon) — pyrrho-nano-g2 release dir staged
+
+**What landed:**
+
+- Reworked `scripts/export_onnx.py` away from optimum's exporter path because the local stack uses Transformers 5.x and optimum 2.1 imports removed Transformers internals.
+- Added direct torch ONNX export with opset 18 and ONNX Runtime dynamic INT8 quantization for ModernBERT.
+- Added `onnxscript>=0.7` to the encoder extra because the current torch ONNX exporter requires it.
+- Staged local release dir at `models/pyrrho-nano-g2/`: safetensors, FP32 ONNX external-data pair, INT8 ONNX external-data pair, tokenizer, config, and V7-aware `README.md`.
+- Ran `scripts/push_to_hub.py --release-dir models/pyrrho-nano-g2 --repo-id yafitzdev/pyrrho-nano-g2 --commit-message "Release: pyrrho-nano-g2" --dry-run`.
+
+**What was learned:**
+
+- The new ONNX exporter works cleanly for ModernBERT when using opset 18. The legacy TorchScript exporter fails in ModernBERT masking, and the old optimum path fails against Transformers 5.x.
+- ONNX Runtime shape inference currently trips on the ModernBERT classifier head during quantization (`768` vs `3`), but the exported model runs cleanly. The exporter now bypasses the eager quantizer shape-inference pass and supplies `DefaultTensorType=FLOAT`.
+- Export smoke passed on the INT8 artifact: the speed-of-light single-source sample predicted `TRUSTWORTHY` with probabilities A=0.168 / D=0.138 / T=0.694.
+- HF upload dry-run sees **9 files / 1.506 GB**: `model.safetensors`, `model.onnx` + `.data`, `model_quantized.onnx` + `.data`, tokenizer, config, and README.
+
+**Next:** Run the real Hugging Face upload for `yafitzdev/pyrrho-nano-g2`, then update docs from "local staged" to "live on HF."
+
+---
+
+## 2026-05-24 (afternoon) — pyrrho-nano-g2 trained on V7
+
+**What landed:**
+
+- Updated the encoder pipeline for published fitz-gov V7.0.0: `scripts/prepare_data.py` now defaults to HF `yafitzdev/fitz-gov` config `v7` revision `v7.0.0` and preserves the published train/validation/test split contract.
+- Added `configs/encoder/modernbert_base_g2.yaml` and trained `pyrrho-nano-g2` across seeds 42, 1337, and 7.
+- Wrote V7 processed data to `data/processed_v7` with train=8,400 / eval=1,050 / test=1,050 / tier0=0, and verified 0 split overlap.
+- Wrote aggregate metrics to `outputs/multi_seed_g2/summary.json` and seed-42 breakdown to `outputs/multi_seed_g2/seed_42/eval_report.json`.
+- Updated encoder eval tooling (`train_encoder.py`, `run_seeds.py`, `eval_report.py`, `src/pyrrho/data.py`, `src/pyrrho/metrics.py`) for optional held-out `test` and optional `tier0_sanity`.
+
+**What was learned:**
+
+- `pyrrho-nano-g2` clears the release gates by a wide margin on held-out V7 test: **95.24 ± 0.48%** accuracy and **3.48 ± 0.40%** false-trustworthy.
+- Per-seed held-out test calibrated metrics: seed 42 **95.71% / 3.03% FT**, seed 1337 **94.76% / 3.78% FT**, seed 7 **95.24% / 3.63% FT**.
+- Validation metrics were also strong: **94.92 ± 0.29%** accuracy and **2.89 ± 0.26%** false-trustworthy.
+- The V7 HF default already distributes the old 60 `tier0_sanity` rows across train/validation/test, so tier0 is not duplicated by default in processed V7 data.
+- Verification passed: `py_compile` on touched training/eval modules and `pytest tests/test_smoke.py -v` ended at **9 passed, 2 xfailed**.
+
+**Next:** Export/package `pyrrho-nano-g2`, generate the V7-aware model card, smoke the exported artifacts, then upload to `yafitzdev/pyrrho-nano-g2`.
+
+---
+
+## 2026-05-24 (afternoon) — Docs preflight before pyrrho-nano-g2
+
+**What landed:**
+
+- Swept pyrrho and fitz-gov docs for stale V6/V7 status before starting `pyrrho-nano-g2`.
+- Updated pyrrho `AGENTS.md`, `README.md`, `docs/HANDOFF.md`, `docs/INDEX.md`, and `docs/ROADMAP.md` so fresh sessions see V7.0.0 as the current `g2` training contract.
+- Updated fitz-gov `README.md`, `docs/GOVERNANCE_CASE_TAXONOMY.md`, and `docs/evaluation-guide.md` so public dataset docs no longer mix V7 headings with V5/V6 distribution stats.
+- Corrected the `pyrrho-nano-g1.1` status from "not started" to "attempted locally, not released, superseded by g2."
+
+**What was learned:**
+
+- The core HANDOFF/README V7 status was already mostly current, but a few entry-point docs still implied V6 was the current benchmark, that the V6 encoder retrain had not happened, or that old V5/V6 distribution stats described V7.
+
+**Next:** Start `pyrrho-nano-g2` by verifying `scripts/prepare_data.py` against the published fitz-gov V7.0.0 `v7` config and query-grouped splits.
+
+---
+
+## 2026-05-24 (afternoon) — V7 gap detector refreshed
+
+**What landed:**
+
+- Reran the fitz-gov SDGP `GapDetector` against the current **10,500-row** V7 vault.
+- Refreshed coverage reports at `fitz-gov/data/sdgp_vault_v51_enriched/coverage_report_v7_target20.md`, `coverage_report_v7_target25.md`, and `coverage_report_v7_target30.md`.
+
+**What was learned:**
+
+- Release targets remain fully closed: **378/378** primary taxonomy cells meet target 20 and target 25, with **0** empty cells and **0** release-gap rows.
+- Target 30 is a stretch backlog, not a V7 blocker: **20/378** cells are at target and **1,575** additional rows would be needed.
+- The target-30 pressure is broad and shallow because V7 was intentionally filled to 25/cell: largest domain gaps are `history_geography` (**235**), `law_policy` (**232**), and `culture_society` (**232**); largest pattern gaps are `scope_conflict`, `single_authoritative`, `temporal_conflict`, `temporal_mismatch`, and `too_general` (**105** each).
+
+**Next:** Do not expand V7 further before training; proceed to `pyrrho-nano-g2` data prep and 3-seed validation on the published V7.0.0 contract.
+
+---
+
+## 2026-05-24 (afternoon) — fitz-gov V7.0.0 published
+
+**What landed:**
+
+- Published cleaned fitz-gov V7 to Hugging Face as `yafitzdev/fitz-gov` **v7.0.0**.
+- HF commit: `c41e5aa113699273240c6cc5ab2e8357c6d518cd`; HF tag: `v7.0.0`.
+- Default HF config is now `v7` with query-grouped leakage-safe splits: **train=8,400**, **validation=1,050**, **test=1,050**.
+- Added fitz-gov `scripts/sdgp_upload_v7_hf.py`, which stages V7 as Parquet and preserves compatibility configs: `tier1_core`, `tier0_sanity`, and `validation`.
+- Verified `datasets.load_dataset("yafitzdev/fitz-gov", revision="v7.0.0")` and `main` both load the expected V7 splits.
+
+**What was learned:**
+
+- Raw JSONL was brittle for HF because `datasets` infers nested JSON features in chunks; optional nested fields and empty lists caused cast failures. Parquet generated via `datasets.Dataset.from_list` preserves the nested SDGP schema cleanly.
+- Internal `_vault` provenance was stripped from public upload rows to avoid sparse repair timestamps leaking into the dataset schema. Source repo QA artifacts remain the provenance record.
+
+**Next:** Update pyrrho data prep for the HF `v7` config and run the `pyrrho-nano-g2` 3-seed encoder baseline.
+
+---
+
+## 2026-05-24 (morning) — V7 cross-label exact-query review closed
+
+**What landed:**
+
+- Added fitz-gov `scripts/sdgp_review_cross_label_queries.py` to distinguish legitimate repeated raw queries from incoherent same-evidence/different-label pairs.
+- Ran the review across the full **10,500-row** local V7 release-candidate vault.
+- Wrote review artifacts under `fitz-gov/data/sdgp_v7_qa/`: `cross_label_query_semantic_review_summary.json`, `cross_label_query_semantic_review_candidates.jsonl`, `cross_label_query_semantic_review_adjudications.jsonl`, and `cross_label_query_semantic_review.md`.
+- Updated fitz-gov and pyrrho handoff docs so cross-label exact-query review is no longer listed as an open blocker.
+
+**What was learned:**
+
+- The **218** cross-label exact-query groups / **921** rows are not automatically incoherent: fitz-gov labels the pair `(query, retrieved_contexts)`, so the same user query can validly be TRUSTWORTHY, DISPUTED, or ABSTAIN under different retrieved evidence.
+- There are **0** cross-label pairs with the same exact context set.
+- Only **1** cross-label pair shares any exact context at all: a hexagon TRUSTWORTHY row and a hexagon DISPUTED row. Manual adjudication kept both as valid because the DISPUTED row reuses the correct context and adds a contradictory second source.
+- Final review status: **passed**, with **0** unresolved cross-label review pairs.
+
+**Next:** Run local-model spot-checks, then final clean export/publish decision before using V7 for pyrrho `g2` training.
+
+---
+
+## 2026-05-23 (afternoon) — V7 blind-label triage closed
+
+**What landed:**
+
+- Repaired all original **842** fitz-gov V7 blind-label triage rows; final state is **7,520 / 7,520 validated** and **0 triage**.
+- Closure path: strict prompt/parser recheck validated **362**, provider-assisted repair passes validated **389 + 52 + 21**, and manual holdout repair validated the final **18**.
+- Updated fitz-gov QA artifacts: `blind_label_global_summary.json`, `blind_label_final_resolution_ledger.jsonl`, `blind_label_second_pass_ledger.jsonl`, validated/triage ID lists, and an empty `training_excluded_triage_case_ids.txt`.
+- Shipped blind-label prompt/parser hardening plus `scripts/sdgp_repair_v7_triage_cases.py`; fitz-gov SDGP verification ended at **264 passed**.
+
+**What was learned:**
+
+- Most triage was not bad taxonomy coverage; it was DISPUTED evidence that a second-pass validator over-resolved, especially scope, authority, temporal, definitional, and numerical conflicts.
+- The blind-label parser also needed to ignore setup text listing allowed labels, otherwise "ABSTAIN, DISPUTED, or TRUSTWORTHY" could be misread as an ABSTAIN decision.
+- The hardest remaining rows needed explicit conflict-candidate wording; contexts that explained chronology or scope too cleanly invited the validator to collapse DISPUTED into TRUSTWORTHY.
+
+**Next:** Run local-model spot-checks, semantic near-dedup / cross-label exact-query review, and final clean export/publish decision before using V7 for training.
+
+---
+
+## 2026-05-23 (morning) — Full V7 blind-label pass completed
+
+**What landed:**
+
+- Completed the full ledger-excluded LM Studio `qwen3.6-35b-a3b` blind-label pass for the remaining **7,370** V7 rows.
+- The first full pass produced 7,370 rows but only 1,515 parsed after parser hardening; 5,855 outputs were truncated prose due the 128-token budget.
+- Repaired the ledger by removing the bad full-run rows, then retried the 5,855 invalid rows at `max_tokens=1024`, and retried the final 21 invalid rows at `max_tokens=2048`.
+- Combined original + retry predictions into `fitz-gov/data/sdgp_v7_qa/pilots/20260523_remaining7370_qwen36_35b_a3b/blind_label_predictions_combined.jsonl` and scored it with 0 missing / 0 invalid / 0 provider errors.
+- Wrote global QA artifacts: `blind_label_global_summary.json`, `blind_label_validated_case_ids_all.txt`, `blind_label_triage_case_ids_all.txt`, and `training_excluded_triage_case_ids.txt`.
+
+**What was learned:**
+
+- Full V7 second-pass ledger coverage is now **7,520 / 7,520 unique V7 rows**.
+- Global blind-label buckets: **6,678 validated / 842 triage**. The triage list should be treated as training-excluded until human review fixes, relabels, or accepts each case.
+- The main disagreement axis is DISPUTED: full-pass agreement by gold label was ABSTAIN **94.65%**, DISPUTED **74.10%**, TRUSTWORTHY **98.91%**. Top triage patterns: `scope_conflict` 206, `temporal_conflict` 155, `numerical_conflict` 110, `definitional_conflict` 91, `temporal_mismatch` 82.
+- For Qwen3.6-35B-A3B in LM Studio, blind-label runs need a larger output budget than 128 tokens. Use at least 1024 for bulk labeling or expect widespread truncation before the final JSON label.
+
+**Next:** Expand by 5,000 rows only after treating the 842 triage IDs as excluded from training, then run a blind-label pass on the new rows with the higher token budget.
+
+---
+
+## 2026-05-23 (morning) — V7 schema unified and evaluator fields completed
+
+**What landed:**
+
+- Promoted V5.1 evaluator-only fields into a canonical `evaluation` block on every local fitz-gov vault row: `mode`, `check_mode_match`, `required_elements`, `forbidden_claims`, `forbidden_elements`, and evaluator config.
+- Removed duplicate legacy/compatibility aliases from the vault: `meta.v51_legacy`, root evaluator fields, root `conflict_density` / `evidence_sufficiency` / `near_miss_class`, `governance.*_score`, misplaced `grounding_targets`, and sparse old metadata aliases.
+- Spawned Codex subagents to generate evaluator quality constraints for all **2,348 V7 TRUSTWORTHY rows**; central merge accepted **2,348 / 2,348** overlays with 0 rejects.
+- Added fitz-gov tooling: `fitz_gov.sdgp.evaluation_fields`, `fitz_gov.sdgp.evaluation_completion`, `scripts/sdgp_promote_evaluation_fields.py`, `scripts/sdgp_prepare_evaluation_field_batches.py`, and `scripts/sdgp_merge_evaluation_field_outputs.py`.
+- Started a full ledger-excluded LM Studio blind-label pass over the remaining **7,370 V7 rows** with `qwen3.6-35b-a3b`.
+
+**What was learned:**
+
+- The useful legacy fields were exactly the evaluator fields: `evaluation_config`, `required_elements`, `forbidden_claims`, and `forbidden_elements`. `detection_labels` and old prose/provenance fields are superseded by V6/MoE taxonomy, governance, routing, meta, and context signals.
+- Post-merge audit: **10,500 / 10,500 rows** have canonical `evaluation`; **0** legacy/alias rows remain; **0** V6/V7 TRUSTWORTHY rows are missing evaluator quality constraints.
+- V6 and V7 still pass the strict rich training-schema audit: V6 **2,980/2,980**, V7 **7,520/7,520**. SDGP tests: **261 passed**.
+- Windows file replacement can transiently lock `cases.jsonl`; the vault update retry window was widened, and the evaluation merge script now indexes vault cases once instead of scanning the JSONL per overlay.
+
+**Next:** Let the full Qwen blind-label pass finish, score it, update the second-pass ledger, and triage all flagged rows before publishing or training on V7.
+
+---
+
+## 2026-05-23 (morning) — Second V7 blind-label pilot completed
+
+**What landed:**
+
+- Reloaded LM Studio `qwen3.6-35b-a3b@q5_k_s` under API id `qwen3.6-35b-a3b` and ran a 100-row random pilot with seed `20260523`.
+- Existing 50 ledgered case IDs were excluded from sampling; `fitz-gov/data/sdgp_v7_qa/blind_label_second_pass_ledger.jsonl` now contains **150 unique second-pass case IDs**.
+- Wrote pilot artifacts under `fitz-gov/data/sdgp_v7_qa/pilots/20260523_next100_qwen36_35b_a3b/`, including `blind_label_validated.jsonl`, `blind_label_triage.jsonl`, `blind_label_triage_case_ids.txt`, retry artifacts for 2 initially invalid outputs, and `pilot_assessment.md`.
+- Hardened the blind-label parser again to ignore placeholder JSON such as `{"label":"...","rationale":"short reason"}` when it appears after a real answer in a thinking trace.
+- Final verification: `pytest tests/sdgp -q` -> **258 passed**.
+
+**What was learned:**
+
+- Final second-pilot score: **91 validated / 9 triage**, 0 invalid parses, 91.0% agreement. Initial run took **299.3s** for 100 rows; retrying the 2 invalids took **18.5s**.
+- Cumulative blind-label QA is now **150 rows audited: 137 validated / 13 triage**.
+- Manual read of the second pilot: **8 / 9 triage rows are legitimate dataset/convention flags**, and **1 / 9 is a Qwen miss** (`sdgp_v7_temporal_mismatch__technology_computing__hard__14`, CUDA "latest stable" from stale 2024 contexts).
+- Qwen is useful for finding rows that "do not make sense," especially over-labeled DISPUTED/ABSTAIN rows where the evidence supports a scoped or caveated TRUSTWORTHY answer. Its weak spots are temporal staleness and the project's stricter `scope_conflict` convention.
+
+**Next:** Human-triage the 13 flagged rows before treating V7 as a training contract; keep running nightly 50-row pilots with ledger exclusion.
+
+---
+
+## 2026-05-22 (evening) — First V7 blind-label pilot completed
+
+**What landed:**
+
+- Started LM Studio at `http://127.0.0.1:1234` and loaded `qwen3.6-35b-a3b@q5_k_s` under API id `qwen3.6-35b-a3b`.
+- Ran a 50-row random blind-label pilot from `data/sdgp_v7_qa/blind_label_queue.jsonl` with seed `20260522`.
+- Wrote pilot artifacts under `fitz-gov/data/sdgp_v7_qa/pilots/20260522_initial50_qwen36_35b_a3b/`, including `blind_label_validated.jsonl`, `blind_label_triage.jsonl`, `blind_label_triage_case_ids.txt`, and `pilot_assessment.md`.
+- Updated `fitz-gov/data/sdgp_v7_qa/blind_label_second_pass_ledger.jsonl` with all 50 sampled case IDs, so they are excluded from future blind-label sampling.
+- Hardened the blind-label parser for LM Studio thinking traces: it now uses the final parseable JSON object and avoids grabbing `ABSTAIN` from allowed-label lists.
+- Final verification: `pytest tests/sdgp -q` -> **257 passed**.
+
+**What was learned:**
+
+- Final pilot score after parser hardening: **46 validated / 4 triage**, 0 invalid parses, 92.0% agreement.
+- Qwen3.6-35B-A3B was perfect on the sampled ABSTAIN (15/15) and TRUSTWORTHY (20/20) rows, but missed 4 / 15 DISPUTED rows.
+- All 4 disagreements are `scope_conflict` rows where Qwen treats scoped or conditional evidence as TRUSTWORTHY, while fitz-gov currently labels the broad query as DISPUTED.
+
+**Next:** Human-triage the four scope-conflict rows: either keep DISPUTED and sharpen the convention, relabel as TRUSTWORTHY-with-caveat, or rewrite the query/contexts to make the intended conflict unambiguous.
+
+---
+
+## 2026-05-22 (evening) — V7 blind-label runner and scorer landed
+
+**What landed:**
+
+- Added reusable fitz-gov blind-label helpers in `fitz_gov.sdgp.blind_label`.
+- Added `scripts/sdgp_run_blind_label.py`, which reads `data/sdgp_v7_qa/blind_label_queue.jsonl` and writes provider predictions to `blind_label_predictions.jsonl`.
+- Added `scripts/sdgp_score_blind_labels.py`, which joins predictions to `blind_label_manifest.jsonl` and emits score summary, assessments, disagreements, and review queue artifacts.
+- Added `tests/sdgp/test_blind_label.py`; final verification: `pytest tests/sdgp -q` -> **251 passed**.
+- CLI smoke-tested the runner/scorer with `StubProvider`; removed the stub smoke artifacts afterward.
+
+**What was learned:**
+
+- The next QA gate is now executable end to end once an independent local provider is available.
+- LM Studio at `http://localhost:1234` and Ollama at `http://localhost:11434` both failed health checks on this machine during the implementation pass, so no real blind-label predictions have been produced yet.
+
+**Next:** Start/load an independent labeler in LM Studio or Ollama, run the 7,520-row blind-label queue, score it, and triage disagreements before V7 publish/training.
+
+---
+
+## 2026-05-22 (evening) — V7 QA audit package landed
+
+**What landed:**
+
+- Added reusable fitz-gov QA helpers in `fitz_gov.sdgp.qa`.
+- Added `scripts/sdgp_v7_qa_audit.py`, which emits:
+  - `data/sdgp_v7_qa/summary.json`
+  - `data/sdgp_v7_qa/report.md`
+  - `data/sdgp_v7_qa/query_duplicate_groups.jsonl`
+  - `data/sdgp_v7_qa/cross_label_query_groups.jsonl`
+  - `data/sdgp_v7_qa/split_assignments.jsonl`
+  - `data/sdgp_v7_qa/blind_label_queue.jsonl`
+  - `data/sdgp_v7_qa/blind_label_manifest.jsonl`
+- Added `tests/sdgp/test_qa.py` for exact-query duplicate accounting, query-grouped split leakage prevention, and blind-label queue label hiding.
+- Ran the audit on the 10.5k vault: split assignments are `train=8,400`, `validation=1,050`, `test=1,050`, with **0 query-group leakage**.
+- Final test run after QA tooling: `pytest tests/sdgp -q` -> **248 passed**.
+
+**What was learned:**
+
+- The dedup risk is now operationally contained for splitting: `split_assignments.jsonl` keeps every normalized query group in exactly one split.
+- The blind-label queue covers **7,520 V7 rows** and omits gold labels/taxonomy, while `blind_label_manifest.jsonl` keeps the join metadata for scoring disagreement after an independent model labels the queue.
+
+**Next:** Run a non-generator model over `data/sdgp_v7_qa/blind_label_queue.jsonl`, join predictions to `blind_label_manifest.jsonl`, and triage disagreements plus cross-label exact-query groups before V7 publish/training.
+
+---
+
+## 2026-05-22 (evening) — V7 reached the 10.5k target
+
+**What landed:**
+
+- Expanded the local fitz-gov SDGP vault from **7,500** to **10,500** rows: 2,980 V6 + **7,520 V7**.
+- Completed target **25/cell** across all **378/378** primary taxonomy cells using the existing 7 primary domains.
+- Final strict audit: `scripts/sdgp_audit_training_schema.py --cohort v7` → **7,520/7,520 V7 rows complete**.
+- Final regression test: `pytest tests/sdgp -q` → **245 passed**.
+- Refreshed coverage reports in `fitz-gov/data/sdgp_vault_v51_enriched/coverage_report_v7_target25.md` and `coverage_report_v7_target30.md`.
+
+**What was learned:**
+
+- The final gap detector state is clean for V7's baseline target: target 25/cell has **0** remaining gap; target 30/cell would require **1,575** additional rows and is a future stretch, not needed for V7.
+- Exact duplicate audit on the 10.5k vault found **0 duplicate IDs**, **0 duplicate full query+context+label groups**, and **0 duplicate checker content hashes**. It did find **581 exact-query duplicate groups** covering **1,838 cases**, including **219 cross-label groups** covering **932 cases**, so train/eval splits must group by normalized query or equivalent leakage key.
+
+**Next:** Run V7 QA: blind-label disagreement pass, local-model spot-check, exact/near dedup, and query-grouped split-leakage audit before publishing V7 or training `g2` models.
+
+---
+
+## 2026-05-22 (morning) — V7 scope fixed; domain packs deferred to V8
+
+**What landed:**
+
+- Decided V7 should finish the original 7-domain SDGP plan before adding new specialist domains.
+- Set the working V7 expansion target to **10,500 rows**: enough to approach 25/cell across the current 378 primary cells with a QA/replacement buffer.
+- Deferred domain-focused expansion, including automotive embedded / ECU test analysis, to V8.
+
+**What was learned:**
+
+- ECU test analysis is only nominally covered today under `technology_computing`; it deserves deliberate domain coverage, but adding it mid-V7 would expand the matrix and move the target while V7 is already close to becoming a stable baseline.
+
+**Next:** Continue V7 generation to 10.5k using the current taxonomy, then run the QA gate before publishing/training.
+
+---
+
+## 2026-05-22 (morning) — V7 exact dedup audit surfaced query leakage risk
+
+**What landed:**
+
+- Ran a quick exact dedup audit on `fitz-gov/data/sdgp_vault_v51_enriched/cases.jsonl` after the 7,500-row expansion.
+- Result: **0 duplicate IDs**, **0 duplicate full query+context groups**, and **0 duplicate `case_dedup_hash` groups**.
+- Result: **317 exact-query duplicate groups** covering **966 cases**; **127** of those groups are cross-label and cover **503 cases**.
+
+**What was learned:**
+
+- The current vault does not have literal duplicate training inputs, but it does have repeated query strings with different contexts and sometimes different labels. That is valid for RAG governance in principle because the input is `(query, contexts)`, but it can leak query priors across train/eval unless splits group by normalized query.
+
+**Next:** Add/run the formal V7 QA audit: query-grouped split validation, semantic near-dedup over full inputs, and disagreement queue from blind labeling.
+
+---
+
+## 2026-05-22 (morning) — Pyrrho docs caught up to V7 state
+
+**What landed:**
+
+- Updated pyrrho docs to reflect the local fitz-gov V7 candidate vault: **7,500 rows** total, **4,520/4,520 V7** rows complete against the rich V6/MoE schema, not yet published or training-approved.
+- Refreshed `README.md`, `docs/ROADMAP.md`, `docs/INDEX.md`, `docs/HANDOFF.md`, `docs/PROJECT.md`, and `AGENTS.md` so fresh sessions see the same gate: QA first, then publish/train.
+- Added the explicit V7 QA gate to docs: blind-label disagreement pass, local-model spot-checks, exact/near dedup, and split-leakage audit.
+
+**What was learned:**
+
+- The old docs still described V7 as future-only and even preserved the stale "no V7 data work yet" constraint. That is now superseded: generation happened, but V7 is still a local candidate until QA passes.
+
+**Next:** Build/run the V7 QA package before treating 7.5k as the `g2` training contract.
+
+---
+
+## 2026-05-22 (morning) — V7 overnight expansion reached 7.5k
+
+**What landed:**
+
+- Expanded the local fitz-gov SDGP vault from 4,380 rows to **7,500 rows**: 2,980 V6 + **4,520 V7**.
+- Crossed all requested milestones with strict merge gates: target 1 at **5,520**, target 2 at **6,510**, target 3 at **7,500**.
+- Added/used subagent expansion tooling in fitz-gov:
+  - `scripts/sdgp_prepare_v7_generation_batches.py` — gap-ranked batch specs with exact IDs, few-shots, and pending-slot accounting.
+  - `scripts/sdgp_merge_v7_generation_jsonl.py` — exact ID-set validation + `Checker(require_training_schema=True)` + dedup before vault writes.
+- Wrote milestone coverage snapshots under `fitz-gov/data/sdgp_handoff_v7_expand/`: `coverage_target1_5520.md`, `coverage_target2_6510.md`, and `coverage_target3_7500.md`.
+- Final verification: `scripts/sdgp_audit_training_schema.py --vault data/sdgp_vault_v51_enriched` → **7,500 rows; V7 4,520/4,520 complete**. `pytest tests/sdgp -q` → **245 passed**.
+
+**What was learned:**
+
+- The reliable overnight pattern was six concurrent `gpt-5.4` workers generating 30-row JSONL batches, with the parent process merging only after exact-ID checks and strict dry-run acceptance.
+- The gap detector steadily compressed the target-20/cell deficit from 4,184 at 4,380 rows to **1,064** at 7,500 rows. Remaining pressure is now shallow: top cells have only 4-row gaps, led by `wrong_entity` and `wrong_specificity` pockets across domains.
+- Preparing batches before all workers merge needs pending-slot accounting; without it, new specs over-reserve the same sparse cells. The preparer now subtracts pending unmerged slots from coverage counts.
+
+**Next:** Run blind-label QA and local-model spot-checks before publishing V7 or using the expanded vault as the next pyrrho training contract.
+
+---
+
+## 2026-05-22 (morning) — V7 training-schema completion finished
+
+**What landed:**
+
+- Completed the local fitz-gov V7 schema-enrichment pass for all previously thin rows using Codex `gpt-5.4` subagents plus parent-side merge gates. Final strict audit: **1,400/1,400 V7 rows complete** in `data/sdgp_vault_v51_enriched`.
+- Added/used `scripts/sdgp_merge_v7_completion_outputs.py` as the guarded subagent merge path: every JSONL overlay must pass exact case-id checks, `audit_case_completeness()`, and `Checker(require_training_schema=True)` before touching the vault.
+- Tightened fitz-gov completion tooling while processing: duplicate `case_id` rows now fail merge, legacy `governance.*_score` aliases backfill canonical `governance.{abstain,disputed,trustworthy}`, and vault rewrites retry transient Windows `PermissionError` failures.
+- Verification: `scripts/sdgp_audit_training_schema.py --cohort v7 --top 20` → **1,400/1,400 complete**; `pytest tests/sdgp -q` → **245 passed**.
+
+**What was learned:**
+
+- Cheap mini workers can pass simple shape gates but made semantic/schema mistakes under load; `gpt-5.4` workers were reliable enough for 50-row batches when constrained to JSONL overlays and parent-validated before merge.
+- The safe throughput pattern is six active workers × 50 rows, with the parent process continuously merging only accepted chunks.
+
+**Next:** Run V7 QA: blind-label pass with a non-Sonnet model plus local-model spot-check before publishing V7 or expanding toward 5K-10K.
+
+---
+
+## 2026-05-22 (morning) — V7 training-schema audit found thin rows; completion gate added
+
+**What landed:**
+
+- Audited the local fitz-gov V7 vault (`data/sdgp_vault_v51_enriched`, 4,380 rows total). V7 has **1,400 generated rows**, but only **117/1,400** currently satisfy the full rich V6/MoE training schema; **1,283 rows need completion** before expansion or publication.
+- Added fitz-gov training-schema tooling:
+  - `fitz_gov/sdgp/completeness.py` — strict full-schema audit for V7+ rows.
+  - `fitz_gov/sdgp/v7_completion.py` — one-call completion prompt + merge path for thin V7 rows.
+  - `scripts/sdgp_audit_training_schema.py` — cohort-level missing-field report.
+  - `scripts/sdgp_complete_v7_schema.py` — provider-backed completion runner for incomplete V7 rows.
+  - `scripts/sdgp_merge_v7_completion_outputs.py` — validates JSONL overlays from cheap subagents before vault update.
+- Tightened future V7 generation/merge contract: `prompts.py` now asks for complete V7 training rows, and `scripts/sdgp_generate.py` / `scripts/sdgp_merge_v7_outputs.py` use `Checker(require_training_schema=True)` by default (opt-out `--allow-thin` only for legacy/diagnostic use).
+- Added tests for completeness and V7 completion; installed local dev test deps (`pytest`, `black`, `isort`) into the fitz-gov venv and ran `pytest tests/sdgp -q` → **244 passed**.
+
+**What was learned:**
+
+- The V7 issue is **not bad labeling**. It is a pipeline contract bug: the generation prompt said rich V6+ fields were "welcome but optional," while the merge checker validated structural/cell correctness rather than full training-schema completeness.
+- Current V7 rows are usable as classification rows but not yet as complete MoE multi-task rows. Biggest missing-field clusters are per-context temporality/summary/relevance, `governance.boundary_proximity`, routing confidence, query/reasoning type, near-miss metadata, and TRUSTWORTHY grounding targets.
+
+**Next:** Complete the **1,283** incomplete V7 rows with `scripts/sdgp_complete_v7_schema.py`, re-run `scripts/sdgp_audit_training_schema.py --cohort v7` until V7 is **1,400/1,400 complete**, then run blind-label/local-model QA before any further V7 expansion.
+
+---
+
 ## 2026-05-21 (07:20) — V7 generation complete: 1,400/1,400 slots (167% of 1,200 target)
 
 **What landed:**

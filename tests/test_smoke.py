@@ -166,6 +166,9 @@ def latest_checkpoint(search_dirs: list[Path]) -> Path | None:
     for base in search_dirs:
         if not base.exists():
             continue
+        best_model = base / "best_model"
+        if best_model.exists():
+            return best_model
         candidates = sorted(
             base.glob("checkpoint-*"),
             key=lambda p: int(p.name.split("-")[-1]),
@@ -187,6 +190,9 @@ def model_and_tokenizer():
         Path("outputs/multi_seed/seed_42"),
         Path("outputs/multi_seed/seed_1337"),
         Path("outputs/multi_seed/seed_7"),
+        Path("outputs/multi_seed_g2/seed_42"),
+        Path("outputs/multi_seed_g2/seed_1337"),
+        Path("outputs/multi_seed_g2/seed_7"),
     ]
     ckpt = latest_checkpoint(search)
     if ckpt is None:
