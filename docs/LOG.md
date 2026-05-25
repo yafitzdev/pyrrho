@@ -13,6 +13,25 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-25 (evening) — Repaired balanced controls failed clean-cycle QA
+
+**What landed:**
+
+- Ran the clean testcase addition cycle on the 210 repaired balanced-control candidates without merging them into the active fitz-gov vault.
+- Structural dry-run passed: **210 accepted / 0 existing / 0 rejected**.
+- LM Studio healthcheck passed for `qwen3.6-35b-a3b@q5_k_s`; 10-row pilot scored **10/10 agreement** with **0 missing / 0 invalid / 0 error**.
+- Full offline QA artifact: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/balanced_controls_repaired_clean_20260525/`.
+
+**What was learned:**
+
+- The configuration issue is fixed: full QA scored **210/210** with **0 missing / 0 invalid / 0 error**.
+- The candidate pack is still not QA-clean: **148/210 agreement**, **62 disagreements**.
+- Failures are data-boundary failures, not parser failures. `resolved_candidate_selection` scored **99/105** agreement; the 6 misses were TRUSTWORTHY->DISPUTED where interim/final wording still looked like conflicting candidates. `version_build_mismatch` scored only **49/105** agreement; Qwen labeled 55 ABSTAIN rows as TRUSTWORTHY because the "neighboring build" wording remained close enough to treat as direct evidence for the requested record.
+
+**Next:** Do not merge or train from the repaired balanced-control pack. Any future attempt needs redesigned `version_build_mismatch` wording, not another blind-label retry.
+
+---
+
 ## 2026-05-25 (evening) — Clean testcase addition cycle documented
 
 **What landed:**
