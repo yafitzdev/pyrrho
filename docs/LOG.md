@@ -13,6 +13,26 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-25 (evening) — Balanced controls repaired and merged
+
+**What landed:**
+
+- Repaired the 210-row balanced-control candidate pack instead of relabeling around the disagreements.
+- Fixed deterministic V8 generation so `version_build_mismatch` uses distinct neighboring keys (`phase 1` vs `phase 2`, not `phase 2-previous`) and `resolved_candidate_selection` uses obsolete candidate IDs instead of result-like interim red/green markers.
+- Ran the clean testcase addition cycle: structural dry-run **210 accepted / 0 existing / 0 rejected**, mixed pilot **20/20 agreement**, full candidate QA **210/210 agreement**, **0 missing / 0 invalid / 0 error**.
+- Merged the clean rows into the fitz-gov local vault and rebuilt the V8 audit. Active local vault is now **11,340 rows / 840 V8 rows**.
+- Built the full clean V8 manifest `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_manifest_clean_840.jsonl` and scored combined predictions at **840/840 agreement**, **0 triage**.
+- Prepared pyrrho data at `data/processed_v8_balanced_controls` using the published V7 split contract plus V8 append counts **train +661 / eval +97 / test +82**.
+
+**What was learned:**
+
+- The remaining disagreements were row-boundary design, not blind-label config. The wrong-build value must not contain the requested key as a substring, and resolved-candidate controls should avoid interim values that look like competing final results.
+- The earlier failed artifact remains useful history: `balanced_controls_repaired_clean_20260525` failed at **148/210**, while the fixed pack under `balanced_controls_fixed_20260525` is clean at **210/210**.
+
+**Next:** Run a fresh 3-seed `pyrrho-nano-g2.1-v8-balanced-controls` retrain and ECU OOD probe when ready; do not publish until model quality beats the 525-row V8 probe without verdict-patch regressions.
+
+---
+
 ## 2026-05-25 (evening) — Repaired balanced controls failed clean-cycle QA
 
 **What landed:**

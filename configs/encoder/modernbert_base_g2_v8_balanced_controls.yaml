@@ -1,8 +1,7 @@
-# pyrrho-nano-g2.1 historical local experiment — V7.0.1 + V8 verdict-conflict patch.
-# Not a published release contract. This config documents the failed ablation
-# and is not the current active V8 manifest. Data was prepared locally as:
-#   published V7 train/validation/test + 630 local V8 rows
-#   assigned by fitz-gov/data/sdgp_v8_qa/blind_label_manifest.jsonl.
+# pyrrho-nano-g2.1 local experiment — V7.0.1 + 840 QA-clean V8 rows.
+# Not a published release contract. Data is prepared locally as:
+#   published V7 train/validation/test + 840 local V8 rows
+#   assigned by fitz-gov/data/sdgp_v8_qa/blind_label_manifest_clean_840.jsonl.
 
 model:
   base_model: answerdotai/ModernBERT-base
@@ -21,15 +20,12 @@ data:
   fitz_gov_config: v7
   fitz_gov_revision: v7.0.1
   local_v8_probe: ../fitz-gov/data/sdgp_vault_v51_enriched
-  # Historical 630-row manifest: original 525 V8 rows + 105 hard
-  # verdict_conflict patch rows. The current active clean V8 manifest is
-  # blind_label_manifest_clean_840.jsonl and has its own balanced-controls config.
-  local_v8_manifest: ../fitz-gov/data/sdgp_v8_qa/blind_label_manifest_clean_630.jsonl
+  local_v8_manifest: ../fitz-gov/data/sdgp_v8_qa/blind_label_manifest_clean_840.jsonl
   max_seq_length: 4096
   truncation: longest_first
 
 training:
-  output_dir: ./outputs/pyrrho-nano-g2.1-v8-verdict-patch
+  output_dir: ./outputs/pyrrho-nano-g2.1-v8-balanced-controls
   num_train_epochs: 5
   per_device_train_batch_size: 16
   per_device_eval_batch_size: 32
@@ -58,7 +54,7 @@ training:
 
   logging_steps: 20
   report_to: [wandb]
-  run_name: pyrrho-nano-g2.1-v8-verdict-patch
+  run_name: pyrrho-nano-g2.1-v8-balanced-controls
   seed: 42
 
 eval:
@@ -77,4 +73,4 @@ eval:
 export:
   format: onnx
   quantization: int8
-  output_path: ./models/pyrrho-nano-g2.1-v8-verdict-patch.onnx
+  output_path: ./models/pyrrho-nano-g2.1-v8-balanced-controls.onnx
