@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-25 (evening) — Clean testcase addition cycle documented
+
+**What landed:**
+
+- Added the fitz-gov runbook `C:/Users/yanfi/PycharmProjects/fitz-gov/docs/SDGP_TESTCASE_ADDITION_CYCLE.md` for adding SDGP testcases without polluting the active vault or pyrrho V8 manifest.
+- Added a fitz-gov helper, `scripts/sdgp_build_blind_label_from_generation_jsonl.py`, to build candidate blind-label queues/manifests directly from generated JSONL outputs before merge.
+- Changed the fitz-gov blind-label runner defaults to the tested local Qwen QA settings: `max_tokens=2048` and `request_timeout_s=300`.
+
+**What was learned:**
+
+- The parse failures were configuration failures, not mysterious data loss. A controlled 3-row probe on known problematic candidate rows reproduced the old failure at `max_tokens=128`: **0/3 scored, 3 invalid**.
+- The same 3 rows with `max_tokens=2048` scored **3/3 with 0 invalid**. One row disagreed as DISPUTED, which is a real data-quality signal rather than a parser failure.
+- The clean cycle is now explicit: structural dry-run -> offline candidate blind-label pilot -> full candidate blind-label QA -> merge only if QA-clean -> regenerate full V8 audit before pyrrho prep.
+
+**Next:** Do not add V8 rows outside the documented cycle. The active pyrrho-safe V8 manifest remains the 630-row clean stop point unless a future candidate pack clears the full cycle.
+
+---
+
 ## 2026-05-25 (evening) — V8 work paused at the 630-row clean stop point
 
 **What landed:**
