@@ -20,11 +20,13 @@ Each entry follows the pattern:
 - Updated pyrrho and fitz-gov docs to distinguish the active clean V8 vault from Claude's new generated candidate handoff.
 - Documented the current fitz-gov candidate path: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_candidate_20260525_claude_expand/`.
 - Updated fitz-gov `docs/V8_SCHEMA_CONTRACT.md`, `docs/V8_TAXONOMY_EXPANSION_PLAN.md`, and `docs/SDGP_TESTCASE_ADDITION_CYCLE.md` with the same candidate-handling rule.
+- Optimized fitz-gov `scripts/sdgp_merge_v8_generation_jsonl.py` to use the vault's indexed ID membership check during dry-run/merge; the previous `vault.get(case_id)` path reread the full vault for every candidate and timed out on this handoff.
 
 **What was learned:**
 
 - Active local V8 data remains the clean stop point: **11,340 total vault rows / 840 V8 rows**, with **840/840 agreement** and **0 missing / 0 invalid / 0 error / 0 triage**.
-- Claude's candidate handoff was still moving during inspection. The 2026-05-25 18:09 snapshot observed **89** main `batch_*.jsonl` outputs, **2,646** raw lines, **2,643** parseable unique candidate IDs, **0** duplicate IDs, **3** malformed JSON lines, and **15** parsed rows missing core classification/domain/difficulty fields.
+- Claude's candidate handoff was still moving during inspection. The 2026-05-25 18:56 intake snapshot observed **89** main `batch_*.jsonl` outputs, **2,646** raw lines, **2,643** parseable unique candidate IDs, **0** duplicate IDs, **717** assigned slots still missing, **4** strict-read-fail files, and **15** parsed rows missing core classification/domain/difficulty fields.
+- Fast structural dry-run now completes and fails as expected: **1,915 accepted / 0 existing / 624 rejected**. Rejections are mostly mechanical/schema failures: missing TRUSTWORTHY `meta.grounding_targets`, invalid `meta.category` values (`trust`/`abstain`), invalid abbreviated cell IDs, invalid domain names, and 2 class-mismatch rows.
 - Those candidates are not active data, not QA-clean, and not pyrrho training data.
 
 **Next:** Normalize the candidate handoff, run structural dry-run and offline blind-label QA, and merge only if the full clean testcase addition cycle passes.
