@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-25 (evening) — Aviation maintenance OOD probe
+
+**What landed:**
+
+- Added `scripts/aviation_ood_probe.py`, a 10-case aviation maintenance / airworthiness OOD probe with exact-query leakage checks and calibrated multi-seed comparison.
+- Ran the probe across `g2`, `g2.1-v8-probe`, and `g2.2`; artifact: `outputs/aviation_ood_probe/comparison_g2_g21_g22.json`.
+
+**What was learned:**
+
+- The probe is exact-query OOD against all checked processed datasets: **0/10** exact query matches in `data/processed_v7`, `data/processed_v8_probe`, and `data/processed_v8_balanced_controls`.
+- Scores improved across generations: `g2` **7.00/10**, `g2.1-v8-probe` **8.00/10**, `g2.2` **8.67/10**.
+- This did not expose a grave aviation-specific taxonomy gap. The persistent miss is `air_02_trustworthy_superseded_sb_resolved` (**1/3** on `g2.2`), which maps to the existing `resolved_candidate_selection` / superseded-candidate boundary. Residual issues are one-seed AD interval over-trust (`air_05`) and revision mismatch (`air_10`, **2/3**).
+
+**Next:** Do not generate aviation rows immediately. Either probe another underrepresented domain or harden the already-known resolved-candidate / wrong-release / revision-mismatch boundaries if V8 continues.
+
+---
+
 ## 2026-05-25 (evening) — g2.2 V8 balanced-controls retrain completed
 
 **What landed:**

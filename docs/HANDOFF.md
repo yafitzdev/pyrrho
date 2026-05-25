@@ -90,6 +90,18 @@ Local experiment only. `configs/encoder/modernbert_base_g2_2.yaml` retrained Mod
 
 ECU OOD comparison artifact: `outputs/automotive_ood_probe/comparison_g2_2.json`. Exact-query leakage check stayed clean: **0/10** exact query matches in `data/processed_v7`, `data/processed_v8_probe`, and `data/processed_v8_balanced_controls`. OOD mean is **8.00/10** (per-seed **8/10, 8/10, 8/10**), which improves over published `g2` (**7.00/10**) and the failed verdict patch (**7.33/10**) but does not beat the original 525-row V8 probe (**8.33/10**). It fixes `ecu_04_disputed_dtc_powercycle` completely (**1/3 -> 3/3** vs V8 probe) and `ecu_01` (**2/3 -> 3/3**), but regresses `ecu_02_trustworthy_acceptance_run` (**2/3 -> 0/3**) and `ecu_07_abstain_wrong_ecu_release` (**2/3 -> 0/3**).
 
+### Aviation maintenance / airworthiness OOD probe
+
+The 10-case aviation maintenance probe is exact-query OOD against all three checked processed datasets: **0/10** exact query matches in `data/processed_v7`, `data/processed_v8_probe`, and `data/processed_v8_balanced_controls`. Artifact: `outputs/aviation_ood_probe/comparison_g2_g21_g22.json`.
+
+| Run | Mean score | Seed scores (42 / 1337 / 7) |
+|---|---:|---|
+| `g2` | **7.00/10** | 7/10, 6/10, 8/10 |
+| `g2.1-v8-probe` | **8.00/10** | 8/10, 9/10, 7/10 |
+| `g2.2` | **8.67/10** | 9/10, 7/10, 10/10 |
+
+This did **not** uncover a grave new field-specific taxonomy gap. The persistent hard case is `air_02_trustworthy_superseded_sb_resolved` (**1/3** on `g2.2`), which looks like the existing `resolved_candidate_selection` / superseded-candidate boundary. The other residuals are one-seed `authority_status_conflict` drift (`air_05`) and revision mismatch (`air_10`, **2/3** on `g2.2`).
+
 ### `pyrrho-small-g1` (SLM, plain SFT, 3-seed mean ± std on same eval split)
 
 | Metric | pyrrho-small-g1 | vs `nano-g1` | vs sklearn baseline |
@@ -161,6 +173,7 @@ source-of-truth contract is
 
 1. **Not a publish candidate yet despite better FT.** It has the best held-out false-trustworthy rate so far (**3.06 ± 0.61%**) and passes gates, but OOD mean is **8.00/10**, below the original V8 probe's **8.33/10**.
 2. **OOD tradeoff moved rather than vanished.** g2.2 fixed explicit same-build PASS/FAIL conflict handling (`ecu_04` **3/3**) but lost resolved-candidate and wrong-release controls (`ecu_02` **0/3**, `ecu_07` **0/3**).
+3. **Aviation probe is stronger, but not clean.** g2.2 is best on the new aviation maintenance probe (**8.67/10**), but `air_02_trustworthy_superseded_sb_resolved` is still only **1/3** and maps to the same resolved/superseded-candidate boundary rather than a new aviation-specific taxonomy.
 
 ### `pyrrho-small-g1` (not shipped)
 
@@ -187,6 +200,7 @@ source-of-truth contract is
 | [`scripts/eval_report.py`](../scripts/eval_report.py) | Full per-breakdown evaluation report on a checkpoint |
 | [`scripts/compare_runs.py`](../scripts/compare_runs.py) | Diff two runs (or vs baseline), markdown table out |
 | [`scripts/automotive_ood_probe.py`](../scripts/automotive_ood_probe.py) | Recovered 10-case ECU/test-management OOD probe; exact-query leakage check against processed datasets plus calibrated old-vs-new multi-seed checkpoint comparison |
+| [`scripts/aviation_ood_probe.py`](../scripts/aviation_ood_probe.py) | 10-case aviation maintenance / airworthiness OOD probe; compares `g2`, `g2.1-v8-probe`, and `g2.2` with exact-query leakage checks |
 | [`scripts/inspect_tier0_failures.py`](../scripts/inspect_tier0_failures.py) | Dump misclassified tier0 cases with full context |
 | [`scripts/smell_test.py`](../scripts/smell_test.py) | 10-case sanity check (ad-hoc) |
 | [`scripts/build_model_card.py`](../scripts/build_model_card.py) | Encoder HF model card builder |
@@ -208,6 +222,7 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 - **`pyrrho-nano-g2.1-v8-probe` local experiment**: `configs/encoder/modernbert_base_g2_v8_probe.yaml` retrained ModernBERT on `data/processed_v8_probe`, which preserves the published V7 split contract and appends the 525-row V8 cohort by manifest (`+414 train / +54 eval / +57 test`). Training summary at `outputs/multi_seed_g2_1_v8_probe/summary.json`: mixed held-out test **95.51 ± 0.43% accuracy / 3.56 ± 0.38% false-trustworthy** across seeds 42/1337/7. Recovered automotive ECU OOD comparison artifact: `outputs/automotive_ood_probe/comparison.json`.
 - **`pyrrho-nano-g2.1-v8-verdict-patch` failed ablation**: `configs/encoder/modernbert_base_g2_v8_verdict_patch.yaml` is historical and points to the old clean 630-row manifest. Training summary at `outputs/multi_seed_g2_1_v8_verdict_patch/summary.json`: held-out test **94.92 ± 0.41% accuracy / 4.08 ± 0.92% false-trustworthy**. ECU OOD comparison artifact: `outputs/automotive_ood_probe/comparison_v8_verdict_patch.json`. Do not publish; it regressed OOD mean to **7.33/10**.
 - **`pyrrho-nano-g2.2` local retrain**: `configs/encoder/modernbert_base_g2_2.yaml` trained ModernBERT on `data/processed_v8_balanced_controls`: published V7 plus local V8 append counts **train +661 / eval +97 / test +82**, producing train=9,061 / eval=1,147 / test=1,132. Training summary at `outputs/multi_seed_g2_2/summary.json`: held-out test **95.49 ± 0.15% accuracy / 3.06 ± 0.61% false-trustworthy**. ECU OOD artifact: `outputs/automotive_ood_probe/comparison_g2_2.json`. Do not publish yet; it improves FT but does not beat the original V8 probe on OOD.
+- **Aviation maintenance OOD probe**: `scripts/aviation_ood_probe.py` scored `g2`, `g2.1-v8-probe`, and `g2.2` on 10 new airworthiness/maintenance cases. Exact-query leakage check is clean (**0/10** matches in V7, V8 probe, and V8 balanced-control processed data). `g2.2` is best at **8.67/10**, but the hardest miss is still a known resolved/superseded-candidate boundary, not a new aviation-only taxonomy gap.
 - **pyrrho GitHub repo**: public, redesigned README in the fitz-sage style.
 - **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-nano-g1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
   - Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
@@ -230,7 +245,7 @@ Everything below is model-quality upside on an already-live baseline.
 
 3. ~~**Phase 3 / `pyrrho-nano-g2` train/package/publish**~~ **COMPLETE (2026-05-24).** `scripts/prepare_data.py` now reads HF V7 and preserves published train/validation/test splits. 3-seed encoder validation passed on held-out test: **95.24 ± 0.48% accuracy / 3.48 ± 0.40% false-trustworthy**. `models/pyrrho-nano-g2/` is staged locally and live at `yafitzdev/pyrrho-nano-g2`.
 
-4. **V8 next step** — active V8 data is clean at **840 rows** and `pyrrho-nano-g2.2` is trained. Do **not** publish yet. Decide whether to pursue another targeted data patch for the `ecu_02` resolved-candidate and `ecu_07` wrong-release regressions, or keep the original 525-row V8 probe as the best OOD ablation despite g2.2's better FT.
+4. **V8 next step** — active V8 data is clean at **840 rows** and `pyrrho-nano-g2.2` is trained. Do **not** publish yet. The aviation probe did not find a grave new domain-specific gap (`g2.2` scored **8.67/10**), so the real unresolved decision is still whether to patch known resolved-candidate / wrong-release boundaries (`ecu_02`, `ecu_07`, `air_02`) or stop V8 here and move to another domain probe.
 
 5. **`pyrrho-small-g2`** — after the V8 stop point, or if staying on V7 permanently, search current permissive 2026 CPU-runnable SLM bases, update `train_slm.py`/`eval_slm.py` for V7/V8 split shape, then run the SLM baseline with asymmetric safety pressure or DPO/GRPO.
 
