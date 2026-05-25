@@ -25,7 +25,7 @@ The brand name is from Pyrrho of Elis — the Greek philosopher whose school pra
 | `pyrrho-nano-g2` (ModernBERT V7 retrain) | **Trained + 3-seed validated on fitz-gov V7.0.1 schema-clean contract (same rows/splits/labels as V7.0.0). On Hugging Face.** Held-out test result: **95.24 ± 0.48% accuracy / 3.48 ± 0.40% false-trustworthy**. Passes gates by a wide margin. |
 | `pyrrho-nano-g2.1-v8-probe` (ModernBERT local V8 probe retrain) | **Local-only experimental retrain** on published V7 splits plus the 525-row V8 cohort appended by manifest. Mixed held-out test result: **95.51 ± 0.43% accuracy / 3.56 ± 0.38% false-trustworthy** on 1,107 rows. Automotive ECU OOD probe improved from **7.00/10** to **8.33/10** mean across the same 3 seeds. Not published. |
 | `pyrrho-nano-g2.1-v8-verdict-patch` (ModernBERT local ablation) | **Failed local ablation; do not publish.** Added 105 hard `verdict_conflict` rows on top of the 525-row V8 probe. Held-out test still passed gates (**94.92 ± 0.41% / 4.08 ± 0.92% FT**), and `ecu_04` improved **1/3 -> 2/3**, but ECU OOD mean regressed **8.33/10 -> 7.33/10** by over-predicting DISPUTED on nearby TRUSTWORTHY/ABSTAIN controls. |
-| `pyrrho-nano-g2.1-v8-balanced-controls` (ModernBERT local ablation) | **Data-ready; not trained yet.** The repaired 210-row balanced-control pack is now blind-label clean and merged, giving **840 QA-clean V8 rows**. Prepared pyrrho data exists at `data/processed_v8_balanced_controls` with V8 append counts **train +661 / eval +97 / test +82**. |
+| `pyrrho-nano-g2.2` (ModernBERT local V8 balanced-controls retrain) | **Trained + 3-seed validated locally; do not publish yet.** Uses published V7 plus **840 QA-clean V8 rows**. Held-out test passes gates at **95.49 ± 0.15% accuracy / 3.06 ± 0.61% false-trustworthy**, the best FT so far, but ECU OOD mean is **8.00/10**, below the original 525-row V8 probe's **8.33/10**. |
 | `pyrrho-small-g2`, `pyrrho-MoE-g3` (and beyond) | Not started. See [ROADMAP.md](ROADMAP.md). |
 
 ## Validated metrics
@@ -75,6 +75,20 @@ Automotive ECU/test-management OOD probe on the recovered 10-case fixture stays 
 ### `pyrrho-nano-g2.1-v8-verdict-patch` (failed local ablation, 1,115-case mixed held-out test)
 
 Local experiment only. Added 105 hard final-verdict PASS/FAIL conflict rows to the V8 probe, producing `data/processed_v8_verdict_patch` with train=8,901 / eval=1,114 / test=1,115. Three-seed held-out test passed gates at **94.92 ± 0.41% accuracy / 4.08 ± 0.92% false-trustworthy**, but it is not a release candidate. ECU OOD mean dropped from the initial V8 probe's **8.33/10** to **7.33/10**. The target `ecu_04_disputed_dtc_powercycle` improved **1/3 -> 2/3**, but nearby controls regressed: `ecu_01` **2/3 -> 1/3**, `ecu_02` **2/3 -> 1/3**, and `ecu_07` **2/3 -> 0/3**. Artifact: `outputs/automotive_ood_probe/comparison_v8_verdict_patch.json`.
+
+### `pyrrho-nano-g2.2` (local V7+840-row V8 balanced-controls retrain, 1,132-case mixed held-out test)
+
+Local experiment only. `configs/encoder/modernbert_base_g2_2.yaml` retrained ModernBERT on `data/processed_v8_balanced_controls`, preserving the published V7 split contract and appending the 840-row V8 cohort by manifest (**+661 train / +97 eval / +82 test**). Prepared split sizes are train=9,061 / eval=1,147 / test=1,132.
+
+| Metric | `pyrrho-nano-g2.2` | vs published `g2` |
+|---|---|---|
+| Overall accuracy | **95.49 ± 0.15%** | **+0.25** |
+| False-trustworthy rate | **3.06 ± 0.61%** | **-0.42** (safer) |
+| Trustworthy recall | **93.61 ± 0.61%** | -0.05 |
+| Disputed recall | **96.27 ± 0.53%** | -0.73 |
+| Abstain recall | **96.91 ± 0.44%** | +1.66 |
+
+ECU OOD comparison artifact: `outputs/automotive_ood_probe/comparison_g2_2.json`. Exact-query leakage check stayed clean: **0/10** exact query matches in `data/processed_v7`, `data/processed_v8_probe`, and `data/processed_v8_balanced_controls`. OOD mean is **8.00/10** (per-seed **8/10, 8/10, 8/10**), which improves over published `g2` (**7.00/10**) and the failed verdict patch (**7.33/10**) but does not beat the original 525-row V8 probe (**8.33/10**). It fixes `ecu_04_disputed_dtc_powercycle` completely (**1/3 -> 3/3** vs V8 probe) and `ecu_01` (**2/3 -> 3/3**), but regresses `ecu_02_trustworthy_acceptance_run` (**2/3 -> 0/3**) and `ecu_07_abstain_wrong_ecu_release` (**2/3 -> 0/3**).
 
 ### `pyrrho-small-g1` (SLM, plain SFT, 3-seed mean ± std on same eval split)
 
@@ -141,7 +155,12 @@ source-of-truth contract is
 1. **Still local-only; not benchmark-contract clean enough to publish as `g2.1` yet.** The run is on a mixed local contract (`data/processed_v8_probe`) that preserves V7 splits and appends V8 rows by manifest. It is the right ablation, but not yet the public release.
 2. **Verdict-conflict robustness is still the weak spot.** The recovered ECU PASS/FAIL conflict case (`ecu_04_disputed_dtc_powercycle`) improved only **0/3 -> 1/3** across seeds after V8 retraining. Candidate-selection and wrong-release abstain gaps improved more cleanly than explicit final-verdict contradiction handling.
 3. **One seed traded fixes instead of improving cleanly.** Seed 7 stayed **8/10** overall by fixing `ecu_02` and `ecu_04` but regressing `ecu_01` and `ecu_07`. The V8 pack is directionally useful, but not yet a fully stable OOD fix.
-4. **Verdict-only densification was not enough.** The 105-row hard `verdict_conflict` patch improved `ecu_04` but pushed adjacent clean cases toward DISPUTED. Balanced controls are now QA-clean in the data, but model usefulness is untested until a fresh `v8-balanced-controls` retrain and ECU OOD probe run.
+4. **Verdict-only densification was not enough.** The 105-row hard `verdict_conflict` patch improved `ecu_04` but pushed adjacent clean cases toward DISPUTED. The later 840-row g2.2 retrain fixed `ecu_04` completely but still traded off adjacent controls, so more data is not automatically better unless the OOD probe improves too.
+
+### `pyrrho-nano-g2.2`
+
+1. **Not a publish candidate yet despite better FT.** It has the best held-out false-trustworthy rate so far (**3.06 ± 0.61%**) and passes gates, but OOD mean is **8.00/10**, below the original V8 probe's **8.33/10**.
+2. **OOD tradeoff moved rather than vanished.** g2.2 fixed explicit same-build PASS/FAIL conflict handling (`ecu_04` **3/3**) but lost resolved-candidate and wrong-release controls (`ecu_02` **0/3**, `ecu_07` **0/3**).
 
 ### `pyrrho-small-g1` (not shipped)
 
@@ -188,7 +207,7 @@ Full methodology, release gates, and W&B conventions in [METHODOLOGY.md](METHODO
 - **`pyrrho-nano-g2` local release dir**: `models/pyrrho-nano-g2/` mirrors the HF release. Training summary: `outputs/multi_seed_g2/summary.json` reports held-out test **95.24 ± 0.48% accuracy / 3.48 ± 0.40% false-trustworthy** across seeds 42/1337/7. Config: `configs/encoder/modernbert_base_g2.yaml`. Prepared V7.0.1 data: `data/processed_v7` with train=8,400 / eval=1,050 / test=1,050 / tier0=0 and canonical breakdown columns only.
 - **`pyrrho-nano-g2.1-v8-probe` local experiment**: `configs/encoder/modernbert_base_g2_v8_probe.yaml` retrained ModernBERT on `data/processed_v8_probe`, which preserves the published V7 split contract and appends the 525-row V8 cohort by manifest (`+414 train / +54 eval / +57 test`). Training summary at `outputs/multi_seed_g2_1_v8_probe/summary.json`: mixed held-out test **95.51 ± 0.43% accuracy / 3.56 ± 0.38% false-trustworthy** across seeds 42/1337/7. Recovered automotive ECU OOD comparison artifact: `outputs/automotive_ood_probe/comparison.json`.
 - **`pyrrho-nano-g2.1-v8-verdict-patch` failed ablation**: `configs/encoder/modernbert_base_g2_v8_verdict_patch.yaml` is historical and points to the old clean 630-row manifest. Training summary at `outputs/multi_seed_g2_1_v8_verdict_patch/summary.json`: held-out test **94.92 ± 0.41% accuracy / 4.08 ± 0.92% false-trustworthy**. ECU OOD comparison artifact: `outputs/automotive_ood_probe/comparison_v8_verdict_patch.json`. Do not publish; it regressed OOD mean to **7.33/10**.
-- **`pyrrho-nano-g2.1-v8-balanced-controls` data prep**: `configs/encoder/modernbert_base_g2_v8_balanced_controls.yaml` points to the current clean 840-row V8 manifest. Prepared data is `data/processed_v8_balanced_controls`: published V7 plus local V8 append counts **train +661 / eval +97 / test +82**, producing train=9,061 / eval=1,147 / test=1,132. Training has not started.
+- **`pyrrho-nano-g2.2` local retrain**: `configs/encoder/modernbert_base_g2_2.yaml` trained ModernBERT on `data/processed_v8_balanced_controls`: published V7 plus local V8 append counts **train +661 / eval +97 / test +82**, producing train=9,061 / eval=1,147 / test=1,132. Training summary at `outputs/multi_seed_g2_2/summary.json`: held-out test **95.49 ± 0.15% accuracy / 3.06 ± 0.61% false-trustworthy**. ECU OOD artifact: `outputs/automotive_ood_probe/comparison_g2_2.json`. Do not publish yet; it improves FT but does not beat the original V8 probe on OOD.
 - **pyrrho GitHub repo**: public, redesigned README in the fitz-sage style.
 - **pyrrho is in production.** fitz-sage **v0.13.0** (shipped 2026-05-15, PyPI + GitHub) replaced its constraint+sklearn governance cascade with `yafitzdev/pyrrho-nano-g1` — loaded as INT8 ONNX, ~30 ms/decision on CPU, zero LLM calls on the governance path. The same release also swapped fitz-sage's chat-call reranker for `Alibaba-NLP/gte-reranker-modernbert-base` (a separate ONNX cross-encoder — fitz-sage's call, applying pyrrho's pattern). See LOG 2026-05-15.
   - Release: https://github.com/yafitzdev/fitz-sage/releases/tag/v0.13.0
@@ -211,7 +230,7 @@ Everything below is model-quality upside on an already-live baseline.
 
 3. ~~**Phase 3 / `pyrrho-nano-g2` train/package/publish**~~ **COMPLETE (2026-05-24).** `scripts/prepare_data.py` now reads HF V7 and preserves published train/validation/test splits. 3-seed encoder validation passed on held-out test: **95.24 ± 0.48% accuracy / 3.48 ± 0.40% false-trustworthy**. `models/pyrrho-nano-g2/` is staged locally and live at `yafitzdev/pyrrho-nano-g2`.
 
-4. **V8 next step** — active V8 data is now clean at **840 rows**. The next model-quality question is a fresh `pyrrho-nano-g2.1-v8-balanced-controls` 3-seed retrain from `data/processed_v8_balanced_controls`, followed by the ECU OOD probe. Do **not** publish or promote it until it beats the original 525-row V8 probe without the verdict-patch regressions.
+4. **V8 next step** — active V8 data is clean at **840 rows** and `pyrrho-nano-g2.2` is trained. Do **not** publish yet. Decide whether to pursue another targeted data patch for the `ecu_02` resolved-candidate and `ecu_07` wrong-release regressions, or keep the original 525-row V8 probe as the best OOD ablation despite g2.2's better FT.
 
 5. **`pyrrho-small-g2`** — after the V8 stop point, or if staying on V7 permanently, search current permissive 2026 CPU-runnable SLM bases, update `train_slm.py`/`eval_slm.py` for V7/V8 split shape, then run the SLM baseline with asymmetric safety pressure or DPO/GRPO.
 

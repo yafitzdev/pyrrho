@@ -13,6 +13,25 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-25 (evening) — g2.2 V8 balanced-controls retrain completed
+
+**What landed:**
+
+- Added `configs/encoder/modernbert_base_g2_2.yaml` for the official local `pyrrho-nano-g2.2` ablation name.
+- Ran the 3-seed ModernBERT recipe on `data/processed_v8_balanced_controls` with seeds 42, 1337, and 7.
+- Training artifact: `outputs/multi_seed_g2_2/summary.json`.
+- Ran the recovered ECU OOD probe across `g2`, `g2.1-v8-probe`, `g2.1-v8-verdict-patch`, and `g2.2`; artifact: `outputs/automotive_ood_probe/comparison_g2_2.json`.
+
+**What was learned:**
+
+- g2.2 passes held-out gates and has the best false-trustworthy rate so far: **95.49 ± 0.15% accuracy / 3.06 ± 0.61% false-trustworthy** on the 1,132-row mixed held-out test.
+- ECU OOD mean is **8.00/10** with per-seed scores **8/10, 8/10, 8/10**. That is better than published `g2` (**7.00/10**) and the failed verdict patch (**7.33/10**), but below the original 525-row V8 probe (**8.33/10**).
+- The tradeoff moved: g2.2 fixes `ecu_04_disputed_dtc_powercycle` completely (**1/3 -> 3/3** vs V8 probe) and improves `ecu_01` (**2/3 -> 3/3**), but regresses `ecu_02_trustworthy_acceptance_run` (**2/3 -> 0/3**) and `ecu_07_abstain_wrong_ecu_release` (**2/3 -> 0/3**).
+
+**Next:** Do not publish g2.2 yet. Either patch the data for the `ecu_02`/`ecu_07` regressions and rerun, or keep the original 525-row V8 probe as the better OOD ablation despite g2.2's stronger FT.
+
+---
+
 ## 2026-05-25 (evening) — Balanced controls repaired and merged
 
 **What landed:**
