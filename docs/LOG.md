@@ -13,6 +13,211 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-25 (evening) — V8 work paused at the 630-row clean stop point
+
+**What landed:**
+
+- Stopped all active local V8 QA jobs and verified no `sdgp_run_blind_label.py`, training, or OOD-probe Python processes were still running.
+- Verified the active fitz-gov vault is now **11,130 total rows / 630 V8 rows**; the only safe pyrrho-side V8 manifest remains `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_manifest_clean_630.jsonl`.
+- Built repaired offline balanced-control artifacts under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_balanced_controls/subagent_outputs_repaired/` and resumed blind-labeling against them without merging back into the active vault.
+
+**What was learned:**
+
+- The repaired control wording removed the old explicit "no final row exists" boundary bug, but the first repaired blind-label pass still did not produce a clean reusable manifest: `balanced_controls_repaired_score` scored only **82 / 210** rows because **128** responses hit the `max_tokens=128` ceiling before emitting parseable JSON. Among the parsed rows, agreement was **77 / 82** and the remaining **5** were real disagreements on `resolved_candidate_selection`.
+- A higher-budget retry was started only for the 128 invalid case IDs, but the work was intentionally stopped before completion. The partial retry artifact `blind_label_predictions_balanced_controls_invalid_retry_qwen36_35b_q5_max2048.jsonl` contains **107 / 128** rows and should not be treated as final QA output.
+- The active training database stayed clean throughout because the repaired controls were never merged back into the vault.
+
+**Next:** Leave V8 paused at the clean 630-row manifest unless this exact repaired-control QA loop is explicitly reopened; if reopened, restart the repaired-control blind-label pass from scratch and ignore the interrupted retry artifact.
+
+---
+
+## 2026-05-25 (afternoon) — Verdict patch failed as release ablation
+
+**What landed:**
+
+- Added and trained a 105-row hard `verdict_conflict` patch on top of the 525-row V8 probe, producing `data/processed_v8_verdict_patch` and `outputs/multi_seed_g2_1_v8_verdict_patch/`.
+- Ran the recovered automotive ECU OOD probe across `g2`, `g2.1-v8-probe`, and `g2.1-v8-verdict-patch`; artifact: `outputs/automotive_ood_probe/comparison_v8_verdict_patch.json`.
+- Quarantined the later 210-row balanced-control attempt after blind-label QA failed on `version_build_mismatch` controls. Clean V8 training manifest is now `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_manifest_clean_630.jsonl`; quarantined IDs are in `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/quarantined_balanced_control_case_ids.txt`.
+
+**What was learned:**
+
+- The verdict patch passed held-out gates but is not a release candidate: **94.92 ± 0.41% accuracy / 4.08 ± 0.92% false-trustworthy** on the mixed V7+V8 test.
+- It fixed the target ECU PASS/FAIL conflict only partially: `ecu_04_disputed_dtc_powercycle` improved **1/3 -> 2/3** versus the initial V8 probe.
+- It regressed nearby behavior enough to lose overall OOD value: ECU mean moved **8.33/10 -> 7.33/10**, with `ecu_01` **2/3 -> 1/3**, `ecu_02` **2/3 -> 1/3**, and `ecu_07` **2/3 -> 0/3**.
+- The first balanced-control design was not QA-clean. Qwen labeled many `version_build_mismatch` ABSTAIN controls as TRUSTWORTHY because the contexts explicitly stated no final row existed for the requested build, which is a valid negative answer rather than insufficient evidence.
+
+**Next:** Do not publish or train from the full 840-row V8 manifest. If continuing V8, redesign balanced controls with label-boundary QA first; otherwise keep the 525-row V8 probe as the current best local V8 ablation.
+
+---
+
+## 2026-05-25 (morning) — Local V8 probe retrain improved ECU OOD
+
+**What landed:**
+
+- Added a local V8 probe data-prep path in `scripts/prepare_data.py` that preserves the published V7 split contract and appends a local cohort by QA manifest.
+- Built `data/processed_v8_probe` from published V7 plus the local 525-row V8 cohort: **train=8,814 / eval=1,104 / test=1,107** with V8 additions **+414 / +54 / +57**.
+- Added `configs/encoder/modernbert_base_g2_v8_probe.yaml` and ran a full 3-seed ModernBERT retrain to `outputs/multi_seed_g2_1_v8_probe/`.
+- Added `scripts/automotive_ood_probe.py`, which preserves the exact recovered 10-case ECU/test-management probe, verifies exact-string query absence in processed datasets, and compares calibrated seed runs side by side.
+
+**What was learned:**
+
+- The local V8 retrain is directionally useful but not a clean slam dunk: mixed held-out test moved from published `g2` **95.24 ± 0.48% / 3.48 ± 0.40% FT** to local `g2.1-v8-probe` **95.51 ± 0.43% / 3.56 ± 0.38% FT** (`outputs/multi_seed_g2_1_v8_probe/summary.json`).
+- The recovered automotive ECU OOD probe stayed exact-string OOD against both `data/processed_v7` and `data/processed_v8_probe` (**0/10 exact query matches** in each). Mean calibrated score improved from **7.00/10** on `g2` to **8.33/10** on `g2.1-v8-probe`; per-seed movement was **7/10 -> 8/10**, **6/10 -> 9/10**, **8/10 -> 8/10**.
+- Biggest gains were `resolved_candidate_selection`-style and wrong-release abstain behavior (`ecu_02`, `ecu_07`). Explicit PASS/FAIL conflict resolution is still weak: `ecu_04_disputed_dtc_powercycle` improved only **0/3 -> 1/3**, and seed 7 traded one fix for one regression instead of improving cleanly. Full comparison artifact: `outputs/automotive_ood_probe/comparison.json`.
+
+**Next:** Decide whether to expand conflict-heavy V8 rows before publishing fitz-gov V8 and training an official `pyrrho-nano-g2.1`.
+
+---
+
+## 2026-05-25 (morning) — V8 blind-label triage repaired
+
+**What landed:**
+
+- Repaired the V8 blind-label triage surfaced by Qwen 35B Q5: **23** triage rows from the initial **502 validated / 23 triage** pass.
+- Fixed the underlying templates across all **210** affected-pattern rows, not only the 23 flagged examples:
+  - `missing_execution_result` no longer states an explicit negative final outcome that can be answered as TRUSTWORTHY.
+  - `authority_status_conflict` no longer asks specifically for "source-of-record status" or lets the authoritative context reconcile the lower-authority status.
+- Rebuilt the V8 QA queue/manifest and reran blind-labeling for the 210 repaired rows.
+
+**What was learned:**
+
+- The repaired-pattern rerun scored **210/210 agreement**, **0 triage**, **0 invalid**.
+- Final combined V8 blind-label QA is **525/525 validated / 0 triage**, with **0 missing / 0 invalid / 0 error**.
+- Structural gates remain clean: V8 training-schema audit is **525/525 complete**, exact duplicate IDs/inputs/checker hashes are **0**, and query-group leakage is **0**.
+- Full fitz-gov SDGP tests pass after the repair: `python -m pytest tests/sdgp -q` -> **271 passed**.
+
+**Next:** Decide whether to publish fitz-gov V8, expand beyond the 525-row probe pack, or train a pyrrho checkpoint on the V8-local dataset.
+
+---
+
+## 2026-05-25 (morning) — V8 blind-label QA completed
+
+**What landed:**
+
+- Ran LM Studio `qwen3.6-35b-a3b@q5_k_s` blind-label QA over all **525** V8 taxonomy-gap rows.
+- Retried the **26** first-pass invalid parses at `max_tokens=2048` and combined those predictions back into the full run.
+- Final V8 QA artifacts are under `fitz-gov/data/sdgp_v8_qa/`, including `blind_label_predictions_qwen36_35b_q5_combined.jsonl`, `blind_label_score_summary.json`, `blind_label_validated.jsonl`, `blind_label_triage.jsonl`, and `blind_label_combined_ledger.jsonl`.
+
+**What was learned:**
+
+- Final combined score is **525/525 scored**, **502 validated / 23 triage**, with **0 missing / 0 invalid / 0 error**.
+- Three V8 patterns are clean under Qwen blind-labeling: `resolved_candidate_selection`, `verdict_conflict`, and `version_build_mismatch` are each **105/105** agreement.
+- Triage is concentrated in the new boundary patterns: `missing_execution_result` has **86/105** agreement and **19** disagreements, while `authority_status_conflict` has **101/105** agreement and **4** disagreements.
+- The main issue is not schema or leakage; it is label-boundary sharpness. Qwen often treats explicit "no completed run/final outcome recorded" evidence as a direct TRUSTWORTHY answer, while the current V8 gold label says ABSTAIN.
+
+**Next:** Repair or adjudicate the 23 V8 triage rows before any V8 publish or pyrrho retrain.
+
+---
+
+## 2026-05-25 (morning) — V8 taxonomy-gap rows generated
+
+**What landed:**
+
+- Generated and merged the full initial V8 taxonomy-gap probe pack: **525 rows**.
+- Local fitz-gov vault is now **11,025 rows**: 10,500 V6/V7 + 525 V8.
+- Added `fitz-gov/scripts/sdgp_generate_v8_template_outputs.py` to produce complete SDGP-shaped JSONL from the prepared V8 batch specs.
+- Updated the V8 merge path to bulk-add accepted rows so Windows does not rewrite `index.json` once per case.
+
+**What was learned:**
+
+- The strict V8 dry-run accepted **525/525** generated rows with **0 rejects**.
+- A first real merge partially appended **493** rows before a Windows `os.replace` permission error on `index.json`; rebuilding the derived index succeeded, then the bulk-add merge added the remaining **32** rows cleanly.
+- V8 training-schema audit is **525/525 complete**. Coverage is exactly **105/105** new cells at **5 rows/cell**. V8 class counts are TRUSTWORTHY=105 / DISPUTED=210 / ABSTAIN=210. Forbidden-field audit found **0** `subpattern`/`introduced_in`/old report-axis fields. Exact duplicate checker hashes are **0**. Query-grouped QA audit reports **0** leakage and writes blind-label artifacts under `fitz-gov/data/sdgp_v8_qa/`.
+
+**Next:** Run blind-label validation for the 525-row V8 queue and repair any triage before publishing V8 or retraining pyrrho.
+
+---
+
+## 2026-05-25 (morning) — V8 taxonomy expansion corrected to primary patterns
+
+**What landed:**
+
+- Superseded the earlier subpattern/schema-migration plan. V8 taxonomy gaps now keep the current V7.0.1 SDGP row shape and land as first-class `taxonomy.pattern` values.
+- Added five V8 primary patterns in fitz-gov: `resolved_candidate_selection`, `verdict_conflict`, `authority_status_conflict`, `version_build_mismatch`, and `missing_execution_result`.
+- Added `fitz-gov/docs/V8_TAXONOMY_EXPANSION_PLAN.md`, `scripts/sdgp_plan_v8_taxonomy_expansion.py`, `scripts/sdgp_prepare_v8_generation_batches.py`, and `scripts/sdgp_merge_v8_generation_jsonl.py`.
+- Started expansion by preparing **525 V8 slots**: 5 new patterns x 7 domains x 3 difficulties x 5 rows/cell. Batch specs are under `fitz-gov/data/sdgp_handoff_v8_expand/subagent_batches/`.
+
+**What was learned:**
+
+- The existing 10,500-row vault already has the row shape we need. The right additive move is new primary cells, not `taxonomy.subpattern`, `meta.introduced_in`, or a migration of existing rows.
+- Full SDGP test suite passes after the correction: `python -m pytest tests/sdgp -q` in fitz-gov -> **271 passed**. Changed modules/scripts also pass `py_compile`.
+
+**Next:** Generate the 525 V8 JSONL rows from the prepared batches, merge with `scripts/sdgp_merge_v8_generation_jsonl.py`, then run blind-label/dedup/leakage QA before any V8 publish or pyrrho retrain.
+
+---
+
+## 2026-05-25 (morning) — V8 taxonomy gaps implemented
+
+**What landed:**
+
+- Added V8 taxonomy subpatterns in fitz-gov for the five discovered cross-domain gaps: `resolved_candidate_selection`, `verdict_conflict`, `authority_status_conflict`, `version_build_mismatch`, and `missing_execution_result`.
+- Added V8 subpattern cell enumeration: 5 subpatterns x 7 current primary domains x 3 difficulties = **105 subpattern cells**.
+- Generated `fitz-gov/docs/V8_SUBPATTERN_EXPANSION_PLAN.md` with a default 5 rows/cell target (**525 new rows**).
+- Added V8 prompt support, checker validation for subpattern consistency, and schema-uniformity audit helpers that fail mixed row shapes, missing V8 public fields, non-`v8` dataset versions, and old pre-SDGP report axes.
+
+**What was learned:**
+
+- The gaps can be modeled as evidence-behavior subpatterns under the existing 18 SDGP primary patterns. No new primary domain is needed.
+- The primary `taxonomy.cell_id` can stay as the 18-pattern matrix coordinate, while V8 targeted coverage uses `taxonomy.subpattern` and `taxonomy.subpattern_cell_id` in a unified row schema.
+- Focused fitz-gov tests passed: `python -m pytest tests/sdgp/test_taxonomy.py tests/sdgp/test_prompts.py tests/sdgp/test_checker.py tests/sdgp/test_schema_uniformity.py -q` -> **95 passed**.
+
+**Next:** Migrate all 10,500 existing rows to the full V8 row shape, run the new schema-uniformity audit, then generate/fill the 525-row V8 subpattern probe pack.
+
+---
+
+## 2026-05-25 (morning) — V8 unified schema contract pinned
+
+**What landed:**
+
+- Added `fitz-gov/docs/V8_SCHEMA_CONTRACT.md` as the source-of-truth rule for V8 data work.
+- Added `fitz-gov/AGENTS.md` so Codex sessions opened in the dataset repo see the no-shim V8 contract immediately.
+- Mirrored the contract into pyrrho `AGENTS.md` and `docs/HANDOFF.md`.
+
+**What was learned:**
+
+- V8 must not become another compatibility layer. It must publish one canonical `v8` config, one exact public row structure, and only use `meta.introduced_in` to record whether a testcase originally entered in `v5.1`, `v7`, `v8`, etc.
+- If V8 adds taxonomy fields such as `taxonomy.subpattern`, all existing 10,500 rows must be migrated to include them before export/training. Missing or non-applicable fields must be explicit null/empty values, not absent keys.
+
+**Next:** Before adding V8 taxonomy gaps or rows, implement a schema-uniformity audit that fails on mixed row shapes and old pre-SDGP report axes.
+
+---
+
+## 2026-05-25 (morning) — Automotive/ECU OOD probe
+
+**What landed:**
+
+- Ran a 10-case synthetic automotive ECU/test-management probe against `pyrrho-nano-g2` seeds 42/1337/7.
+- Verified all 10 exact query strings have **0 matches** in `data/processed_v7` across train/eval/test.
+- Used each seed's validation-selected TRUSTWORTHY threshold from `outputs/multi_seed_g2/seed_*/final_metrics.json`.
+
+**What was learned:**
+
+- Scores were **7/10** (seed 42), **6/10** (seed 1337), and **8/10** (seed 7), so automotive/ECU test-management is a real OOD stressor for the encoder.
+- Manual gold-label audit found **10/10 expected labels defensible**. `ecu_06` has an authority/status nuance, but current taxonomy treats a Jenkins PASS contradicted by test-management rejection/BLOCKED as `DISPUTED`.
+- Stable misses across all seeds: valid acceptance-run evidence was predicted `DISPUTED`, and a direct lab-log-vs-test-management PASS/FAIL conflict was predicted `TRUSTWORTHY`.
+- Stable wins: missing execution-result cases were correctly `ABSTAIN`, and explicit calibration/test-status conflicts were correctly `DISPUTED`.
+
+**Next:** Build a proper V8 automotive/ECU eval-probe before adding training rows; include test-management status, bench validity, release/build mismatch, and direct PASS/FAIL conflict patterns.
+
+---
+
+## 2026-05-24 (evening) — pyrrho-nano-g2 domain breakdown
+
+**What landed:**
+
+- Generated missing per-breakdown reports for g2 seeds 1337 and 7, matching the existing seed-42 report: `outputs/multi_seed_g2/seed_*/eval_report.json`.
+- Aggregated calibrated held-out test metrics by canonical V7 `expert` domain across seeds 42/1337/7.
+
+**What was learned:**
+
+- `science_medicine` is the weakest held-out domain: **90.93 ± 0.74% accuracy / 5.99 ± 1.06% false-trustworthy** on n=169 test rows per seed.
+- Secondary watchlist domains are `technology_computing` (**93.71 ± 1.54% / 5.15 ± 1.46% FT**) and `general_commonsense` (**94.36 ± 0.69% / 5.56 ± 1.81% FT**).
+- Strongest domains are `history_geography` (**97.76 ± 1.05% / 2.11 ± 1.19% FT**) and `law_policy` (**97.45 ± 0.73% / 0.60 ± 0.84% FT**).
+
+**Next:** Use domain breakdowns as a standard release diagnostic. For V8, start with a science/medicine eval-probe before adding training rows.
+
+---
+
 ## 2026-05-24 (evening) — V7.0.1 schema-clean contract
 
 **What landed:**

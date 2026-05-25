@@ -8,6 +8,8 @@ test=1,050.
 
 Local vault mode remains available for development; when no published split
 assignment is provided, it falls back to the historical stratified 80/20 split.
+For V8 experiments, the script can preserve the published V7 split contract and
+append locally-generated V8 rows from a fitz-gov vault using a QA manifest.
 
 Label mapping (V6 `governance.classification` → pyrrho label):
 
@@ -25,6 +27,9 @@ Produces:
 
 Run from project root:
     python scripts/prepare_data.py --hf yafitzdev/fitz-gov --output data/processed_v7
+    python scripts/prepare_data.py --output data/processed_v8_probe \
+      --append-local-vault ../fitz-gov/data/sdgp_vault_v51_enriched \
+      --append-local-manifest ../fitz-gov/data/sdgp_v8_qa/blind_label_manifest.jsonl
 """
 
 from __future__ import annotations
@@ -80,6 +85,28 @@ def load_vault_jsonl(path: Path) -> list[dict]:
     return out
 
 
+def load_split_manifest(path: Path) -> dict[str, str]:
+    """Load `{case_id: split}` from a fitz-gov QA manifest or split assignment file."""
+    if not path.exists():
+        raise FileNotFoundError(f"split manifest not found: {path}")
+    split_by_id: dict[str, str] = {}
+    with path.open("r", encoding="utf-8") as fh:
+        for line_no, raw in enumerate(fh, start=1):
+            if not raw.strip():
+                continue
+            row = json.loads(raw)
+            if not isinstance(row, dict):
+                raise ValueError(f"{path}:{line_no}: expected JSON object")
+            case_id = str(row.get("case_id") or "")
+            split = str(row.get("split") or "")
+            if not case_id or split not in {"train", "validation", "eval", "test"}:
+                raise ValueError(
+                    f"{path}:{line_no}: expected case_id and split=train|validation|eval|test"
+                )
+            split_by_id[case_id] = "eval" if split == "validation" else split
+    return split_by_id
+
+
 def load_hf(
     repo_id: str,
     config: str,
@@ -104,6 +131,49 @@ def load_hf(
         raise ValueError(f"HF config {config!r} has unsupported splits: {list(ds.keys())}")
 
     return splits
+
+
+def append_local_cohort_to_splits(
+    raw_splits: dict[str, list[dict]],
+    *,
+    vault_root: Path,
+    manifest_path: Path,
+    cohort: str,
+) -> dict[str, int]:
+    """Append a local cohort to existing train/eval/test splits by manifest assignment."""
+    if not {"train", "eval"} <= set(raw_splits.keys()):
+        raise ValueError("--append-local-vault requires an existing train/eval split contract")
+
+    cases = load_vault_jsonl(vault_root / "cases.jsonl")
+    additions = [
+        case
+        for case in cases
+        if isinstance(case.get("meta"), dict) and case["meta"].get("dataset_version") == cohort
+    ]
+    if not additions:
+        raise ValueError(f"no {cohort!r} rows found in local vault {vault_root}")
+
+    split_by_id = load_split_manifest(manifest_path)
+    split_counts = {"train": 0, "eval": 0, "test": 0}
+    existing_ids = {
+        str(case.get("id") or "")
+        for split_cases in raw_splits.values()
+        for case in split_cases
+        if isinstance(case, dict)
+    }
+    for case in additions:
+        case_id = str(case.get("id") or "")
+        if not case_id:
+            raise ValueError("local cohort row is missing id")
+        if case_id in existing_ids:
+            raise ValueError(f"local cohort row duplicates existing split id: {case_id}")
+        split = split_by_id.get(case_id)
+        if split is None:
+            raise ValueError(f"local cohort row missing from split manifest: {case_id}")
+        raw_splits.setdefault(split, []).append(case)
+        split_counts[split] += 1
+
+    return split_counts
 
 
 def build_text(case: dict) -> str:
@@ -251,6 +321,24 @@ def parse_args() -> argparse.Namespace:
         help="Label space cardinality: 3 = TRUSTWORTHY collapsed (matches fitz-sage baseline). "
         "4 = TRUSTWORTHY_HEDGED vs TRUSTWORTHY_DIRECT kept separate.",
     )
+    parser.add_argument(
+        "--append-local-vault",
+        type=Path,
+        default=None,
+        help="Append local cohort rows from this SDGP vault after loading the published split contract.",
+    )
+    parser.add_argument(
+        "--append-local-manifest",
+        type=Path,
+        default=None,
+        help="QA manifest/split assignment JSONL that gives splits for appended local rows.",
+    )
+    parser.add_argument(
+        "--append-local-cohort",
+        type=str,
+        default="v8",
+        help="meta.dataset_version cohort to append from --append-local-vault (default: v8).",
+    )
     return parser.parse_args()
 
 
@@ -278,6 +366,22 @@ def main() -> int:
         vault_root = (args.vault or Path("../fitz-gov/data/sdgp_vault_v51_enriched")).resolve()
         print(f"source          : SDGP vault {vault_root}")
         raw_splits = {"all": load_vault_jsonl(vault_root / "cases.jsonl")}
+
+    if args.append_local_vault is not None:
+        if args.append_local_manifest is None:
+            raise ValueError("--append-local-manifest is required with --append-local-vault")
+        append_counts = append_local_cohort_to_splits(
+            raw_splits,
+            vault_root=args.append_local_vault.resolve(),
+            manifest_path=args.append_local_manifest.resolve(),
+            cohort=args.append_local_cohort,
+        )
+        print(
+            "appended local  : "
+            f"cohort={args.append_local_cohort} "
+            f"train={append_counts['train']} eval={append_counts['eval']} "
+            f"test={append_counts['test']}"
+        )
 
     print(f"output dir      : {output_dir}")
     print(f"train ratio     : {args.train_ratio}")
