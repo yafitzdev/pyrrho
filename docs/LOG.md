@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-27 (evening) — Removed redundant V8 local manifest
+
+**What landed:**
+
+- Removed `data/fitz-gov/v8_manifest.jsonl` as a canonical local fitz-gov artifact.
+- Updated pyrrho handoff docs so fresh sessions use `C:/Users/yanfi/PycharmProjects/fitz-gov/data/fitz-gov/cases.jsonl` as the single local row source.
+
+**What was learned:**
+
+- The V8 manifest was operationally useful during release QA, but redundant after every row carried `meta.dataset_version`, `taxonomy`, split metadata on HF, and `meta.modality`.
+- Local verification still shows `cases.jsonl` has **24,592** rows: V6 **2,980**, V7 **7,520**, V8 **14,092**, all with `meta.modality: "unstructured"`.
+
+**Next:** Derive any V8-only indexes from `cases.jsonl` or release QA artifacts when needed; do not treat a separate V8 manifest as dataset truth.
+
+---
+
 ## 2026-05-27 (evening) — fitz-gov V8.0.1 modality patch
 
 **What landed:**
@@ -27,7 +43,7 @@ Each entry follows the pattern:
 
 - The existing V8 data can become the unstructured slice without changing labels, splits, or g3 metrics; the modality field is a schema patch, not a new training distribution.
 - Verification loaded `load_dataset("yafitzdev/fitz-gov", "v8", revision="v8.0.1", split="train[:5]")` and confirmed all sampled rows expose `meta.modality == "unstructured"`.
-- fitz-gov local `data/fitz-gov/cases.jsonl` verifies **24,592/24,592** rows as `unstructured`; `v8_manifest.jsonl` verifies **14,092/14,092** V8 manifest rows as `unstructured`.
+- fitz-gov local `data/fitz-gov/cases.jsonl` verifies **24,592/24,592** rows as `unstructured`, including the **14,092** V8 rows.
 
 **Next:** Use fitz-gov `v8.0.1` for future pyrrho prep, and keep structured/code rows in candidate/probe workspaces until modality-stratified QA and release gates exist.
 
