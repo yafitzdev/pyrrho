@@ -6,7 +6,7 @@
 **Created:** 2026-05-13
 **Status:** Historical vision doc. `pyrrho-nano-g1` is shipped; current state lives in [HANDOFF.md](HANDOFF.md), and the active model/data roadmap lives in [ROADMAP.md](ROADMAP.md).
 
-> 2026-05-26 note: this document still preserves the original planning record. Treat §10 release sequencing and older V6/V7 naming as superseded by [ROADMAP.md](ROADMAP.md). Current published fitz-gov is V8.0.0 on Hugging Face: 24,592 rows, default `v8` query-grouped splits, V8 second-pass QA clean, and no unresolved triage. `pyrrho-nano-g3` is the published V8 encoder release: https://huggingface.co/yafitzdev/pyrrho-nano-g3. `pyrrho-nano-g2` remains the published V7 encoder baseline: https://huggingface.co/yafitzdev/pyrrho-nano-g2.
+> 2026-05-27 note: this document still preserves the original planning record. Treat §10 release sequencing and older V6/V7 naming as superseded by [ROADMAP.md](ROADMAP.md). Current published fitz-gov is V8.0.1 on Hugging Face: 24,592 rows, default `v8` query-grouped splits, V8 second-pass QA clean, no unresolved triage, and explicit `meta.modality: "unstructured"` on current rows. `pyrrho-nano-g3` is the published V8 encoder release: https://huggingface.co/yafitzdev/pyrrho-nano-g3. `pyrrho-nano-g2` remains the published V7 encoder baseline: https://huggingface.co/yafitzdev/pyrrho-nano-g2.
 
 ---
 

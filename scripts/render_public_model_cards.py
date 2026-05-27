@@ -761,8 +761,8 @@ def card_specs() -> dict[str, str]:
                     "data/processed_v8/test.jsonl",
                 ),
                 "per_seed": per_seed_from_summary("outputs/multi_seed_g3_v8/summary.json"),
-                "eval_text": "Reported on the fitz-gov V8.0.0 held-out test split: 2,459 examples, 3 seeds. Checkpoints and TRUSTWORTHY thresholds were selected on a separate 2,459-example validation split.",
-                "data_text": "Trained and evaluated on fitz-gov V8.0.0, an English benchmark of 24,592 RAG evidence-governance examples with query-grouped train, validation, and test splits. Split sizes: 19,674 train, 2,459 validation, 2,459 held-out test.",
+                "eval_text": "Reported on the fitz-gov V8.0.1 held-out test split: 2,459 examples, 3 seeds. Checkpoints and TRUSTWORTHY thresholds were selected on a separate 2,459-example validation split.",
+                "data_text": "Trained and evaluated on the fitz-gov V8 row set, now published as V8.0.1 with explicit unstructured modality metadata. It is an English benchmark of 24,592 RAG evidence-governance examples with query-grouped train, validation, and test splits. Split sizes: 19,674 train, 2,459 validation, 2,459 held-out test.",
                 "limitations": [
                     "English-only training and evaluation data.",
                     "The model judges only the provided sources; it does not retrieve new evidence or verify claims against outside knowledge.",

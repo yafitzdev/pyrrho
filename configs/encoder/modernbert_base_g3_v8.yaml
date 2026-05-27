@@ -1,5 +1,5 @@
 # pyrrho-nano-g3 V8 ablation (ModernBERT-base encoder).
-# Data: yafitzdev/fitz-gov config v8, revision v8.0.0.
+# Data: yafitzdev/fitz-gov config v8, revision v8.0.1.
 # Prepared locally as data/processed_v8 with train=19,674 / eval=2,459 / test=2,459.
 
 model:
@@ -17,7 +17,7 @@ model:
 data:
   fitz_gov_hf: yafitzdev/fitz-gov
   fitz_gov_config: v8
-  fitz_gov_revision: v8.0.0
+  fitz_gov_revision: v8.0.1
   max_seq_length: 4096
   truncation: longest_first
 

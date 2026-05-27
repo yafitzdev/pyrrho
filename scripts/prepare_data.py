@@ -2,7 +2,7 @@
 prepare_data.py — Convert fitz-gov into HF datasets for pyrrho training.
 
 Default source is the published Hugging Face contract:
-`yafitzdev/fitz-gov`, config `v8`, revision `v8.0.0`. The script preserves
+`yafitzdev/fitz-gov`, config `v8`, revision `v8.0.1`. The script preserves
 the query-grouped split contract: train=19,674, validation/eval=2,459,
 test=2,459.
 
@@ -37,13 +37,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 
 from datasets import Dataset, DatasetDict
 from sklearn.model_selection import train_test_split
-
 
 LABEL2ID_3: dict[str, int] = {"ABSTAIN": 0, "DISPUTED": 1, "TRUSTWORTHY": 2}
 LABEL2ID_4: dict[str, int] = {
@@ -293,8 +291,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hf-revision",
         type=str,
-        default="v8.0.0",
-        help="HuggingFace revision/tag to load (default: v8.0.0). Use empty string for main.",
+        default="v8.0.1",
+        help="HuggingFace revision/tag to load (default: v8.0.1). Use empty string for main.",
     )
     parser.add_argument(
         "--output",

@@ -199,7 +199,7 @@ def main() -> int:
 
     repo_id = args.hf or data_cfg.get("fitz_gov_hf", "yafitzdev/fitz-gov")
     hf_config = args.hf_config or data_cfg.get("fitz_gov_config", "v8")
-    revision = args.hf_revision or data_cfg.get("fitz_gov_revision", "v8.0.0")
+    revision = args.hf_revision or data_cfg.get("fitz_gov_revision", "v8.0.1")
     output_dir = (args.output or Path(data_cfg.get("moe_output_dir", "data/moe_v8"))).resolve()
     semantic_groups = tuple(arch_cfg.get("semantic_expert_groups") or DEFAULT_SEMANTIC_EXPERT_GROUPS)
     route2id = {name: i for i, name in enumerate(semantic_groups)}

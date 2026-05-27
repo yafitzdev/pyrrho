@@ -151,7 +151,7 @@ fitz-gov provides the governance and routing supervision. A row is MoE-ready onl
 
 Recommended before the first serious g3 run:
 
-- Use published fitz-gov V8.0.0 (`yafitzdev/fitz-gov`, config `v8`, revision `v8.0.0`). The former target-40/target-50 gap is closed; public splits are train=19,674 / validation=2,459 / test=2,459.
+- Use published fitz-gov V8.0.1 (`yafitzdev/fitz-gov`, config `v8`, revision `v8.0.1`). The former target-40/target-50 gap is closed; public splits are train=19,674 / validation=2,459 / test=2,459, and current rows carry `meta.modality: "unstructured"`.
 - Generate teacher traces for all train rows and a locked subset of validation rows.
 - Keep gold labels authoritative. Teacher traces are auxiliary targets, not replacements for fitz-gov labels.
 
@@ -633,7 +633,7 @@ Required docs/artifacts:
 | Loss of seed general competence | High | Dense-to-MoE cloning, freeze/low-LR shared trunk, teacher distillation before aggressive fitz-gov specialization. |
 | Single-GPU optimizer memory | High | Start with router/adapters, use 8-bit optimizer, gradient checkpointing, expert freezing, staged expert unfreezing. |
 | Custom GGUF support | Medium | Prototype PyTorch first; plan llama.cpp custom arch work only after quality clears gates. |
-| fitz-gov too small for all heads | Medium | V8.0.0 target-50 contract is live; still use teacher traces and keep heads scoped to signals with reliable labels. |
+| fitz-gov too small for all heads | Medium | V8.0.1 target-50 contract is live; still use teacher traces and keep heads scoped to signals with reliable labels. |
 
 ## 12. Immediate Next Steps
 

@@ -13,6 +13,26 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-27 (evening) — fitz-gov V8.0.1 modality patch
+
+**What landed:**
+
+- Updated pyrrho docs to treat fitz-gov **V8.0.1** as the current dataset contract for new work.
+- Updated pyrrho encoder/MoE prep defaults and active V8 configs from `v8.0.0` to `v8.0.1`.
+- fitz-gov V8.0.1 keeps the V8.0.0 row set and splits but publishes row-level `meta.modality: "unstructured"` on the current unstructured dataset.
+- HF dataset commit/tag: `yafitzdev/fitz-gov` commit `0d01bb999e80e4c6b01027763b054b4aa48d2334`, tag `v8.0.1`.
+- Verification passed: `ruff check scripts/prepare_data.py scripts/prepare_moe_data.py scripts/render_public_model_cards.py`; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py -q` = **4 passed**.
+
+**What was learned:**
+
+- The existing V8 data can become the unstructured slice without changing labels, splits, or g3 metrics; the modality field is a schema patch, not a new training distribution.
+- Verification loaded `load_dataset("yafitzdev/fitz-gov", "v8", revision="v8.0.1", split="train[:5]")` and confirmed all sampled rows expose `meta.modality == "unstructured"`.
+- fitz-gov local `data/fitz-gov/cases.jsonl` verifies **24,592/24,592** rows as `unstructured`; `v8_manifest.jsonl` verifies **14,092/14,092** V8 manifest rows as `unstructured`.
+
+**Next:** Use fitz-gov `v8.0.1` for future pyrrho prep, and keep structured/code rows in candidate/probe workspaces until modality-stratified QA and release gates exist.
+
+---
+
 ## 2026-05-27 (afternoon) — Modality expansion roadmap decision
 
 **What landed:**

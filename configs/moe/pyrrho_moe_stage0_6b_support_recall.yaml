@@ -9,7 +9,7 @@
 data:
   fitz_gov_hf: yafitzdev/fitz-gov
   fitz_gov_config: v8
-  fitz_gov_revision: v8.0.0
+  fitz_gov_revision: v8.0.1
   moe_output_dir: data/moe_v8
   max_seq_length: 4096
   scalar_fields:

@@ -57,9 +57,9 @@ Full validation methodology and per-seed numbers in [HANDOFF.md](HANDOFF.md). Pi
 
 ## Current dataset state
 
-Published benchmark contract for new work: `yafitzdev/fitz-gov` **V8.0.0**, 24,592 query-grouped rows. V7.0.1 remains the published `pyrrho-nano-g2` contract, and V6.0.0 remains the 2,980-row enriched baseline for V6 apples-to-apples comparisons.
+Published benchmark contract for new work: `yafitzdev/fitz-gov` **V8.0.1**, 24,592 query-grouped rows with explicit `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract, and V6.0.0 remains the 2,980-row enriched baseline for V6 apples-to-apples comparisons.
 
-Published V8: `yafitzdev/fitz-gov` **v8.0.0** on Hugging Face, **24,592 rows** total: V6 2,980 + V7 7,520 + V8 14,092. Default config `v8` has query-grouped splits: train=19,674 / validation=2,459 / test=2,459. Local pyrrho prep is available at `data/processed_v8`; MoE multitask prep is available at `data/moe_v8` with a strict audit showing **0** required-field misses.
+Published V8: `yafitzdev/fitz-gov` **v8.0.1** on Hugging Face, **24,592 rows** total: V6 2,980 + V7 7,520 + V8 14,092. Default config `v8` has query-grouped splits: train=19,674 / validation=2,459 / test=2,459, and current rows carry `meta.modality: "unstructured"`. Local pyrrho prep is available at `data/processed_v8`; MoE multitask prep is available at `data/moe_v8` with a strict audit showing **0** required-field misses.
 
 ---
 

@@ -59,7 +59,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | V5.1 | 2,980 cases | Original baseline (no schema enrichment) |
 | **V6** | **2,980 cases** | **LLM-enriched schema overlay on V5.1. Published 2026-05-20 as `yafitzdev/fitz-gov` v6.0.0; now the enriched-baseline reference, not the current default contract.** |
 | V7 | Published as V7.0.1 | SDGP-scaled benchmark across the existing 7 primary domains, taxonomy × domain × difficulty matrix coverage, MoE training base. **Current `g2` HF contract: 10,500 rows = 2,980 V6 + 7,520 V7, default `v7` query-grouped splits, strict V6/V7 schema complete, canonical `evaluation` block complete, target 25/cell complete, blind-label/cross-label QA passed, public rows schema-clean with no pre-SDGP report axes.** |
-| V8 | Published as V8.0.0 | Generalization, uncertainty calibration, adversarial taxonomy gaps, and target-50 whole-dataset expansion. **Current default HF contract: 24,592 rows = 2,980 V6 + 7,520 V7 + 14,092 V8, default `v8` query-grouped splits train=19,674 / validation=2,459 / test=2,459, target-50 coverage complete across 483/483 cells, full V8 second-pass QA clean.** |
+| V8 | Published as V8.0.1 | Generalization, uncertainty calibration, adversarial taxonomy gaps, and target-50 whole-dataset expansion. **Current default HF contract: 24,592 rows = 2,980 V6 + 7,520 V7 + 14,092 V8, default `v8` query-grouped splits train=19,674 / validation=2,459 / test=2,459, target-50 coverage complete across 483/483 cells, full V8 second-pass QA clean, all rows explicitly marked `meta.modality: "unstructured"`.** |
 | V9+ | 30,000+ cases plus modality-specific branches | Infrastructure-grade reliability, false-trustworthy floor, and first-class structured-data / code governance coverage under the same fitz-gov benchmark family |
 
 ### Data Volume vs. Capability
@@ -71,7 +71,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | 15,000–30,000 | Generalization kicks in. Governance signals become calibrated, not just directional |
 | 30,000+ | False-trustworthy approaches floor. Routing stable enough to expose as signal. Infrastructure-grade |
 
-Current status as of 2026-05-26: fitz-gov V8.0.0 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, and stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050).
+Current status as of 2026-05-27: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current rows carry `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050).
 
 ### Modality Expansion: Unstructured, Structured, Code
 
@@ -85,7 +85,7 @@ Future modality releases should use a row-level metadata axis:
 }
 ```
 
-Allowed values are `unstructured`, `structured`, and `code`. Existing V8 rows are implicitly `unstructured` until a future migration/backfill publishes the field explicitly. Manifest-level modality labels are useful for local probes, but they are not enough for training: when structured/code enter the active benchmark, every row must carry `meta.modality`.
+Allowed values are `unstructured`, `structured`, and `code`. V8.0.1 publishes the current V8 row set with `meta.modality: "unstructured"` explicitly present on every row. Manifest-level modality labels are useful for local probes, but they are not enough for training: when structured/code enter the active benchmark, every row must carry `meta.modality`.
 
 `meta.modality` is separate from `routing.expert_fired`. The route remains the semantic/domain expert target (`technology_computing`, `economics_finance`, `science_medicine`, etc.); modality says what kind of evidence representation the model is governing. A code row can still route to `technology_computing`, and a structured finance table can still route to `economics_finance`.
 
@@ -658,7 +658,7 @@ The complete output of a pyrrho-MoE inference pass:
 - Adversarial evaluation set held out — not used for training, only evaluation
 - Publish adversarial cell distribution alongside dataset so others can target the same failure modes
 
-**Output:** fitz-gov V8.0.0 is published at **24,592 cases** with target-50 whole-dataset coverage. A separate adversarial eval set remains future work.
+**Output:** fitz-gov V8.0.1 is published at **24,592 cases** with target-50 whole-dataset coverage and explicit `meta.modality: "unstructured"` on the current row set. A separate adversarial eval set remains future work.
 
 ---
 
