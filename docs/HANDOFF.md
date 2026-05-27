@@ -203,6 +203,10 @@ source-of-truth contract is
 - Whole-dataset target-40 pack is generated, Codex-subagent blind-label QA clean, and merged. Candidate pack: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target40/subagent_outputs/` (**174** `batch_*.jsonl` files / **5,198** rows). Final Codex blind score: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_target40/score_codex_subagents_combined/` = **5,198/5,198 agreement**, **0 missing / 0 invalid / 0 error**, **0 triage**. Merge batch: `v8_target40_template_20260526`, **5,198 added / 0 duplicate**. Pre-merge backup: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_vault_v51_enriched/cases.before_v8_target40_merge_20260526_005837.jsonl`.
 - Whole-dataset target **50/cell is complete**. The target-50 pack at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target50/subagent_outputs/` has **157** `batch_*.jsonl` files / **4,694** rows. Initial Codex-subagent blind QA found **82** triage rows; template repairs fixed `factual_contradiction`, `numerical_conflict`, and `resolved_candidate_selection`. Final Codex blind score: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_target50/score_codex_subagents_combined/` = **4,694/4,694 agreement**, **0 missing / 0 invalid / 0 error**, **0 triage**. Merge batch: `v8_target50_template_20260526`, **4,694 added / 0 duplicate**. Pre-merge backup: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_vault_v51_enriched/cases.before_v8_target50_merge_20260526_013413.jsonl`. Active target-50 report: `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/full_dataset_gap_target50_after_merge.json` = **483/483** cells at target, **0** gap.
 
+## Future modality expansion decision
+
+Structured-data and code governance should live under the **same fitz-gov benchmark family**, not separate benchmark repos. Future modality-expanded releases should add a row-level `meta.modality` axis with allowed values `unstructured`, `structured`, and `code`; existing V8 rows are implicitly `unstructured` until a published backfill/migration makes the field explicit. Keep `meta.modality` separate from `routing.expert_fired`: modality describes evidence representation, while route remains the semantic/domain expert target. Current local fitz-gov seeds are only probes: `data/modality_probes/structured/cases.jsonl` and `data/modality_probes/code/cases.jsonl`, 10 rows each, not active-vault training data.
+
 ## Known limitations
 
 ### `pyrrho-nano-g1` (in production)
@@ -379,6 +383,8 @@ Everything below is model-quality upside on an already-live baseline.
 29. **Next MoE step if continuing custom trunk:** keep Stage 0.7 as the quality baseline and the packaged Stage 0.7 post-hoc verifier as the current positive safety guard artifact. Do not continue scalar weighting, the simple penalty-head path, or the in-model binary trust-guard target. If continuing the verifier branch, harden the package into an inference-facing reranker API or compare package policies; do not backpropagate it through the Stage 0.7 trunk.
 
 30. **`pyrrho-small-g2`** — after the V8 encoder/MoE scaffold stop point, search current permissive 2026 CPU-runnable SLM bases, update `train_slm.py`/`eval_slm.py` for V8 split shape, then run the SLM baseline with asymmetric safety pressure or DPO/GRPO.
+
+31. **fitz-gov modality expansion planning:** promote the current structured/code seed probes into a formal future fitz-gov release plan. Add row-level `meta.modality`, modality-stratified split/report support, and pyrrho prep filters before training any structured-data or code specialist. Do not silently retrofit the published V8 contract.
 
 ## Release gates (the bar any pyrrho model must clear before shipping)
 

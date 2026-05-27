@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-27 (afternoon) — Modality expansion roadmap decision
+
+**What landed:**
+
+- Updated `docs/ROADMAP.md` to make structured-data and code governance first-class future fitz-gov modalities alongside unstructured text.
+- Added the planned row-level `meta.modality` axis with allowed values `unstructured`, `structured`, and `code`.
+- Updated `docs/HANDOFF.md` so fresh sessions know the current fitz-gov structured/code rows are only 10-row local probes, not active-vault training data.
+
+**What was learned:**
+
+- The right ownership model is one fitz-gov benchmark family with modality-specific rows, splits, reports, and training filters; separate benchmark repos would fragment the eval contract too early.
+- `meta.modality` and `routing.expert_fired` must stay separate: modality describes the evidence representation, while route describes the semantic/domain expert target.
+- Manifest-level labels are not enough once structured/code enter training; every active row needs a row-level modality field for filtering, split stratification, and per-modality gates.
+
+**Next:** In fitz-gov, promote the structured/code probes into a formal future release plan with `meta.modality`, modality-stratified audits, and pyrrho prep filters before training any specialist.
+
+---
+
 ## 2026-05-27 (afternoon) — Stage 0.7 verifier package/reload
 
 **What landed:**

@@ -60,7 +60,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | **V6** | **2,980 cases** | **LLM-enriched schema overlay on V5.1. Published 2026-05-20 as `yafitzdev/fitz-gov` v6.0.0; now the enriched-baseline reference, not the current default contract.** |
 | V7 | Published as V7.0.1 | SDGP-scaled benchmark across the existing 7 primary domains, taxonomy × domain × difficulty matrix coverage, MoE training base. **Current `g2` HF contract: 10,500 rows = 2,980 V6 + 7,520 V7, default `v7` query-grouped splits, strict V6/V7 schema complete, canonical `evaluation` block complete, target 25/cell complete, blind-label/cross-label QA passed, public rows schema-clean with no pre-SDGP report axes.** |
 | V8 | Published as V8.0.0 | Generalization, uncertainty calibration, adversarial taxonomy gaps, and target-50 whole-dataset expansion. **Current default HF contract: 24,592 rows = 2,980 V6 + 7,520 V7 + 14,092 V8, default `v8` query-grouped splits train=19,674 / validation=2,459 / test=2,459, target-50 coverage complete across 483/483 cells, full V8 second-pass QA clean.** |
-| V9+ | 30,000+ cases | Infrastructure-grade reliability, false-trustworthy floor |
+| V9+ | 30,000+ cases plus modality-specific branches | Infrastructure-grade reliability, false-trustworthy floor, and first-class structured-data / code governance coverage under the same fitz-gov benchmark family |
 
 ### Data Volume vs. Capability
 
@@ -73,10 +73,46 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 
 Current status as of 2026-05-26: fitz-gov V8.0.0 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, and stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050).
 
+### Modality Expansion: Unstructured, Structured, Code
+
+fitz-gov should remain the canonical benchmark home for all pyrrho governance data. Do **not** split structured-data or code governance into separate benchmark repos unless the row contract becomes genuinely irreconcilable. The intended shape is one fitz-gov dataset family with modality-specific rows, splits, reports, and training filters.
+
+Future modality releases should use a row-level metadata axis:
+
+```json
+"meta": {
+  "modality": "unstructured"
+}
+```
+
+Allowed values are `unstructured`, `structured`, and `code`. Existing V8 rows are implicitly `unstructured` until a future migration/backfill publishes the field explicitly. Manifest-level modality labels are useful for local probes, but they are not enough for training: when structured/code enter the active benchmark, every row must carry `meta.modality`.
+
+`meta.modality` is separate from `routing.expert_fired`. The route remains the semantic/domain expert target (`technology_computing`, `economics_finance`, `science_medicine`, etc.); modality says what kind of evidence representation the model is governing. A code row can still route to `technology_computing`, and a structured finance table can still route to `economics_finance`.
+
+Training and reporting tools should support modality filters:
+
+- `unstructured` only — current pyrrho encoder contract, including `pyrrho-nano-g3`.
+- `structured` only — future table/database/CSV/SQL-result governance specialist.
+- `code` only — future source/test/log/config governance specialist.
+- joint `unstructured + structured + code` — future MoE or multitask encoder experiment with modality-stratified metrics.
+
+Suggested staged targets for the new modalities:
+
+| Stage | Structured data | Code | Purpose |
+|---|---:|---:|---|
+| Probe | 10 rows | 10 rows | Hand-audited behavior comparison; already seeded locally in fitz-gov modality probes |
+| Diagnostic | 300-500 rows | 300-500 rows | Find obvious taxonomy gaps and retrieval failure modes |
+| First trainable slice | 2,000-5,000 rows | 3,000-8,000 rows | Train/evaluate modality specialists with meaningful held-out splits |
+| Scale-up | 10,000+ rows if justified | 10,000+ rows if justified | Only after the modality specialist clears release-style gates |
+
+fitz-sage should eventually route by evidence modality before calling pyrrho: unstructured evidence goes to the current unstructured model, structured evidence goes to a structured-data specialist, and code evidence goes to a code specialist. A later pyrrho-MoE can merge these paths once the separate modalities have enough data and known failure profiles.
+
 ### Distribution Requirements
 
 The distribution matters more than total count. Monitor and enforce:
 
+- **Modality coverage** — `meta.modality` tracked separately for `unstructured`, `structured`, and `code`
+- **Per-modality gates** — accuracy / false-trustworthy reported separately before any joint model is trusted
 - **Expert domain balance** — rough parity across all 7–8 MoE expert domains
 - **Governance class balance per expert** — not just globally; each expert needs ABSTAIN/DISPUTED/TRUSTWORTHY representation
 - **Difficulty distribution** — hard/medium/easy ratio maintained per expert
@@ -98,6 +134,14 @@ case_taxonomy  ×  domain  ×  difficulty
 ```
 
 All three dimensions are enumerable and controllable. Every generated case instantiates a specific cell in this matrix. The distribution monitor tracks cell coverage, not just marginal counts. A cell below minimum threshold gets prioritized in the next generation batch.
+
+For modality-expanded releases, the monitor adds `meta.modality` as an outer axis:
+
+```
+modality  ×  case_taxonomy  ×  domain  ×  difficulty
+```
+
+The taxonomy remains the governance failure-mode taxonomy; modality is not a taxonomy pattern and should not be encoded by inventing modality-specific labels. This keeps `direct_answer`, `factual_contradiction`, `wrong_specificity`, and the other patterns comparable across unstructured documents, structured rows, and code snippets.
 
 **Matrix size estimate:**
 
@@ -275,6 +319,7 @@ Fields that must be added to every row for MoE training that do not exist in V5.
 - `governance.query_evidence_alignment` — query vs context alignment
 - `governance.answer_coverage` — how much of the query the evidence covers
 - `meta.confidence_level` — high/medium/borderline label certainty
+- `meta.modality` — V9+ evidence modality axis: `unstructured`, `structured`, or `code`
 - `meta.near_miss_class` + `near_miss_reason` — boundary case annotation
 - `meta.annotator_agreement` — unanimous/disputed/borderline
 
@@ -305,6 +350,7 @@ Distribution Monitor (updated)
 - **Generator and validator must never be the same model.** Claude generates, Codex scores — or vice versa. Disagreements flag for human review, never auto-resolved.
 - **Taxonomy defines the generation space.** The generator receives a cell specification (taxonomy pattern × domain × difficulty), not an open-ended prompt. This constrains output to structurally checkable cases.
 - **Generation targets cells, not volume.** The distribution monitor tracks coverage across all ~432 cells. Full cells stop generating; sparse cells get prioritized. Total count is a byproduct of full coverage, not a target in itself.
+- **Modality is an explicit axis.** For V9+ structured/code work, the generator receives `modality` alongside taxonomy, domain, and difficulty. Do not infer modality from source text alone.
 - **Borderline cases are first-class.** 20–25% of every expert's data must be near-miss rows at decision boundaries. These teach calibrated uncertainty.
 - **Every case has provenance.** Generated to fill cell `{pattern}__{domain}__{difficulty}`. Auditable for benchmark credibility. Version-to-version deltas are explainable by which cells were filled.
 
@@ -322,6 +368,7 @@ Distribution Monitor (updated)
 ### What the Monitor Tracks
 
 - **Cell coverage** — count per `taxonomy × domain × difficulty` cell vs minimum threshold (primary signal)
+- Modality count and per-modality coverage for `unstructured`, `structured`, and `code`
 - Expert domain count vs target (per expert)
 - Governance class distribution per expert (not just global)
 - Difficulty ratio per expert
