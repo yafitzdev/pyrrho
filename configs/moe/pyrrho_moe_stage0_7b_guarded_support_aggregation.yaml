@@ -1,0 +1,87 @@
+# Stage 0.7b guarded support-aggregation probe.
+#
+# Starts from Stage 0.7's positive query/source aggregation architecture, then
+# restores safety pressure on the FT families that regressed versus Stage 0.6:
+# science/medicine, factual contradiction, evidence absence, partial overlap,
+# wrong entity/specificity, and numerical/temporal conflicts.
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.0.0
+  moe_output_dir: data/moe_v8
+  max_seq_length: 4096
+  scalar_fields:
+    - trustworthy
+    - disputed
+    - abstain
+    - confidence
+    - grounding
+    - conflict_density
+    - evidence_sufficiency
+    - domain_familiarity
+    - false_trustworthy_risk
+    - hallucination_pressure
+    - retrieval_retry_value
+    - human_escalation_score
+    - query_evidence_alignment
+    - answer_coverage
+    - evidence_bias_score
+
+stage0:
+  target: stage0_7b_guarded_support_aggregation
+  output_dir: outputs/moe/stage0_7b_guarded_support_aggregation_g3_seed42
+  seed: 42
+  model_kind: support_aggregating_token
+  token_vocab_size: 65536
+  hidden_size: 384
+  expert_hidden_size: 768
+  num_expert_layers: 4
+  num_attention_heads: 6
+  num_key_value_heads: 2
+  rope_theta: 10000.0
+  dropout: 0.1
+  max_seq_length: 512
+  max_query_length: 96
+  max_sources: 8
+  max_source_length: 192
+  num_train_epochs: 4
+  per_device_train_batch_size: 24
+  per_device_eval_batch_size: 64
+  learning_rate: 1.5e-4
+  weight_decay: 0.01
+  gradient_clip_norm: 1.0
+  loss_weights:
+    governance: 1.0
+    route: 0.7
+    taxonomy: 0.4
+    scalar: 0.2
+    distillation: 0.4
+    load_balance: 0.02
+    false_trustworthy_weight: 1.8
+  governance_sample_weights:
+    support_taxonomy_patterns:
+      - consistent_chain
+      - multi_source_corroboration
+      - quantitative_consensus
+    support_trustworthy_weight: 1.2
+    support_taxonomy_pattern_weights:
+      consistent_chain: 1.1
+      multi_source_corroboration: 1.8
+      quantitative_consensus: 1.6
+    ft_risk_routes:
+      - science_medicine
+      - general_commonsense
+      - technology_computing
+    ft_risk_route_non_trustworthy_weight: 1.45
+    ft_risk_taxonomy_patterns:
+      - factual_contradiction
+      - evidence_absent
+      - partial_overlap
+      - numerical_conflict
+      - temporal_conflict
+      - temporal_mismatch
+      - wrong_entity
+      - wrong_specificity
+      - scope_conflict
+    ft_risk_taxonomy_non_trustworthy_weight: 1.8

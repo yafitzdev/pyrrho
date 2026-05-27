@@ -1,0 +1,73 @@
+# Stage 0.7 support-aggregation probe.
+#
+# This keeps the Stage 0.6 route-coupled token trunk and safety-weight recipe,
+# then adds an explicit query/source aggregation path for terminal governance
+# heads. The intended question is whether source-level evidence pooling recovers
+# support-pattern TRUSTWORTHY recall without giving back Stage 0.6 FT gains.
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.0.0
+  moe_output_dir: data/moe_v8
+  max_seq_length: 4096
+  scalar_fields:
+    - trustworthy
+    - disputed
+    - abstain
+    - confidence
+    - grounding
+    - conflict_density
+    - evidence_sufficiency
+    - domain_familiarity
+    - false_trustworthy_risk
+    - hallucination_pressure
+    - retrieval_retry_value
+    - human_escalation_score
+    - query_evidence_alignment
+    - answer_coverage
+    - evidence_bias_score
+
+stage0:
+  target: stage0_7_support_aggregation
+  output_dir: outputs/moe/stage0_7_support_aggregation_g3_seed42_e4
+  seed: 42
+  model_kind: support_aggregating_token
+  token_vocab_size: 65536
+  hidden_size: 384
+  expert_hidden_size: 768
+  num_expert_layers: 4
+  num_attention_heads: 6
+  num_key_value_heads: 2
+  rope_theta: 10000.0
+  dropout: 0.1
+  max_seq_length: 512
+  max_query_length: 96
+  max_sources: 8
+  max_source_length: 192
+  num_train_epochs: 4
+  per_device_train_batch_size: 24
+  per_device_eval_batch_size: 64
+  learning_rate: 1.5e-4
+  weight_decay: 0.01
+  gradient_clip_norm: 1.0
+  loss_weights:
+    governance: 1.0
+    route: 0.7
+    taxonomy: 0.4
+    scalar: 0.2
+    distillation: 0.4
+    load_balance: 0.02
+    false_trustworthy_weight: 1.6
+  governance_sample_weights:
+    support_taxonomy_patterns:
+      - consistent_chain
+      - multi_source_corroboration
+      - quantitative_consensus
+    support_trustworthy_weight: 1.4
+    ft_risk_routes:
+      - science_medicine
+    ft_risk_route_non_trustworthy_weight: 1.3
+    ft_risk_taxonomy_patterns:
+      - factual_contradiction
+    ft_risk_taxonomy_non_trustworthy_weight: 1.4
