@@ -205,7 +205,9 @@ source-of-truth contract is
 
 ## Future modality expansion decision
 
-Structured-data and code governance should live under the **same fitz-gov benchmark family**, not separate benchmark repos. Future modality-expanded releases should add a row-level `meta.modality` axis with allowed values `unstructured`, `structured`, and `code`; existing V8 rows are implicitly `unstructured` until a published backfill/migration makes the field explicit. Keep `meta.modality` separate from `routing.expert_fired`: modality describes evidence representation, while route remains the semantic/domain expert target. Current local fitz-gov seeds are only probes: `data/modality_probes/structured/cases.jsonl` and `data/modality_probes/code/cases.jsonl`, 10 rows each, not active-vault training data.
+Structured-data and code governance should live under the **same fitz-gov benchmark family**, not separate benchmark repos. Future modality-expanded releases should keep the row-level `meta.modality` axis with allowed values `unstructured`, `structured`, and `code`; current V8.0.1 rows explicitly carry `meta.modality: "unstructured"`. Keep `meta.modality` separate from `routing.expert_fired`: modality describes evidence representation, while route remains the semantic/domain expert target. Current local fitz-gov seeds are only probes: `data/modality_probes/structured/cases.jsonl` and `data/modality_probes/code/cases.jsonl`, 10 rows each, not active-vault training data.
+
+Tabular structured evidence is not safe to treat as a pure serialization problem yet. `scripts/tabular_ood_probe.py` creates a 36-row structured OOD probe (12 hand-labeled scenarios x markdown/CSV/evidence-packet serializations) and scores `models/pyrrho-nano-g3` at the release threshold. Result on 2026-05-27: **55.56%** calibrated accuracy / **45.83%** false-TRUSTWORTHY. Direct exact table answers were **12/12** correct, but ABSTAIN cases were only **1/12** correct with **91.67%** false-TRUSTWORTHY, mainly wrong period/filter/metric and missing result-grid cases. Current conclusion: do not blindly scale structured generation; first add a small structured diagnostic/training slice focused on table mismatch/absence risks or put deterministic structured prechecks before pyrrho.
 
 ## Known limitations
 
@@ -226,6 +228,7 @@ Structured-data and code governance should live under the **same fitz-gov benchm
 1. **Not the production default yet.** `fitz-sage` still uses `pyrrho-nano-g1`; `g3` is live as the V8 benchmark release and is the next encoder candidate to integrate.
 2. **Output contract is intentionally narrow.** The published nano encoder emits three-class governance logits only. Normalized product output is derived from logits/probabilities/thresholds; taxonomy/category, route, and scalar fields in reports are benchmark metadata or MoE-only research outputs.
 3. **Aggregate metrics are very strong, but deployment still needs field-specific checks.** The held-out V8 result is **97.52 ± 0.43% accuracy / 1.42 ± 0.16% false-trustworthy**, but production integrations should still run domain-specific probes before relying on it in high-cost workflows.
+4. **Tabular structured evidence is an unsafe OOD surface.** The 36-row tabular probe scored **55.56%** accuracy / **45.83%** false-TRUSTWORTHY, with ABSTAIN table mismatch/absence cases at **8.33%** accuracy / **91.67%** false-TRUSTWORTHY. g3 handles exact filtered rows, but over-trusts wrong partitions, wrong filter values, wrong metrics, and saved-SQL-without-result cases.
 
 ### `pyrrho-nano-g2.1-v8-probe`
 
@@ -384,7 +387,9 @@ Everything below is model-quality upside on an already-live baseline.
 
 30. **`pyrrho-small-g2`** — after the V8 encoder/MoE scaffold stop point, search current permissive 2026 CPU-runnable SLM bases, update `train_slm.py`/`eval_slm.py` for V8 split shape, then run the SLM baseline with asymmetric safety pressure or DPO/GRPO.
 
-31. **fitz-gov modality expansion planning:** promote the current structured/code seed probes into a formal future fitz-gov release plan. Add row-level `meta.modality`, modality-stratified split/report support, and pyrrho prep filters before training any structured-data or code specialist. Do not silently retrofit the published V8 contract.
+31. ~~**Tabular structured OOD probe**~~ **COMPLETE / NEGATIVE (2026-05-27).** Added `scripts/tabular_ood_probe.py`, generated `outputs/tabular_ood_probe/g3_release/`, and scored `pyrrho-nano-g3`: **55.56%** calibrated accuracy / **45.83%** false-TRUSTWORTHY. This shows structured/tabular support cannot simply be serialized into the current unstructured encoder without extra checks or training data.
+
+32. **fitz-gov modality expansion planning:** promote the current structured/code seed probes into a formal future fitz-gov release plan. Add row-level `meta.modality`, modality-stratified split/report support, and pyrrho prep filters before training any structured-data or code specialist. Do not silently retrofit the published V8 contract, and do not scale structured data generation before the tabular mismatch/absence safety cases are represented.
 
 ## Release gates (the bar any pyrrho model must clear before shipping)
 

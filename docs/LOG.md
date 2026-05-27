@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-27 (evening) — Tabular OOD probe exposes structured-evidence gap
+
+**What landed:**
+
+- Added `scripts/tabular_ood_probe.py`, a reproducible structured-evidence probe with 12 hand-labeled tabular scenarios serialized as markdown tables, CSV extracts, and evidence packets.
+- Generated local artifacts under `outputs/tabular_ood_probe/g3_release/`: `cases.jsonl`, `predictions.jsonl`, `summary.json`, and `report.md`.
+- Scored the published `pyrrho-nano-g3` release artifact from `models/pyrrho-nano-g3` using the seed-1337 release threshold **0.58**.
+
+**What was learned:**
+
+- Current g3 does not safely generalize from unstructured evidence to serialized tables: the 36-row probe scored **55.56%** calibrated accuracy / **45.83%** false-TRUSTWORTHY.
+- TRUSTWORTHY exact-filtered table answers were **12/12** correct, but ABSTAIN structured mismatch/absence cases were only **1/12** correct with **91.67%** false-TRUSTWORTHY.
+- The dangerous misses are wrong partition, wrong filter value, schema/metric mismatch, and saved-SQL-without-result-grid cases. CSV serialization was best (**66.67%** accuracy / **37.50%** FT) but still unsafe.
+
+**Next:** Do not scale structured generation blindly; first add a focused structured diagnostic/training slice for table mismatch/absence risks or add deterministic structured prechecks before pyrrho sees table evidence.
+
+---
+
 ## 2026-05-27 (evening) — Removed redundant V8 local manifest
 
 **What landed:**
