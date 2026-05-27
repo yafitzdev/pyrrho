@@ -13,6 +13,1171 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-27 (afternoon) — Stage 0.7 verifier package/reload
+
+**What landed:**
+
+- Added `scripts/package_moe_posthoc_verifier.py` with `create` and `evaluate` subcommands for the frozen-output Stage 0.7 verifier.
+- Created the preferred 2.8% eval-FT verifier package at `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/`.
+- The package writes `manifest.json`, `README.md`, copied per-seed `verifier.joblib` / report artifacts, feature schema `pyrrho_moe_posthoc_features_v1` width **120**, checksums for copied verifier/report/config files, and reload reports.
+- Full package reload over eval+test wrote:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/package_eval_report.json`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/package_eval_report.md`
+- Added `tests/test_moe_posthoc_verifier_package.py` for package manifest/schema behavior.
+- Verification passed: `ruff check scripts/package_moe_posthoc_verifier.py tests/test_moe_posthoc_verifier_package.py`; `pytest tests/test_moe_posthoc_verifier_package.py -q` = **2 passed**; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py tests/test_moe_posthoc_verifier_package.py -q` = **37 passed**.
+
+**What was learned:**
+
+- The packaged verifier reload reproduces all packaged per-seed eval/test metrics exactly: package eval report shows **0** max absolute delta for every seed/split.
+- The preferred `ft028` package preserves the expected aggregate metrics: eval **89.33 ± 0.06%** accuracy / **2.76 ± 0.00%** FT and held-out test **89.29 ± 0.69%** accuracy / **2.37 ± 0.26%** FT.
+- The package can stay lightweight because the verifier artifacts are small and the frozen Stage 0.7 base checkpoints can remain referenced by manifest path instead of being duplicated.
+
+**Next:** Treat `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/` as the current positive guard artifact; if continuing, harden it into an inference-facing reranker API or compare package policies without backpropagating through the Stage 0.7 trunk.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.7 verifier minimal-intervention check
+
+**What landed:**
+
+- Reran the frozen-output post-hoc verifier with target eval false-TRUSTWORTHY **3.0%** and max eval accuracy drop **1.5%** for seeds 42/1337/7.
+- Per-seed artifacts:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed42_ft030/`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed1337_ft030/`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed7_ft030/`
+- Wrote 3-seed summary artifacts:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_3seed_ft030/summary.json`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_3seed_ft030/summary.md`
+- Added support/risk slice metrics to the verifier threshold sweep, plus optional support-aware selection constraints in `scripts/train_moe_posthoc_verifier.py`.
+- Ran a seed-42 support-aware selection probe at `outputs/moe/stage0_7_posthoc_verifier_g3_seed42_support_select/`.
+- Verification passed: `ruff check scripts/train_moe_posthoc_verifier.py`; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **35 passed**.
+
+**What was learned:**
+
+- The 3.0% eval-FT target is a minimal-intervention operating point: held-out test **89.35 ± 0.64%** accuracy / **2.61 ± 0.36%** FT, with TRUSTWORTHY recall **80.85 ± 1.30%**.
+- It preserves support best: `consistent_chain` **74.70% → 72.81%**, `multi_source_corroboration` **68.82% → 67.74%**, `quantitative_consensus` **79.05% → 78.73%**.
+- It is a weaker safety move than the preferred 2.8% point and leaves seed 7 unchanged because seed 7 eval FT is already under 3.0%.
+- Explicit support-aware selection does not beat target-FT tuning here. On seed 42 with target eval FT **2.8%**, no threshold kept eval support accuracy within 3 points of baseline while satisfying the FT target; the selection fell back to the same threshold as the 2.8% run.
+
+**Next:** Keep the 2.8% target as the preferred verifier operating point, keep 3.0% as the minimal-intervention option, and package/evaluate the verifier as a separate reranker if this branch continues.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.7 post-hoc verifier support-retention tune
+
+**What landed:**
+
+- Reran `scripts/train_moe_posthoc_verifier.py` with target eval false-TRUSTWORTHY **2.8%** and max eval accuracy drop **1.5%** for seeds 42/1337/7.
+- Per-seed artifacts:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed42_ft028/`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed1337_ft028/`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed7_ft028/`
+- Wrote support-retaining 3-seed summary artifacts:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_3seed_ft028/summary.json`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_3seed_ft028/summary.md`
+- Verification passed: `ruff check scripts/train_moe_posthoc_verifier.py`; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **35 passed**.
+
+**What was learned:**
+
+- The 2.8% eval-FT target is a better operating point than the stricter 2.5% verifier for the current objective.
+- Held-out test moved from the verifier-script baseline **89.37 ± 0.59%** accuracy / **2.94 ± 0.36%** FT to guarded **89.29 ± 0.69%** accuracy / **2.37 ± 0.26%** FT, with TRUSTWORTHY recall **80.20 ± 1.64%**.
+- Seed 42 is especially strong: **90.04% / 3.26% FT → 90.08% / 2.19% FT**, while `multi_source_corroboration` only moves **67.74% → 65.59%** and `quantitative_consensus` **82.86% → 81.90%**.
+- Across 3 seeds, support retention is much better than the 2.5% target: `multi_source_corroboration` **68.82% → 67.38%**, `quantitative_consensus` **79.05% → 78.10%**, and `expert_consensus` **77.04% → 76.73%**. `consistent_chain` remains the main support cost (**74.70% → 70.92%**).
+- Safety still improves on important route slices: `science_medicine` FT **5.44% → 3.13%** and `economics_finance` **2.99% → 2.49%**. General/technology FT improvements are modest at this operating point.
+
+**Next:** Treat the 2.8% target as the preferred post-hoc verifier operating point and the 2.5% target as the safety-heavy option. If continuing, package/evaluate the verifier as a separate reranker rather than moving it back into the trunk.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.7 post-hoc verifier positive
+
+**What landed:**
+
+- Added `scripts/train_moe_posthoc_verifier.py`, a frozen-output verifier/reranker for Stage 0 MoE checkpoints.
+- The script collects frozen governance/route/taxonomy/scalar outputs for train/eval/test, trains a separate HGB binary verifier only on rows predicted TRUSTWORTHY by the frozen checkpoint, selects the verifier threshold on eval, and only demotes candidate TRUSTWORTHY predictions at test time.
+- Ran a bounded smoke at `outputs/moe/stage0_7_posthoc_verifier_smoke/`.
+- Ran full Stage 0.7 post-hoc verifier probes for seeds 42/1337/7:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed42/`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed1337/`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_seed7/`
+- Wrote 3-seed summary artifacts:
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_3seed/summary.json`
+  - `outputs/moe/stage0_7_posthoc_verifier_g3_3seed/summary.md`
+- Verification passed: `ruff check scripts/train_moe_posthoc_verifier.py`; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **35 passed**.
+
+**What was learned:**
+
+- This is the first positive guard result after the scalar-weighting, Stage 0.8 penalty-head, and Stage 0.9 in-model binary-guard failures.
+- With target eval FT **2.5%** and max eval accuracy drop **1.5%**, held-out test moved from the verifier-script baseline **89.37 ± 0.59%** accuracy / **2.94 ± 0.36%** FT to guarded **88.97 ± 0.51%** accuracy / **1.99 ± 0.17%** FT.
+- Seed 42 specifically moved **90.04% / 3.26% FT → 89.51% / 1.90% FT**, which dominates Stage 0.7b seed 42 (**88.98% / 2.13% FT**) on both headline axes.
+- Safety improvements are slice-real: `science_medicine` FT **5.44% → 1.90%**, `evidence_absent` **4.60% → 1.44%**, `wrong_entity` **6.46% → 4.08%**, and `numerical_conflict` **7.14% → 5.44%**.
+- Caveat: support recall still pays. `consistent_chain` accuracy fell **74.70% → 65.96%**, `multi_source_corroboration` **68.82% → 66.31%**, and `quantitative_consensus` **79.05% → 74.92%**. This is far better than Stage 0.9's collapse, but not free.
+
+**Next:** Keep Stage 0.7 as the quality baseline and the post-hoc verifier as the positive safety-guard direction. If continuing this branch, tune explicit support-retention or package/evaluate the verifier as a separate reranker; do not backpropagate it through the Stage 0.7 trunk.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.9 explicit trust guard negative
+
+**What landed:**
+
+- Added `TrustGuardedSupportAggregatingMoEForGovernance` and `TrustGuardedSupportAggregatingMoEConfig` in `src/pyrrho/moe/modeling.py`.
+- Added explicit binary trust-guard supervision in `src/pyrrho/moe/losses.py`: TRUSTWORTHY rows are accept targets, non-TRUSTWORTHY rows are reject targets, with configurable support-positive and FT-risk negative weights.
+- Added loader/evaluator/failure-analysis support for `model_kind: trust_guarded_support_aggregating_token`.
+- Added `configs/moe/pyrrho_moe_stage0_9_trust_guarded_support_aggregation.yaml`.
+- Ran bounded CUDA train/reload smoke at `outputs/moe/stage0_9_trust_guarded_support_aggregation_smoke/`.
+- Ran seed-42 full probes at:
+  - `outputs/moe/stage0_9_trust_guarded_support_aggregation_g3_seed42/` (4 epochs)
+  - `outputs/moe/stage0_9_trust_guarded_support_aggregation_g3_seed42_e3/` (3 epochs)
+- Generated test failure reports at:
+  - `outputs/moe/stage0_9_trust_guarded_support_aggregation_g3_seed42/failure_analysis_test/failure_report.md`
+  - `outputs/moe/stage0_9_trust_guarded_support_aggregation_g3_seed42_e3/failure_analysis_test/failure_report.md`
+- Verification passed: ruff on touched MoE code/scripts/tests; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **35 passed**.
+
+**What was learned:**
+
+- Explicit binary trust-guard supervision is trainable and checkpoint-compatible, but this implementation is too conservative and should not be scaled.
+- The 3-epoch checkpoint reached held-out test **86.50%** calibrated accuracy / **1.24%** false-trustworthy / **82.19%** route / **72.83%** taxonomy.
+- The 4-epoch checkpoint became even more conservative: **84.75%** calibrated accuracy / **0.59%** FT / **84.38%** route / **73.97%** taxonomy.
+- The guard restores safety by destroying the Stage 0.7 support gains. At 3 epochs, `multi_source_corroboration` fell to **45.16%**, `consistent_chain` to **58.16%**, and `quantitative_consensus` to **61.90%**. At 4 epochs they fell further to **38.71%**, **46.81%**, and **51.43%**.
+- Conclusion: the in-model trust verifier still behaves like a TRUSTWORTHY penalty surface. The failure is not just lack of an explicit target.
+
+**Next:** Keep Stage 0.7 as the quality baseline and Stage 0.7b as the safety diagnostic. If doing another custom-trunk guard, make it a true post-hoc reranker/verifier over frozen Stage 0.7 candidate logits rather than another in-model penalty.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.8 guarded-head scaffold negative
+
+**What landed:**
+
+- Added `GuardedSupportAggregatingMoEForGovernance` and `GuardedSupportAggregatingMoEConfig` in `src/pyrrho/moe/modeling.py`.
+- Added loader/evaluator/failure-analysis support for `model_kind: guarded_support_aggregating_token`.
+- Added `configs/moe/pyrrho_moe_stage0_8_guarded_support_aggregation.yaml`.
+- Added a focused unit test for the learned `trust_penalty` output.
+- Ran bounded CUDA train/reload/failure-analysis smoke at `outputs/moe/stage0_8_guarded_support_aggregation_smoke/`.
+- Ran seed-42 full probes at:
+  - `outputs/moe/stage0_8_guarded_support_aggregation_g3_seed42/` (4 epochs)
+  - `outputs/moe/stage0_8_guarded_support_aggregation_g3_seed42_e3/` (3 epochs)
+- Verification passed: ruff on touched MoE code/scripts/tests; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **32 passed**.
+
+**What was learned:**
+
+- The learned TRUSTWORTHY-penalty path is trainable and checkpoint-compatible, but this first form is too unstable/conservative.
+- Four epochs overfit badly on seed 42: final held-out test **85.28%** calibrated accuracy / **5.57%** FT after epoch 3 had been low-FT on eval.
+- The 3-epoch checkpoint confirms the conservative tradeoff: held-out test **85.40%** accuracy / **2.31%** FT / **76.78%** route / **73.32%** taxonomy. It is safer than Stage 0.7, but far below Stage 0.7 (**90.04% / 3.26% FT** seed 42) and Stage 0.7b (**88.98% / 2.13% FT** seed 42).
+- Conclusion: do not scale this Stage 0.8 guarded-head implementation. A useful guard needs either a better target/loss for risk discrimination or a decoupled verifier-style reranker, not a simple always-positive penalty on the same head state.
+
+**Next:** Keep Stage 0.7 as the quality baseline and Stage 0.7b as the safety diagnostic. If continuing MoE, try a decoupled verifier/reranker over Stage 0.7 candidates or add explicit binary FT-risk supervision instead of another scalar-weight recipe.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.7b-d guarded support probes
+
+**What landed:**
+
+- Added guarded Stage 0.7 support-aggregation configs:
+  - `configs/moe/pyrrho_moe_stage0_7b_guarded_support_aggregation.yaml`
+  - `configs/moe/pyrrho_moe_stage0_7c_balanced_guarded_support_aggregation.yaml`
+  - `configs/moe/pyrrho_moe_stage0_7d_targeted_guarded_support_aggregation.yaml`
+- Ran seed-42 probes and failure slices under:
+  - `outputs/moe/stage0_7b_guarded_support_aggregation_g3_seed42/`
+  - `outputs/moe/stage0_7c_balanced_guarded_support_aggregation_g3_seed42/`
+  - `outputs/moe/stage0_7d_targeted_guarded_support_aggregation_g3_seed42/`
+- Ran a post-hoc threshold / `false_trustworthy_risk` scalar-gating check on Stage 0.7 logits before choosing the next direction.
+
+**What was learned:**
+
+- Stage 0.7b is the useful guarded datapoint but not a scale candidate: seed-42 held-out test **88.98%** accuracy / **2.13%** FT, with `science_medicine` FT **7.35% → 2.86%** and `factual_contradiction` FT **6.19% → 3.54%** versus Stage 0.7 seed 42. It paid for that by cutting support recall: `multi_source_corroboration` fell **67.74% → 61.29%**, `quantitative_consensus` **82.86% → 73.33%**.
+- Stage 0.7c softened the guard and restored `multi_source_corroboration` to **68.82%**, but did not restore safety enough: held-out test **88.69%** / **2.90%** FT, `science_medicine` FT **5.71%**, `factual_contradiction` FT still **6.19%**.
+- Stage 0.7d targeted only the strongest risk slices but also failed to dominate: held-out test **88.98%** / **3.02%** FT, `science_medicine` FT **4.49%**, `factual_contradiction` FT **7.08%**.
+- Threshold sweeps on Stage 0.7 show that stricter TRUSTWORTHY thresholds reduce FT by eroding support recall quickly. The existing `false_trustworthy_risk` scalar head is not selective enough to act as a post-hoc guard.
+- Conclusion: Stage 0.7 remains the quality baseline; Stage 0.7b is a safety diagnostic only. Do not scale 0.7b/0.7c/0.7d to 3 seeds.
+
+**Next:** Add a Stage 0.8 architectural guard head that can subtract TRUSTWORTHY evidence only when the terminal support state indicates false-trustworthy risk, instead of relying on scalar sample weights or post-hoc thresholding.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.7 support aggregation 3-seed result
+
+**What landed:**
+
+- Added Stage 0.7 query/source support aggregation:
+  - `MoEJsonlDataset` now emits `query_input_ids`, `source_input_ids`, source attention masks, and source-valid masks from V8 `query` / `contexts`.
+  - `SupportAggregatingMoEForGovernance` in `src/pyrrho/moe/modeling.py` keeps the Stage 0.6 flat token route-coupled trunk, then pools query/source evidence into the terminal governance/taxonomy/scalar heads.
+  - `scripts/train_moe.py`, `scripts/eval_moe.py`, and `scripts/analyze_moe_failures.py` support `model_kind: support_aggregating_token`.
+- Added `configs/moe/pyrrho_moe_stage0_7_support_aggregation.yaml`; the validated recipe is **4 epochs**.
+- Ran CUDA smoke/reload/failure-analysis checks under `outputs/moe/stage0_7_support_aggregation_smoke*`.
+- Ran full 3-seed Stage 0.7 e4 validation under `outputs/moe/stage0_7_support_aggregation_g3_3seed/` and wrote `summary.json`.
+- Generated combined failure reports:
+  - `outputs/moe/stage0_7_support_aggregation_g3_3seed/failure_analysis_test/failure_report.md`
+  - `outputs/moe/stage0_7_support_aggregation_g3_3seed/failure_analysis_eval/failure_report.md`
+- Verification passed: `ruff check src/pyrrho/moe/data.py src/pyrrho/moe/modeling.py src/pyrrho/moe/__init__.py scripts/train_moe.py scripts/eval_moe.py scripts/analyze_moe_failures.py tests/test_moe_stage0.py`; `pytest tests/test_moe_stage0.py -q` = **10 passed**; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **31 passed**.
+
+**What was learned:**
+
+- Stage 0.7 e4 is quality-positive versus Stage 0.6: held-out test **89.49 ± 0.47%** calibrated accuracy / **3.06 ± 0.45%** FT / **82.61 ± 2.50%** route / **75.78 ± 0.21%** taxonomy. Stage 0.6 was **87.23 ± 1.29%** / **2.92 ± 1.06%** / **86.06 ± 0.94%** / **71.97 ± 0.72%**.
+- Per-seed calibrated test accuracy / FT: seed 42 **90.04% / 3.26%**, seed 1337 **89.18% / 2.55%**, seed 7 **89.26% / 3.38%**.
+- Gold-route mean was **89.60 ± 0.55%** calibrated accuracy / **3.14 ± 0.52%** FT, so predicted route is not the limiting factor.
+- The support-aggregation path did what the 0.6b-e scalar sweeps could not do safely: `consistent_chain` improved **69.27% → 75.18%**, `multi_source_corroboration` **59.50% → 69.53%**, and `quantitative_consensus` **65.40% → 79.05%** versus Stage 0.6.
+- The caveat is safety. `science_medicine` accuracy improved **82.22% → 85.21%**, but FT worsened **4.08% → 5.58%**. `factual_contradiction` stayed near Stage 0.6 accuracy but FT worsened **5.31% → 6.19%**. Stage 0.7 is the current quality baseline; Stage 0.6 remains the safety reference.
+- The same recipe at 5 epochs is worse: seed 42 final held-out test fell to **86.95%** calibrated accuracy / **3.79%** FT after eval peaked at epoch 4, so Stage 0.7 should use a 4-epoch schedule or explicit best-checkpoint selection.
+
+**Next:** Run a Stage 0.7b guarded support-aggregation probe that keeps the query/source support gains while restoring Stage 0.6 false-TRUSTWORTHY safety on `science_medicine`, `factual_contradiction`, and adjacent ABSTAIN risk families.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.6b-e support-recall recipe sweep
+
+**What landed:**
+
+- Added optional per-support-pattern governance weights via `GovernanceSampleWeightPolicy.support_taxonomy_weights` in `src/pyrrho/moe/losses.py`.
+- Extended `scripts/train_moe.py` and `scripts/eval_moe.py` to read `stage0.governance_sample_weights.support_taxonomy_pattern_weights` from config.
+- Added Stage 0.6 support-recall recipe configs:
+  - `configs/moe/pyrrho_moe_stage0_6b_support_recall.yaml`
+  - `configs/moe/pyrrho_moe_stage0_6c_pattern_weighted.yaml`
+  - `configs/moe/pyrrho_moe_stage0_6d_balanced_pattern.yaml`
+  - `configs/moe/pyrrho_moe_stage0_6e_guarded_pattern.yaml`
+- Ran seed-42 probes and failure reports for 0.6b/0.6c/0.6d/0.6e under `outputs/moe/stage0_6{b,c,d,e}_*/`.
+- Verification passed: `ruff check src/pyrrho/moe/losses.py scripts/train_moe.py scripts/eval_moe.py tests/test_moe_stage0.py`; `pytest tests/test_moe_stage0.py -q` = **8 passed**; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **29 passed**.
+
+**What was learned:**
+
+- Stage 0.6 remains the best balanced baseline. Seed-42 held-out test was **88.33%** calibrated accuracy / **2.37%** FT / **87.15%** route / **72.63%** taxonomy.
+- 0.6b (longer context + stronger support/teacher pressure) matched headline accuracy and improved taxonomy but raised FT: **88.33% / 3.14% FT / 85.12% route / 73.65% taxonomy**. It helped `consistent_chain` and `quantitative_consensus`, but made `multi_source_corroboration` worse.
+- 0.6c (aggressive per-pattern weights) proved the hook can move support recall: `multi_source_corroboration` **63.44% → 70.97%** and `quantitative_consensus` **62.86% → 71.43%** versus 0.6 seed 42. But it raised FT to **3.44%**, dropped route to **85.03%**, and hurt `consistent_chain` (**70.21% → 63.12%**) plus absence/contradiction safety.
+- 0.6d (moderate pattern weights + restored short context/safety pressure) improved all three support patterns versus 0.6 seed 42, but was not safe enough on the targeted risk slice: overall FT **4.68%**, `factual_contradiction` FT **11.50%**.
+- 0.6e (guarded pattern weights + broad non-T risk weights) cut FT to **1.66%** and improved contradiction/absence/partial-overlap safety, but collapsed support recall (`consistent_chain` **58.16%**, `multi_source_corroboration` **56.99%**, `quantitative_consensus` **62.86%**) and lowered accuracy to **87.60%**.
+- The support-pattern problem is no longer a simple scalar-weighting problem. Weighting can trade between support recall and FT, but did not dominate Stage 0.6 across both axes.
+
+**Next:** Keep Stage 0.6 as the current baseline. Move to a Stage 0.7 architectural support-aggregation probe instead of more scalar loss-weight sweeps: add a source/evidence-chain aggregation path or support-pattern auxiliary head that can improve multi-source TRUSTWORTHY recall without globally increasing TRUSTWORTHY bias.
+
+---
+
+## 2026-05-27 (morning) — Stage 0.6 token route-coupled 3-seed result
+
+**What landed:**
+
+- Ran the full Stage 0.6 token route-coupled student across seeds **42 / 1337 / 7** using `configs/moe/pyrrho_moe_stage0_6_token_route_coupled.yaml` and full `pyrrho-nano-g3` teacher-logit sidecars.
+- Wrote per-seed artifacts under `outputs/moe/stage0_6_token_route_coupled_g3_3seed/seed_{42,1337,7}/`. Seed 42 is linked from the earlier full run at `outputs/moe/stage0_6_token_route_coupled_g3_seed42_full/`.
+- Wrote aggregate metrics to `outputs/moe/stage0_6_token_route_coupled_g3_3seed/summary.json`.
+- Generated combined failure reports at `outputs/moe/stage0_6_token_route_coupled_g3_3seed/failure_analysis_test/failure_report.md` and `outputs/moe/stage0_6_token_route_coupled_g3_3seed/failure_analysis_eval/failure_report.md`.
+- Reload checks passed for seed 1337 and seed 7 via `scripts/eval_moe.py`; seed 42 reload had already passed during the Stage 0.6 scaffold smoke.
+
+**What was learned:**
+
+- Stage 0.6 is a clear 3-seed quality win over Stage 0.5 on headline metrics: held-out test **87.23 ± 1.29%** calibrated accuracy / **2.92 ± 1.06%** false-trustworthy / **86.06 ± 0.94%** route / **71.97 ± 0.72%** taxonomy, versus Stage 0.5's **83.91 ± 1.18%** / **5.55 ± 0.03%** / **82.92 ± 0.35%** / **67.64 ± 1.23%**.
+- Per-seed calibrated test accuracy / false-trustworthy: seed 42 **88.33% / 2.37%**, seed 1337 **87.56% / 4.15%**, seed 7 **85.81% / 2.25%**.
+- Gold-route mean was **87.61 ± 1.51%** calibrated accuracy / **2.86 ± 1.22%** false-trustworthy, only slightly above predicted-route quality. The remaining gap is still mostly trunk/label-pattern handling, not route prediction.
+- The intended safety slices improved strongly. On test, `science_medicine` moved **78.80% / 12.38% FT → 82.22% / 4.08% FT**, and `factual_contradiction` moved **77.88% / 12.98% FT → 89.68% / 5.31% FT**.
+- Support-pattern TRUSTWORTHY remains the bottleneck. `consistent_chain` improved **66.43% → 69.27%**, but `multi_source_corroboration` regressed **67.38% → 59.50%** and `quantitative_consensus` regressed **71.11% → 65.40%**. The Stage 0.6 sample weights helped safety more than support recall.
+- Error overlap shifted: any-seed false-TRUSTWORTHY dropped **202 → 92**, but all-seed hard errors increased **109 → 140** and all-seed false-TRUSTWORTHY increased **12 → 18**. Stage 0.6 is safer on average but has a more concentrated hard-error core.
+
+**Next:** Keep Stage 0.6 as the new custom-trunk baseline; run a Stage 0.6b support-recall recipe focused on `multi_source_corroboration` and `quantitative_consensus` without giving back the science/medicine and contradiction FT gains.
+
+---
+
+## 2026-05-26 (night) — Stage 0.6 token route-coupled scaffold
+
+**What landed:**
+
+- Added `TokenRouteCoupledMoEForGovernance` in `src/pyrrho/moe/modeling.py`: a 55,728,817-param hash-token student with RoPE self-attention, RMSNorm pre-norms, route-selected SwiGLU FFNs, and last-token/mean pooled governance heads.
+- Added focused governance sample weighting in `src/pyrrho/moe/losses.py` so Stage 0.6 can add pressure to TRUSTWORTHY support-pattern recall (`consistent_chain`, `multi_source_corroboration`, `quantitative_consensus`) and non-TRUSTWORTHY risk slices (`science_medicine`, `factual_contradiction`) without hard-coding dataset names into the loss.
+- Added `configs/moe/pyrrho_moe_stage0_6_token_route_coupled.yaml`.
+- Extended `scripts/train_moe.py`, `scripts/eval_moe.py`, and `scripts/analyze_moe_failures.py` to load `model_kind: route_coupled_token` checkpoints.
+- Wrote a bounded CUDA smoke artifact at `outputs/moe/stage0_6_token_route_coupled_smoke/` using 8 train/eval/test rows plus full `pyrrho-nano-g3` teacher-logit sidecars.
+- Verification passed: `ruff check src/pyrrho/moe/modeling.py src/pyrrho/moe/losses.py scripts/train_moe.py scripts/eval_moe.py scripts/analyze_moe_failures.py tests/test_moe_stage0.py`; `pytest tests/test_moe_stage0.py -q` = **8 passed**; `pytest tests/test_smoke.py -q` = **11 passed**; `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **29 passed**.
+
+**What was learned:**
+
+- The Stage 0.6 token-interaction path trains, saves, and reloads through the existing MoE trainer/evaluator on CUDA.
+- The standalone evaluator reproduced the smoke checkpoint on eval/test with `model_kind: route_coupled_token`, so the checkpoint payload is forward-compatible with the existing reporting path.
+- No quality claim exists yet: the smoke used only 8 rows per split. The meaningful comparison is the next full seed-42 run against Stage 0.5's 84.47% calibrated test accuracy / 5.51% false-trustworthy seed-42 baseline.
+
+**Next:** Run a full Stage 0.6 seed-42 quality probe with g3 teacher logits; only move to 3 seeds if the support-pattern/science-medicine slice profile improves or headline quality stays competitive with Stage 0.5.
+
+---
+
+## 2026-05-26 (night) — Stage 0.5 failure reports
+
+**What landed:**
+
+- Added `scripts/analyze_moe_failures.py`, which reloads Stage 0/0.5 checkpoints, applies saved calibrated TRUSTWORTHY thresholds, writes per-case predictions, and summarizes per-route, per-taxonomy, confusion, seed-overlap, and hard-error slices.
+- Generated the Stage 0.5 test report at `outputs/moe/stage0_5_route_coupled_g3_3seed/failure_analysis_test/failure_report.md` and full JSON/prediction artifacts beside it.
+- Generated the matching eval report at `outputs/moe/stage0_5_route_coupled_g3_3seed/failure_analysis_eval/failure_report.md`.
+- Verification passed: `ruff check scripts/analyze_moe_failures.py`; `pytest tests/test_moe_stage0.py -q` = **6 passed**.
+
+**What was learned:**
+
+- Test split error overlap: **109/2,459** rows missed by all three seeds (**4.43%**), **715** rows missed by at least one seed, **12** all-seed false-TRUSTWORTHY rows, and **202** rows with false-TRUSTWORTHY in at least one seed.
+- Route weakness is not uniform. On test, `science_medicine` is the weakest and riskiest route at **78.80%** accuracy / **12.38%** false-trustworthy, followed by `technology_computing` (**83.05%**, **6.41%** FT) and `general_commonsense` (**83.45%**, **7.72%** FT). `history_geography` is strongest at **87.89%** / **1.53%** FT.
+- Taxonomy weakness is concentrated in support-pattern TRUSTWORTHY rows and contradiction safety: `consistent_chain` **66.43%**, `multi_source_corroboration` **67.38%**, `quantitative_consensus` **71.11%**, and `factual_contradiction` **77.88%** with **12.98%** FT.
+- Eval repeats the core pattern: **106** all-seed hard errors, **9** all-seed false-TRUSTWORTHY rows, and `consistent_chain` is still weakest at **62.99%**.
+
+**Next:** Design Stage 0.6 with real token interaction and a terminal-shaped route-coupled trunk, targeting support-pattern recall and science/medicine false-TRUSTWORTHY risk.
+
+---
+
+## 2026-05-26 (night) — Stage 0.5 route-coupled 3-seed stability
+
+**What landed:**
+
+- Ran the Stage 0.5 route-coupled custom student across seeds **42 / 1337 / 7** using `configs/moe/pyrrho_moe_stage0_5_route_coupled.yaml` and full `pyrrho-nano-g3` teacher-logit sidecars.
+- Wrote per-seed artifacts under `outputs/moe/stage0_5_route_coupled_g3_3seed/seed_{42,1337,7}/`.
+- Wrote aggregate metrics to `outputs/moe/stage0_5_route_coupled_g3_3seed/summary.json`.
+
+**What was learned:**
+
+- The positive Stage 0.5 signal is stable enough to continue. Three-seed held-out test mean is **83.91 ± 1.18%** calibrated accuracy / **5.55 ± 0.03%** false-trustworthy, with **82.92 ± 0.35%** route accuracy and **67.64 ± 1.23%** taxonomy accuracy.
+- Per-seed calibrated test accuracy / false-trustworthy: seed 42 **84.47% / 5.51%**, seed 1337 **84.71% / 5.57%**, seed 7 **82.55% / 5.57%**.
+- Gold-route mean was **84.64 ± 1.05%** calibrated accuracy / **5.29 ± 0.42%** false-trustworthy. That keeps the same conclusion as the single run: routing helps, but the remaining gap is mostly trunk/model capacity rather than route prediction.
+
+**Next:** Add per-route/per-taxonomy failure reporting for Stage 0.5, then design Stage 0.6 with real token interaction and a terminal-shaped route-coupled trunk.
+
+---
+
+## 2026-05-26 (night) — Stage 0.5 route-coupled custom student
+
+**What landed:**
+
+- Added `RouteCoupledMoEForGovernance` in `src/pyrrho/moe/modeling.py`: a 53,861,425-param hash-token student where the selected semantic route controls every residual expert layer.
+- Extended `scripts/train_moe.py` and `scripts/eval_moe.py` so Stage 0 checkpoints can be either the original tiny model or the new route-coupled student, while preserving g3 governance-logit distillation and oracle-route evaluation.
+- Added `configs/moe/pyrrho_moe_stage0_5_route_coupled.yaml` with the successful Stage 0.5 recipe: 6 epochs, `loss_route=0.7`, `loss_distillation=0.5`, and `false_trustworthy_weight=1.5`.
+- Full V8 run artifact: `outputs/moe/stage0_5_route_coupled_g3_govbalanced/final_metrics.json`; standalone eval report: `outputs/moe/stage0_5_route_coupled_g3_govbalanced/eval_report.json`.
+- Verification passed: `pytest tests/test_moe_config.py tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **27 passed**; `pytest tests/test_smoke.py -q` = **11 passed**; ruff passed on touched MoE code.
+
+**What was learned:**
+
+- The first route-heavy/high-FT-weight Stage 0.5 variant was too conservative: `outputs/moe/stage0_5_route_coupled_g3_route15/final_metrics.json` scored **77.51%** calibrated test accuracy / **0.77%** false-trustworthy / **79.99%** route / **62.18%** taxonomy.
+- The governance-balanced Stage 0.5 run cleared the single-run continuation bar: held-out test **84.47%** calibrated accuracy / **5.51%** false-trustworthy at tau **0.48**, with **82.72%** route accuracy and **67.06%** taxonomy accuracy.
+- Gold-route test on the same checkpoint was **84.79%** calibrated accuracy / **5.33%** false-trustworthy, so the remaining Stage 0.5 gap is not mainly route prediction; the route-coupled trunk itself is the active capacity bottleneck.
+- This is the first positive signal beyond the 10.5M tiny prototype that route-coupled custom scaling can improve governance without relying on Qwen's opaque physical router.
+
+**Next:** Map the Stage 0.5 route-coupled result into a scalable 4B-A0.4B custom trunk/upcycling plan; do not return to the failed Qwen adapter variants as release candidates.
+
+---
+
+## 2026-05-26 (night) — Stage 0 route-first MoE diagnostics
+
+**What landed:**
+
+- Extended `src/pyrrho/moe/data.py` and `scripts/train_moe.py` so the Stage 0 custom student can consume sidecar teacher logits, train with governance KL distillation, override loss weights from the CLI, and report oracle gold-route evaluation without rewriting `data/moe_v8`.
+- Generated full `pyrrho-nano-g3` teacher-logit sidecars for `data/moe_v8` at `outputs/moe/teacher_logits/pyrrho_nano_g3_full_v8/` (**train=19,674 / eval=2,459 / test=2,459**).
+- Ran Stage 0 g3-distillation probes at `outputs/moe/stage0_route_proto_distill_g3/` and `outputs/moe/stage0_route_proto_distill_g3_route15/`.
+- Verification passed: `pytest tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **22 passed**; `pytest tests/test_smoke.py -q` = **11 passed**.
+
+**What was learned:**
+
+- Plain g3 distillation (`loss_route=0.7`, `loss_distillation=0.5`) preserved the Stage 0 gate-level result but did not beat the original prototype on predicted routes: test calibrated **82.43%** accuracy / **5.39%** false-trustworthy / **80.44%** route / **64.34%** taxonomy.
+- Forcing gold routes on that same checkpoint raised test governance to **82.96%** / **5.51%** FT, so there was a small route/expert coupling gap.
+- A route-first weighting (`loss_route=1.5`, `loss_distillation=0.5`) raised predicted-route test route accuracy to **82.80%** while keeping governance at **82.43%** calibrated accuracy / **5.45%** FT. Oracle-route governance then fell back to **82.51%**, meaning the router gap was mostly closed.
+- The V8 route labels are learnable when the supervised semantic route is the actual active expert path. That contrasts with the Qwen Stage 1 adapter failures, where physical routing remains opaque or semantic routing is only an auxiliary pooled adapter.
+
+**Next:** If MoE continues, move to a route-coupled custom student/trunk plan; do not keep scaling the current Qwen adapter variants.
+
+---
+
+## 2026-05-26 (night) — MoE adapter/distillation probes landed negative
+
+**What landed:**
+
+- Added physical Qwen expert residual adapters and semantic-route pooled adapters to `src/pyrrho/moe/qwen_governance.py`.
+- Added optional governance-logit distillation to `src/pyrrho/moe/losses.py` and `scripts/train_moe_qwen_heads.py`.
+- Added `scripts/generate_moe_teacher_logits.py`, which writes `pyrrho-nano-g3` teacher-logit sidecars for MoE training without rewriting `data/moe_v8`.
+- Verified CUDA save/load smokes for physical expert adapters and semantic-route adapters, including `heads.pt` reload with adapter metadata hydration.
+- Ran the required checks: `pytest tests/test_moe_qwen_governance.py tests/test_moe_stage0.py tests/test_moe_upcycling.py -q` = **19 passed**; `pytest tests/test_smoke.py -q` = **11 passed**.
+
+**What was learned:**
+
+- The v2 adapter plumbing works, but the bounded quality result is still negative. Physical expert adapters + g3 distillation on 2,048 train / 512 eval scored **50.00%** calibrated accuracy / **4.40%** false-trustworthy / **24.02%** route accuracy at `outputs/moe/qwen_expert_adapter_distill_stage1_2048_r4_layers4_lr3e4_trunk1e4_ft12/train_report.json`.
+- Semantic-route pooled adapters + g3 distillation on the same bounded slice scored **44.34%** calibrated accuracy / **1.65%** false-trustworthy / **26.37%** route accuracy at `outputs/moe/qwen_semantic_adapter_distill_stage1_2048_r32_lr3e4_ft12/train_report.json`.
+- The limiting signal is route competence and route/expert coupling, not just absence of trainable parameters. The physical adapters follow Qwen's opaque token router, while semantic adapters depend on a weak predicted semantic route at eval time.
+
+**Next:** Do not scale the current Qwen Stage 1 adapter/distillation variants; any further MoE work needs a materially different route-first or custom-student plan, otherwise pause MoE and integrate `pyrrho-nano-g3` into `fitz-sage`.
+
+---
+
+## 2026-05-26 (evening) — Encoder and MoE output contracts separated
+
+**What landed:**
+
+- Updated `scripts/render_public_model_cards.py`, `docs/MODEL_CARD_TEMPLATE.md`, local release cards, and the root `README.md` to make the nano encoder output contract explicit.
+- Public nano cards now state that taxonomy/category tags, route IDs, and scalar diagnostics are not published nano encoder inference outputs; those fields are evaluation metadata or MoE-only research outputs.
+- Pushed README-only Hugging Face updates for the public encoder repos: `pyrrho-nano-g1` commit `29e4eecba2676a0fca03637d1515ab03a6e7379f`, `pyrrho-nano-g2` commit `4b66447636c14155640461a84639bb6ea7ebcd09`, and `pyrrho-nano-g3` commit `f52f4a6a1ff6a008086aa3d1352b560b32e851cb`.
+- Refreshed the root `README.md` for the current V8/g3 state: latest model link, g3 headline metrics, V8 data status, V8 reproduction commands, and MoE status.
+
+**What was learned:**
+
+- The taxonomy/category values users see in reports are benchmark/evaluation breakdown metadata for nano encoders, not model-predicted inference fields.
+- Route, taxonomy, and scalar prediction are real in the experimental MoE scaffold, but they should not be implied on public nano cards until a MoE artifact ships with those heads.
+- Remote verification for all three public nano READMEs confirmed the governance framing, normalized JSON example, and encoder-vs-MoE output-contract clarification are present, with no hits for the public-card banned internal-term list.
+
+**Next:** Keep public nano cards scoped to governance logits and the normalized decision object; resume MoE only through router-aware distillation or custom sparse-expert adapters after the g3 production integration decision.
+
+---
+
+## 2026-05-26 (evening) — Normalized JSON output documented
+
+**What landed:**
+
+- Updated `scripts/render_public_model_cards.py` and regenerated `docs/MODEL_CARD_TEMPLATE.md` plus the local release cards to include a compact normalized JSON output example in the Outputs section.
+- Encoder cards now show the decision object shape: `label`, `raw_label`, `logits`, `probabilities`, `confidence`, `trustworthy_probability`, `threshold`, and `used_threshold_fallback`.
+- SLM cards now show the parsed adapter decision object shape: `label`, `raw_text`, and `fallback_used`.
+- Pushed README-only Hugging Face updates for the public encoder repos: `pyrrho-nano-g1` commit `d1fae6394468dbe523e7693475ba0cb77bf21639`, `pyrrho-nano-g2` commit `fd5e845b6c518f955bf35c329bcbeafe001be20e`, and `pyrrho-nano-g3` commit `43600bd21f1b6186ec806860dcfe3ac1d27cde8b`.
+
+**What was learned:**
+
+- The raw Hugging Face encoder artifact returns tensors, not JSON. The public card now makes that clear by describing the JSON as the normalized integration output derived from logits.
+- Remote verification for all three public nano READMEs confirmed the JSON example is present, `trustworthy_probability` and `used_threshold_fallback` are documented, the governance co-processor framing and pivoted Results table remain present, and the banned internal-term list has no hits.
+
+**Next:** Keep the JSON example in the Outputs section for every public model card so users can see the exact decision object shape without reading code.
+
+---
+
+## 2026-05-26 (evening) — Public framing shifted to RAG governance
+
+**What landed:**
+
+- Updated `scripts/render_public_model_cards.py` and regenerated `docs/MODEL_CARD_TEMPLATE.md` plus the local release cards so pyrrho is framed as a **RAG governance co-processor** and **anti-hallucination evidence gate**, not merely as a classifier.
+- Updated the root `README.md` tagline/about copy with the same framing: pyrrho sits between retrieval and generation, or beside a generator as a guardrail, and governs whether the retrieved evidence is safe to answer from.
+- Pushed README-only Hugging Face updates for the public encoder repos: `pyrrho-nano-g1` commit `6a3d4eeda8bb1101c3909527b980c4110ebfd4fa`, `pyrrho-nano-g2` commit `1b8534782f037f169cdae15e297ef22ba7fd5607`, and `pyrrho-nano-g3` commit `db4224da760a9fa20386ff85daa440d8b10b268c`.
+
+**What was learned:**
+
+- The correct public promise is narrower and stronger than "hallucination detector": pyrrho reduces the specific RAG failure mode where unsupported or contradictory retrieved evidence gets treated as safe to answer from.
+- The cards now explicitly bound the scope: pyrrho is not an answer generator and not an open-world fact checker; it judges only the evidence supplied in the RAG context.
+- Remote verification for all three public nano READMEs confirmed the governance co-processor framing is present, the anti-hallucination wording is present, the open-world fact-checker limitation is present, the pivoted results table remains present, and the banned internal-term list has no hits.
+
+**Next:** Keep all public copy anchored on "RAG governance co-processor / evidence gate" rather than generic model-classification language.
+
+---
+
+## 2026-05-26 (evening) — Results tables pivoted by decision label
+
+**What landed:**
+
+- Updated `scripts/render_public_model_cards.py` so Results uses rows `OVERALL`, `ABSTAIN`, `DISPUTED`, and `TRUSTWORTHY`, with columns `Recall`, `Precision`, and `False-rate`.
+- Regenerated `docs/MODEL_CARD_TEMPLATE.md` and the local cards for `pyrrho-nano-g1`, `pyrrho-nano-g2`, `pyrrho-nano-g3`, `pyrrho-small-g1`, and `pyrrho-small-g1.1`.
+- Added a plain F1 definition to the cards while keeping F1 out of the headline table: `2 * precision * recall / (precision + recall)`.
+- Pushed README-only Hugging Face updates for the public encoder repos: `pyrrho-nano-g1` commit `3625ccfd3d12215c2abd035e67abc184a4776ebe`, `pyrrho-nano-g2` commit `e90a2403a50a8d78f342cef489d69231591aafc4`, and `pyrrho-nano-g3` commit `f23ff3cfcb8dd1fdd3d1f758cb1a06632a75fa07`.
+
+**What was learned:**
+
+- The clearer public table is label-oriented: `OVERALL` uses micro recall/precision, which equal accuracy for this single-label three-class classifier; label `False-rate` is the false-positive rate for that label.
+- For `TRUSTWORTHY`, the label false-rate is exactly the existing false-trustworthy safety metric. For `pyrrho-nano-g3`, the public table now reads: `OVERALL` **97.52 ± 0.43%**, `ABSTAIN` recall/precision/false-rate **97.83 ± 0.76% / 98.41 ± 0.44% / 0.83 ± 0.23%**, `DISPUTED` **98.34 ± 0.24% / 97.23 ± 0.87% / 1.46 ± 0.47%**, and `TRUSTWORTHY` **96.28 ± 0.83% / 96.87 ± 0.34% / 1.42 ± 0.16%**.
+- The original `pyrrho-nano-g1` public 3-seed summary did not archive every per-label precision/false-rate field, so the g1 card preserves the published headline values and marks missing g1 cells as `not reported` instead of mixing in a later/non-matching local run.
+- Remote verification for all three public nano READMEs confirmed the pivoted table is present, the old `| Metric |` table is absent, `+/-` is absent, `±` is present, and the banned internal-term list has no hits.
+
+**Next:** Use the label-oriented Results table as the default for future model cards and release docs.
+
+---
+
+## 2026-05-26 (evening) — Model cards now state outputs explicitly
+
+**What landed:**
+
+- Updated `scripts/render_public_model_cards.py` and regenerated `docs/MODEL_CARD_TEMPLATE.md` plus the local model cards for `pyrrho-nano-g1`, `pyrrho-nano-g2`, `pyrrho-nano-g3`, `pyrrho-small-g1`, and `pyrrho-small-g1.1`.
+- Replaced public metric notation from `+/-` to `±` in the renderer, template, and generated cards.
+- Added a required Outputs section to the template. Encoder cards now distinguish raw Hugging Face `logits` from the derived pyrrho decision object (`label`, `raw_label`, `logits`, `probabilities`, `confidence`, `trustworthy_probability`, `threshold`, `used_threshold_fallback`). SLM cards document generated `raw_text`, parsed `label`, and `fallback_used` without claiming calibrated probabilities.
+- Pushed README-only Hugging Face updates for the public encoder repos: `pyrrho-nano-g1` commit `5ad199ab5cfb44ef6425e0bdba86e34217b75dfb`, `pyrrho-nano-g2` commit `6656336c3c8c444c08943dbb0f899ccc5c8c8142`, and `pyrrho-nano-g3` commit `3504ee6df0baf2d4c875947d524d557e3d1ddd1f`.
+
+**What was learned:**
+
+- The public nano encoder artifacts return class logits by default; the richer fields are wrapper/decision-object fields derived from those logits, not separate hidden model heads.
+- The MoE prototypes do have route/taxonomy/scalar output heads, but those are not part of the published nano encoder model-card contract.
+- Remote verification for all three public nano READMEs confirmed: `## Outputs` present, `+/-` absent, `±` present, and the structured output fields documented. The `pyrrho-small-g1` and `pyrrho-small-g1.1` repo IDs currently return 404 on HF, so only local small-card READMEs were updated.
+
+**Next:** Keep future public cards anchored on raw artifact outputs plus derived integration fields; do not imply encoders emit MoE-only route/taxonomy/scalar fields.
+
+---
+
+## 2026-05-26 (evening) — Public model cards cleaned up
+
+**What landed:**
+
+- Added `docs/MODEL_CARD_TEMPLATE.md`, the public-facing template for all pyrrho model cards.
+- Added `scripts/render_public_model_cards.py`, which rewrites the current release-dir cards from a consistent shape and avoids internal dataset-schema names, private taxonomy terminology, roadmap language, and provider/pipeline history.
+- Rewrote local cards for `models/pyrrho-modernbert-base-v1/README.md` (public name `pyrrho-nano-g1`), `models/pyrrho-nano-g2/README.md`, `models/pyrrho-nano-g3/README.md`, `models/pyrrho-small-g1/README.md`, and `models/pyrrho-small-g1.1/README.md`.
+- Pushed README-only Hugging Face updates for the public encoder repos: `pyrrho-nano-g1` commit `8eb231c29550b1d39b0735f2f54afb7c63c80633`, `pyrrho-nano-g2` commit `4707b1931c8e7bc9f92bbd6e6b90a37b4ab3464a`, and `pyrrho-nano-g3` commit `7e51acb739c44bb2fdcc3cdebdd2d3b239f5edc3`.
+
+**What was learned:**
+
+- The previous cards were too implementation-facing: they exposed internal schema/taxonomy language and private baseline framing that does not belong on a public model page.
+- The new canonical shape is: model summary, labels, intended/non-intended use, quick start, calibrated decision rule, results, training data, training recipe, limitations, citation, and license.
+- Remote verification after upload found **0** banned-term hits across the three public encoder READMEs for: `SDGP`, `taxonomy`, `target-50`, `tier1_core`, `sklearn`, `fitz-sage`, `Blackwell`, `roadmap`, `Claude`, and `LM Studio`.
+
+**Next:** Use `scripts/render_public_model_cards.py` or `docs/MODEL_CARD_TEMPLATE.md` for future card work; do not regenerate public cards from older internal-facing wording without cleaning it first.
+
+---
+
+## 2026-05-26 (evening) — pyrrho-nano-g3 packaged and published
+
+**What landed:**
+
+- Rebuilt `models/pyrrho-nano-g3/` from `outputs/multi_seed_g3_v8/seed_1337/best_model/` after checking all validated seeds for smoke behavior.
+- Exported the release artifact with `model.safetensors`, FP32 ONNX external-data pair, INT8 ONNX external-data pair, tokenizer/config files, and a V8.0.0 model card.
+- Published the release to Hugging Face at [`yafitzdev/pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3); verified public repo commit `397393718985e7bfa101042e89ecc60103e9c447`, 10 remote files including Hub `.gitattributes`, and **1.502 GB** used storage.
+- Fixed release tooling hygiene: `scripts/build_model_card.py` now uses V8 split/dataset sizes instead of stale V7 text, `scripts/push_to_hub.py` ignores `.cache/**` and `*.log`, and `tests/test_smoke.py` prefers the packaged `models/pyrrho-nano-g3/` artifact.
+
+**What was learned:**
+
+- Seed **1337** is the best release artifact choice: it passed the packaged handcrafted smoke suite while still clearing the held-out V8 gate at **97.68%** calibrated accuracy / **1.54%** false-trustworthy.
+- Seed 42 was validation-selected but missed the first wrong-entity ABSTAIN smoke case as DISPUTED when packaged, so it was not used for the local/HF release despite passing the aggregate gates.
+- The first upload attempt exposed a hygiene issue: logs and a Hugging Face `.cache/` state directory can be picked up if written inside the release folder. The manifest is now clean at **9 local source files / 1.506 GB** before upload; the remote has the expected 10 files because the Hub adds `.gitattributes`.
+- Verification after publication: `python -m ruff check scripts/build_model_card.py scripts/push_to_hub.py tests/test_smoke.py` passed, and `.venv\Scripts\python.exe -m pytest tests\test_smoke.py -v` passed **11/11** against `models/pyrrho-nano-g3/`.
+
+**Next:** Treat `pyrrho-nano-g3` as the published V8 encoder baseline; decide whether the next production move is `fitz-sage` integration or returning to small/MoE research.
+
+---
+
+## 2026-05-26 (evening) — pyrrho-nano-g3 V8 encoder validation passed
+
+**What landed:**
+
+- Added `configs/encoder/modernbert_base_g3_v8.yaml`, a ModernBERT-base V8 config that keeps the validated `g2` safety recipe (`class_weights: [2.3, 2.3, 1.0]`, `label_smoothing: 0.15`) and points at fitz-gov `v8.0.0`.
+- Ran `scripts/run_seeds.py` on `data/processed_v8` across seeds **42 / 1337 / 7**.
+- Wrote the 3-seed summary at `outputs/multi_seed_g3_v8/summary.json`, per-seed checkpoints under `outputs/multi_seed_g3_v8/seed_*/best_model/`, and detailed breakdown reports at `outputs/multi_seed_g3_v8/seed_*/eval_report.json`.
+
+**What was learned:**
+
+- `pyrrho-nano-g3` is a strong local V8 release candidate. Held-out V8 test metrics across 3 seeds are **97.52 ± 0.43%** calibrated accuracy and **1.42 ± 0.16%** false-trustworthy.
+- Every seed passed both release gates on the 2,459-row held-out V8 test split: seed 42 **97.03% / 1.48% FT** at tau **0.68**; seed 1337 **97.68% / 1.54% FT** at tau **0.58**; seed 7 **97.84% / 1.24% FT** at tau **0.60**.
+- Compared with published `pyrrho-nano-g2` on V7 (**95.24 ± 0.48% / 3.48 ± 0.40% FT**), the V8 retrain improves accuracy by about **+2.28 pts** and reduces FT by about **-2.06 pts**, while moving to the harder/larger public V8 target-50 contract.
+- The required smoke regression passed after training: `pytest tests/test_smoke.py -v` = **9 passed / 2 xfailed**.
+
+**Next:** Package `pyrrho-nano-g3` locally, build the model card against fitz-gov V8.0.0, export ONNX/INT8, then publish if packaging checks pass.
+
+---
+
+## 2026-05-26 (afternoon) — Attention-LoRA Qwen Stage 1 probe
+
+**What landed:**
+
+- Extended `scripts/train_moe_qwen_heads.py` with PEFT LoRA support for the Qwen trunk: `--lora-r`, `--lora-alpha`, `--lora-dropout`, `--lora-target-modules`, and `--lora-adapter-path`.
+- Added adapter save/reload reporting so trained LoRA adapters are written under each run's `lora_adapter/` directory and described in `train_report.json`.
+- Updated `set_final_dense_layer_trainability` to work when the trunk is wrapped by PEFT.
+- Ran attention-only LoRA probes against Qwen attention projections (`q_proj,k_proj,v_proj,o_proj`) on bounded V8 MoE subsets.
+
+**What was learned:**
+
+- PEFT LoRA is mechanically feasible on the local Qwen3-MoE seed pack. Rank-8 attention LoRA adds **2,293,760** trainable adapter params, for **2,343,985** trainable params including pyrrho heads, and runs on the RTX 5090 without OOM.
+- Standard attention LoRA does not touch the fused sparse expert tensors (`mlp.experts.gate_up_proj`, `mlp.experts.down_proj`) or Qwen internal router gate tensors. Those would need custom adapter handling if they become the next target.
+- With trunk LR `1e-4`, both `false_trustworthy_weight=1.2` and `1.0` collapsed to the eval ABSTAIN prior: **31.84%** calibrated accuracy / **0.00%** FT / **17.77%** route accuracy.
+- Lowering trunk LR to `1e-5` avoided that collapse but still underperformed frozen heads: `outputs/moe/qwen_lora_attn_stage1_2048_r8_lr3e4_trunk1e5_ft12/train_report.json` scored **43.55%** calibrated accuracy / **5.22%** FT / **26.17%** route accuracy on the 512-row eval slice.
+- Attention-only LoRA is not the next quality lever for Qwen Stage 1 as currently wired.
+
+**Next:** Stop scaling attention-only LoRA; either build custom sparse-expert adapters / distillation, or shift back to the V8 encoder `pyrrho-nano-g3` run.
+
+---
+
+## 2026-05-26 (afternoon) — Final-dense Qwen partial-unfreeze probe
+
+**What landed:**
+
+- Added `set_final_dense_layer_trainability` in `src/pyrrho/moe/qwen_governance.py`.
+- Extended `scripts/train_moe_qwen_heads.py` with `--train-final-dense-layers` and `--trunk-learning-rate`, while keeping separate head/router/trunk optimizer groups.
+- Added focused test coverage in `tests/test_moe_qwen_governance.py` to ensure the helper selects only the final dense Qwen layers from `mlp_only_layers`.
+- Ran a tiny final-layer smoke and two 2,048-row / 512-eval bounded final-layer probes.
+
+**What was learned:**
+
+- The partial-unfreeze path is mechanically feasible on the RTX 5090. Unfreezing final dense layer `[27]` makes **9,588,017** params trainable (**9,537,792** from the trunk) and runs without OOM at max length 128 / batch 1.
+- The quality signal is negative. `outputs/moe/qwen_final_dense_stage1_2048_lr3e4_trunk1e5_ft12/train_report.json` scored **38.09%** calibrated accuracy / **4.40%** FT / **16.41%** route accuracy on the 512-row eval slice.
+- Lowering trunk LR by 10x did not help. `outputs/moe/qwen_final_dense_stage1_2048_lr3e4_trunk1e6_ft12/train_report.json` also scored **38.09%** calibrated accuracy, with **5.49%** FT and **17.77%** route accuracy.
+- This is materially worse than the heads-only 2,048-row probes and far worse than the best 8,192-row frozen-head checkpoint. Naive final-dense unfreeze is not the next quality lever.
+
+**Next:** If continuing Qwen Stage 1, try true adapters/LoRA or teacher-distillation; do not scale final-dense partial unfreeze.
+
+---
+
+## 2026-05-26 (afternoon) — Qwen Stage 1 frozen-head sweep closed
+
+**What landed:**
+
+- Extended `scripts/train_moe_qwen_heads.py` beyond smoke mode: deterministic random bounded sampling by default, train/eval label-route-taxonomy summaries, exposed `--false-trustworthy-weight`, calibrated TRUSTWORTHY threshold reporting, `--eval-only` head reloads, and split head/router learning rates for router probes.
+- Added MoE calibration reporting through `src/pyrrho/moe/metrics.py` and focused coverage in `tests/test_moe_stage0.py`.
+- Ran the bounded Stage 1 sweep over Qwen3-MoE frozen-trunk heads, plus one split-LR internal-router probe.
+
+**What was learned:**
+
+- Prefix sampling was invalid for bounded probes because the JSONL rows are ordered; the first 512-row run trained only on ABSTAIN. Random bounded sampling fixed that diagnostic error.
+- Frozen Qwen pooled states carry some signal but not enough for a candidate model. The best full-eval frozen-head artifact is `outputs/moe/qwen_heads_stage1_8192_random_lr3e4_ft12_eval_full/eval_report.json`: raw **57.18%** accuracy / **15.99%** FT, calibrated **54.66%** accuracy / **5.35%** FT at tau **0.54**, route **43.51%**, taxonomy **34.40%**.
+- The same 8,192-row recipe with seed 1337 scored **53.52%** calibrated accuracy / **5.47%** FT, so the best run is not robust.
+- Full-data frozen-head scaling regressed: `outputs/moe/qwen_heads_stage1_full_lr3e4_ft12_steps2048/train_report.json` scored **48.80%** calibrated accuracy / **5.58%** FT; `outputs/moe/qwen_heads_stage1_full_lr3e4_ft1_steps1024/train_report.json` scored **51.36%** / **5.11%** FT.
+- Internal-router-only tuning is feasible on the RTX 5090 but not promising as the next cheap lever. The split-LR probe (`outputs/moe/qwen_routers_stage1_2048_lr3e4_router1e5_ft12/train_report.json`) dropped to **39.45%** calibrated accuracy / **3.85%** FT with route **17.77%**.
+
+**Next:** Stop scaling frozen Qwen heads; the next MoE lever should be lightweight trunk adapters / partial unfreeze or teacher-distillation before governance specialization.
+
+---
+
+## 2026-05-26 (afternoon) — Stage 1 heads-only trainer smoke
+
+**What landed:**
+
+- Added `scripts/train_moe_qwen_heads.py`, a conservative Stage 1 trainer for the Qwen3-MoE seed pack.
+- The trainer freezes the Qwen3-MoE trunk by default and trains only the pyrrho governance, route, taxonomy, and scalar heads.
+- Added optional `--train-internal-routers` support, but left internal Qwen3-MoE routers frozen for the first smoke.
+- Adjusted `QwenMoEForGovernance` so pyrrho heads stay FP32 while the trunk can run bfloat16.
+
+**What was learned:**
+
+- The first Stage 1 smoke runs on CUDA with the local seed pack.
+- Command shape: `python scripts/train_moe_qwen_heads.py --max-steps 2 --max-train-samples 4 --max-eval-samples 4 --max-length 64 --batch-size 1 --eval-batch-size 1`.
+- Artifact: `outputs/moe/qwen_heads_stage1_smoke/train_report.json`; head checkpoint: `outputs/moe/qwen_heads_stage1_smoke/heads.pt`.
+- Trainable params are **50,225** heads-only parameters. Internal router params are present (**1,179,648**) but frozen.
+- Tiny eval is only a smoke check: 4 eval rows, governance accuracy **0.50**, false-trustworthy **0.00**, route accuracy **0.00**.
+
+**Next:** Run a longer heads-only Stage 1 pass on a bounded V8 subset and inspect route/governance learning before touching internal routers or adapters.
+
+---
+
+## 2026-05-26 (afternoon) — Qwen MoE governance wrapper smoke passed
+
+**What landed:**
+
+- Added `src/pyrrho/moe/qwen_governance.py`, a Qwen3-MoE trunk wrapper with pyrrho governance, route, taxonomy, and scalar heads.
+- Added `scripts/smoke_moe_qwen_wrapper.py` to load the local seed pack, tokenize V8 rows, run a no-training forward pass, and compute the existing multitask loss.
+- Added `tests/test_moe_qwen_governance.py` for pooling, output-contract, trunk-freezing, and dtype alias coverage.
+- Corrected MoE scalar-head accounting from 12 to **15** to match V8 MoE metadata.
+
+**What was learned:**
+
+- The local seed pack loads on CUDA as a Qwen3-MoE trunk and produces valid pyrrho task surfaces.
+- Smoke artifact: `outputs/moe/upcycling/qwen_alpha_wrapper_smoke.json`.
+- Smoke batch: 2 V8 test rows, max length 64, CUDA / bfloat16.
+- Output shapes: governance `[2,3]`, route `[2,8]`, taxonomy `[2,23]`, scalar `[2,15]`; no-training multitask loss computed at **8.9858**.
+- Corrected Qwen alpha count with 15 scalar heads: **4.083139633B total / 0.423871537B active inclusive / 0.268289073B active excluding embedding**.
+
+**Next:** Start Stage 1 training with trunk frozen: train pyrrho heads plus Qwen3-MoE router tensors first, then evaluate governance/route metrics before unfreezing expert adapters.
+
+---
+
+## 2026-05-26 (late morning) — Qwen MoE seed pack materialized
+
+**What landed:**
+
+- Extended `scripts/upcycle_dense_to_moe.py` with `--write-seed-pack` and `--validate-seed-pack`.
+- Materialized `outputs/moe/upcycling/qwen_alpha_seed_pack/` from `Qwen/Qwen3-0.6B-Base`.
+- Wrote `outputs/moe/upcycling/qwen_alpha_seed_pack_plan.json`, `upcycling_manifest.json`, `model.safetensors.index.json`, tokenizer files, `config.json`, `pyrrho_moe_config.json`, and `load_shape_report.json`.
+
+**What was learned:**
+
+- The sharded transform is memory-bounded enough to run locally: **30** safetensors shards, **310** tensors, **8.166 GB** total tensor bytes.
+- Dense layers 0, 1, 26, and 27 use compressed dense FFNs; layers 2-25 use Qwen3-MoE-style `mlp.experts.gate_up_proj`, `mlp.experts.down_proj`, and zero-initialized `mlp.gate.weight` router tensors.
+- Shape validation passed against a meta-initialized `Qwen3MoeForCausalLM`: expected **311** tensors, manifest has **310**, with tied `lm_head.weight` intentionally omitted and mapped to `model.embed_tokens.weight`.
+- Verification passed after the writer landed: ruff on MoE modules/scripts/tests; `pytest tests/test_moe_config.py tests/test_moe_stage0.py tests/test_moe_upcycling.py tests/test_smoke.py -q` = **22 passed / 2 xfailed**; standalone `--validate-seed-pack` = **PASS**.
+
+**Next:** Build the pyrrho governance/router wrapper around the Qwen3-MoE trunk and run a no-training forward smoke using the seed pack.
+
+---
+
+## 2026-05-26 (late morning) — Qwen head-dim budget repair
+
+**What landed:**
+
+- Added explicit attention-head-dim and Q/K-attention-norm accounting to `PyrrhoMoEConfig`.
+- Repaired `configs/moe/pyrrho_moe_g3_alpha_qwen.yaml` after real Qwen safetensors inspection: `head_dim=128`, 48 experts/layer, FFN dim 1056.
+- Extended `scripts/upcycle_dense_to_moe.py` with `--real-weight-smoke`, which loads actual Qwen FFN tensors from safetensors and applies the pyrrho FFN compression helper.
+- Updated the MoE upcycling decision docs, seed-search note, architecture doc, and handoff snapshot.
+
+**What was learned:**
+
+- Qwen3-0.6B does **not** use inferred 64-dim heads. Its real attention tensors are `q_proj=2048x1024`, `k_proj/v_proj=1024x1024`, and `o_proj=1024x2048`, with `head_dim=128`.
+- The previous 24-expert / 2112-FFN alpha was undercounted. With real Qwen attention it becomes **4.096B total / 0.514B active inclusive**, failing the A0.4B target.
+- The repaired Qwen alpha passes: **4.083136558B total / 0.423868462B active inclusive**, with **0.268285998B active excluding embeddings**.
+- Real-weight smoke passed on layer 2: Qwen FFN tensors `3072x1024`, `3072x1024`, `1024x3072` compressed to `1056x1024`, `1056x1024`, `1024x1056`; artifact `outputs/moe/upcycling/qwen_alpha_real_weight_smoke.json`.
+
+**Next:** Materialize a sharded Qwen3-MoE-compatible seed pack, then run a no-training checkpoint load test before router/governance training.
+
+---
+
+## 2026-05-26 (late morning) — FFN compression utility landed
+
+**What landed:**
+
+- Added `src/pyrrho/moe/upcycling.py` with deterministic Qwen FFN channel scoring and compression helpers.
+- Added `tests/test_moe_upcycling.py` covering strongest-channel selection, consistent gate/up/down slicing, and invalid target rejection.
+- Updated `scripts/upcycle_dense_to_moe.py` to name the first strategy: select FFN channels by combined gate/up/down norm.
+
+**What was learned:**
+
+- The compression path is now explicit enough for the real weight transform: score each Qwen FFN channel by `||gate[i]||² + ||up[i]||² + ||down[:, i]||²`, select the strongest 2112 of 3072 channels, and preserve original index order while slicing all three matrices consistently.
+- Verification passed: `pytest tests/test_moe_upcycling.py tests/test_moe_config.py tests/test_moe_stage0.py tests/test_smoke.py -q` = **17 passed / 2 xfailed**; ruff passed on the MoE scripts/modules/tests.
+
+**Next:** Wire these helpers into actual Qwen weight loading and pyrrho-MoE checkpoint writing.
+
+---
+
+## 2026-05-26 (late morning) — Qwen upcycling inspector added
+
+**What landed:**
+
+- Added `scripts/upcycle_dense_to_moe.py` in inspect-only mode.
+- Ran it against `configs/moe/pyrrho_moe_g3_alpha_qwen.yaml` and `Qwen/Qwen3-0.6B-Base`.
+- Wrote the inspection plan to `outputs/moe/upcycling/qwen_alpha_inspect.json`.
+
+**What was learned:**
+
+- The selected Qwen alpha matches the seed on hidden size, layer count, attention heads, KV heads, and vocab size.
+- The target budget passes: **4.007435310B total / 0.426023982B active inclusive**.
+- FFN initialization is the only non-direct trunk mapping: Qwen dense FFNs are **3072** wide and pyrrho alpha experts are **2112** wide, so the first real upcycler must implement structured FFN compression before cloning into experts.
+- Layer layout is first 2 + last 2 dense, with layers 2-25 converted to MoE.
+
+**Next:** Implement the actual weight transform behind `scripts/upcycle_dense_to_moe.py`, starting with an explicit FFN channel-selection strategy and a no-training checkpoint load test.
+
+---
+
+## 2026-05-26 (late morning) — MoE Qwen upcycling shape selected
+
+**What landed:**
+
+- Added `scripts/analyze_moe_seed_budget.py` to compare seed-aligned MoE budget variants.
+- Added `configs/moe/pyrrho_moe_g3_alpha_qwen.yaml` as the first upcycling target.
+- Added `docs/MOE_UPCYCLING_DECISION_2026-05-26.md` documenting the tokenizer/embedding decision.
+- Added a budget regression test for the Qwen-aligned config.
+
+**What was learned:**
+
+- Keeping Qwen's full **151,936** vocab with the old 16-expert / 3840-FFN shape produces **4.054B total / 0.515B active inclusive**, failing the A0.4B window.
+- Keeping Qwen's trunk and FFN dim 3072 with 28 layers still fails active inclusive at **0.508B**.
+- The selected Qwen alpha keeps Qwen's tokenizer, embeddings, 28-layer shape, hidden size 1024, and KV=8, then restores budget with **24 experts/layer** and **FFN dim 2112**: **4.007435310B total / 0.426023982B active inclusive**.
+- This means FFN upcycling cannot be a pure clone from Qwen's 3072-wide dense FFNs. The first `upcycle_dense_to_moe.py` needs structured truncation/projection or strongest-channel copy into 2112-wide experts.
+
+**Next:** Implement the skeleton upcycling inspector/loader for `Qwen/Qwen3-0.6B-Base`, starting with config/key-shape mapping and no weight mutation until the FFN compression strategy is explicit.
+
+---
+
+## 2026-05-26 (late morning) — Stage 0 MoE route prototype runs end-to-end
+
+**What landed:**
+
+- Added Stage 0 MoE modules: `src/pyrrho/moe/data.py`, `modeling.py`, `losses.py`, and `metrics.py`.
+- Added `scripts/train_moe.py`, a fast PyTorch prototype trainer for hashed-token inputs, top-1 expert selection, supervised route CE, governance CE, taxonomy CE, scalar MSE, and expert-traffic reporting.
+- Added `scripts/eval_moe.py`, a standalone report path for saved Stage 0 checkpoints.
+- Expanded `configs/moe/pyrrho_moe_g3_alpha.yaml` with Stage 0 hyperparameters and loss weights.
+- Added `tests/test_moe_stage0.py` for forward/loss shape coverage.
+- Ran the full Stage 0 prototype on `data/moe_v8` and wrote artifacts to `outputs/moe/stage0_route_proto/`.
+
+**What was learned:**
+
+- The Stage 0 model is small enough for fast iteration: **10,505,009** parameters, full V8 run in ~38 seconds on CUDA.
+- End-to-end train/eval works on the published V8 MoE prep (**train=19,674 / eval=2,459 / test=2,459**).
+- Held-out test after 3 epochs: **82.47%** governance accuracy, **5.63%** false-trustworthy, **81.09%** route accuracy, **65.80%** taxonomy accuracy.
+- Route learning is real, not majority guessing: predicted expert traffic tracks gold traffic across the seven primary route groups. `conflict_detection` has no gold primary-route rows in V8, so it remains an auxiliary semantic group/head target rather than a directly supervised primary route at this stage.
+- Standalone eval on `outputs/moe/stage0_route_proto/model.pt` reproduced the held-out report and wrote `outputs/moe/stage0_route_proto/eval_report.json`.
+- Verification passed: `ruff check src/pyrrho/moe scripts/count_moe_params.py scripts/prepare_moe_data.py scripts/train_moe.py scripts/eval_moe.py tests/test_moe_config.py tests/test_moe_stage0.py`; `pytest tests/test_moe_config.py tests/test_moe_stage0.py tests/test_smoke.py -q` = **13 passed / 2 xfailed**.
+
+**Next:** Start the upcycling decision work: tokenizer/embedding strategy for `Qwen/Qwen3-0.6B-Base` versus changing the alpha around a 2048-wide seed.
+
+---
+
+## 2026-05-26 (late morning) — pyrrho-MoE scaffold started
+
+**What landed:**
+
+- Added the first MoE package scaffold at `src/pyrrho/moe/` with `PyrrhoMoEConfig` and exact parameter accounting for the canonical 24-layer / 1024-hidden / 20-MoE-layer / 16-expert top-1 architecture.
+- Added `configs/moe/pyrrho_moe_g3_alpha.yaml` and `scripts/count_moe_params.py`; the baseline count is **3.950935086B total** and **0.411991086B active inclusive** (**0.346455086B active excluding embeddings**), passing the 3.9B-4.1B / A0.38B-A0.43B windows.
+- Added `scripts/prepare_moe_data.py`, which loads published `yafitzdev/fitz-gov` config `v8` at revision `v8.0.0`, audits required MoE fields, and writes flattened multitask splits plus `metadata.json`.
+- Updated `scripts/prepare_data.py` defaults from V7.0.1 to published V8.0.0 and rebuilt local encoder prep at `data/processed_v8`.
+- Added `docs/MOE_SEED_SEARCH_2026-05-26.md` with a current HF API seed scan.
+
+**What was learned:**
+
+- Published V8.0.0 loads cleanly for both encoder and MoE prep: `data/processed_v8` and `data/moe_v8` both have **train=19,674 / eval=2,459 / test=2,459**.
+- MoE prep strict audit found **0** missing required fields. V8 exposes **23** taxonomy patterns and the expected seven primary route groups; `conflict_detection` remains a semantic expert group/head target but has no primary `routing.expert_fired` rows in the published data.
+- Current HF API check: `Qwen/Qwen3-0.6B-Base` is the closest public Apache-2.0 dense seed to the 1024-wide alpha shape, but its **151,936** vocabulary would break the inclusive A0.4B budget if used unchanged. The tokenizer/embedding decision must be resolved before real upcycling.
+- Verification passed: `ruff check src/pyrrho/moe scripts/count_moe_params.py scripts/prepare_moe_data.py tests/test_moe_config.py`; `pytest tests/test_moe_config.py tests/test_smoke.py -q` = **12 passed / 2 xfailed**.
+
+**Next:** Build the Stage 0 tiny route prototype on `data/moe_v8`, and separately run the next ModernBERT 3-seed V8 encoder ablation from `data/processed_v8`.
+
+---
+
+## 2026-05-26 (late morning) — fitz-gov HF card wording cleaned up
+
+**What landed:**
+
+- Rewrote the public Hugging Face dataset-card language for fitz-gov V8.0.0 so it explains examples, labels, domains, difficulty, and evidence patterns without internal SDGP shorthand.
+- Uploaded only `README.md` to `yafitzdev/fitz-gov`; data files were not changed.
+- HF main card-cleanup commit: `be6bddaa39d6f87d0301e1358b9a1c4ab3329ca2`. The V8.0.0 data/tag commit remains `56ec1016fbaf8f7a2c488eeb8952b28a75c111c3`.
+
+**What was learned:**
+
+- The first V8 card was accurate but too internal-facing. The public README now avoids unexplained terms such as SDGP, target-50, schema-clean, pre-SDGP, vault, provider-specific QA names, and pyrrho project cross-promo.
+- Verified by downloading the current HF `README.md` and grepping for those internal terms: no matches.
+
+**Next:** Keep HF-facing copy written for external benchmark users; reserve SDGP/vault/release-gate terminology for repo docs and handoffs.
+
+---
+
+## 2026-05-26 (morning) — fitz-gov V8.0.0 published
+
+**What landed:**
+
+- Published `yafitzdev/fitz-gov` **v8.0.0** to Hugging Face with one default config, `v8`.
+- HF commit: `56ec1016fbaf8f7a2c488eeb8952b28a75c111c3`; tag: `v8.0.0`.
+- Public rows are Parquet under `v8/` with splits **train=19,674 / validation=2,459 / test=2,459**.
+- Added fitz-gov `scripts/sdgp_upload_v8_hf.py`, which checks the final target-50 release gates before upload.
+- Cleaned one-off scratch batch generator files from both repos and verified the published Hub tag loads.
+
+**What was learned:**
+
+- The public V8 contract is now **24,592 rows**: V6 **2,980**, V7 **7,520**, V8 **14,092**.
+- V8 release gates are clean: training schema **14,092/14,092**, target-50 coverage **483/483 cells / 0 gap**, all-Claude/Codex blind-label QA **14,092/14,092 agreement**, and **0** split leakage / exact duplicate blocker counts.
+- Published revision `v8.0.0` loads from Hugging Face with no `_vault`, `source_type`, or legacy public report axes.
+
+**Next:** Update pyrrho data prep/configs to consume HF config `v8` at revision `v8.0.0`, then run the next ModernBERT 3-seed V8 ablation.
+
+---
+
+## 2026-05-26 (morning) — V8 second-pass triage repaired clean
+
+**What landed:**
+
+- Repaired the **87** active V8 rows flagged by the all-Claude/Codex full second pass.
+- Updated those rows in `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_vault_v51_enriched/cases.jsonl` with repair batch marker `v8_second_pass_triage87_repair_20260526`.
+- Rebuilt V8 audit artifacts and scored a narrow blind recheck at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/score_second_pass_triage87_repair_only_20260526/`.
+- Built final full all-Claude/Codex prediction file `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_predictions_claude_full_repaired87_combined_20260526.jsonl` and score directory `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/score_claude_full_repaired87_combined_20260526/`.
+
+**What was learned:**
+
+- The triage rows were not random model noise. They were ambiguous row wording: source-of-record/final-status contexts invited blind labelers to resolve contradictions as TRUSTWORTHY.
+- Rewriting only those rows to make same-target unreconciled conflicts and exact-version evidence gaps explicit fixed the issue: narrow recheck **87/87 agreement**, **0 triage**.
+- Final stricter full V8 second-pass QA is now **14,092/14,092 agreement**, **0 missing / 0 invalid / 0 error**, **0 triage**. Training schema remains **14,092/14,092 complete**, target-50 coverage remains **483/483 cells / 0 gap**, split leakage remains **0**, and `python -m pytest tests/sdgp -q` passed **271** tests.
+
+**Next:** Rebuild pyrrho processed data from the repaired 14,092-row V8 target-50 vault and run the next ModernBERT 3-seed ablation.
+
+---
+
+## 2026-05-26 (morning) — All-Claude full V8 second pass found 87 triage rows
+
+**What landed:**
+
+- Claude Code labeled the **4,164-row** replacement pack at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/claude_lmstudio_relabel_blind/`.
+- Materialized replacement predictions at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/claude_lmstudio_relabel_blind/blind_label_predictions_claude_lmstudio_relabel_combined.jsonl`.
+- Combined the **4,164** replacement rows with the already-clean **9,928-row** Claude remainder into `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_predictions_claude_full_replacement_combined_20260526.jsonl`.
+
+**What was learned:**
+
+- The all-Claude/Codex full V8 second pass scores **14,005/14,092 agreement** (**99.38%**) with **0 missing / 0 invalid / 0 error** and **87** triage rows.
+- All **87** disagreements are false-trustworthy directions from the 4,164-row hard V8-gap replacement subset: **83** `DISPUTED -> TRUSTWORTHY` and **4** `ABSTAIN -> TRUSTWORTHY`.
+- Pattern concentration is narrow: `authority_status_conflict` **56**, `verdict_conflict` **27**, and `version_build_mismatch` **4**. The repeated failure mode is still blind labelers treating source-of-record/final-status language as enough to resolve a contradiction.
+
+**Next:** Inspect and repair or adjudicate the 87 triage rows before treating this stricter full V8 second-pass QA as clean.
+
+---
+
+## 2026-05-26 (morning) — Claude replacement pack prepared for LM Studio partial
+
+**What landed:**
+
+- Built `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/claude_lmstudio_relabel_blind/` to replace the failed **4,164-row** LM Studio partial blind-label pass.
+- The pack contains **12** blind shards x **347** rows, covering original queue row indices **0-4163**.
+- Shard validation passed: **4,164** rows, no `case_id` fields, and no gold/taxonomy/governance metadata in the labeling shards.
+
+**What was learned:**
+
+- The LM Studio partial corresponded exactly to the first **4,164** active V8 queue rows, which are the hard five-pattern V8-gap slice.
+- The right cleanup path is to discard LM Studio predictions from the final score and replace that slice with Claude/Codex blind labels, then combine with the already-clean **9,928-row** Claude remainder.
+
+**Next:** Have Claude Code label `claude_lmstudio_relabel_blind/`, materialize those predictions, combine them with `claude_remainder_blind/blind_label_predictions_claude_remainder_combined.jsonl`, and score the all-Claude/Codex 14,092-row pass.
+
+---
+
+## 2026-05-26 (morning) — Claude remainder QA isolated LM Studio failures
+
+**What landed:**
+
+- Claude Code built residual blind shards for the **9,928** active V8 rows not covered by the stopped LM Studio partial run.
+- Materialized residual predictions at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/claude_remainder_blind/blind_label_predictions_claude_remainder_combined.jsonl`.
+- Combined the **4,164** LM Studio partial predictions with the **9,928** Claude residual predictions into `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_predictions_lmstudio4164_claude_remainder_combined.jsonl` and scored it under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/score_lmstudio4164_claude_remainder_combined_20260526/`.
+
+**What was learned:**
+
+- The combined score is **13,871/14,092 agreement** (**98.43%**) with **221** triage rows and **0 missing / 0 invalid / 0 error**.
+- All **221** disagreements are from provider `lm_studio`; Claude's 9,928-row residual pass contributed **0** disagreements.
+- The LM Studio partial failure shape is mostly unsafe: **188/221** disagreements are false-trustworthy directions, concentrated in `authority_status_conflict` (**82**), `version_build_mismatch` (**55**), `verdict_conflict` (**41**), `missing_execution_result` (**29**), and `resolved_candidate_selection` (**14**).
+
+**Next:** If a full second-pass QA artifact is still needed, discard/replace the LM Studio partial by blind-labeling those original **4,164** rows with Claude/Codex and scoring an all-Claude/Codex combined pass.
+
+---
+
+## 2026-05-26 (morning) — LM Studio V8 blind run stopped
+
+**What landed:**
+
+- Stopped the overnight LM Studio blind-label worker at user request.
+- Killed background PID **3712** and stopped remaining LM Studio processes.
+- Preserved the partial output at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_predictions_v8_target50_full_lmstudio_qwen36_35b_q5_20260526.jsonl`.
+
+**What was learned:**
+
+- The partial file contains **4,164/14,092** predictions.
+- LM Studio/Qwen had no parse or invalid-label failures observed in the last status check, but the run is incomplete and must not be treated as a full-cohort QA score.
+
+**Next:** Continue from the already-clean Codex-subagent target-50 merge unless a future session explicitly resumes the LM Studio pass.
+
+---
+
+## 2026-05-26 (morning) — LM Studio V8 target-50 blind run started
+
+**What landed:**
+
+- Started an overnight LM Studio blind-label pass for the active **14,092-row** V8 target-50 cohort.
+- Loaded `qwen3.6-35b-a3b@q5_k_s` in LM Studio on port 1234 and confirmed `scripts/sdgp_run_blind_label.py --healthcheck-only` passes.
+- Launched a resumable background run with output at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_predictions_v8_target50_full_lmstudio_qwen36_35b_q5_20260526.jsonl` and logs under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/run_logs/`.
+
+**What was learned:**
+
+- The run was live after launch: PID **3712**, LM Studio model status `GENERATING`, and the output file had started accumulating predictions.
+- This is a second blind-label pass over the active V8 cohort using LM Studio/Qwen; it does not change the already-clean Codex-subagent target-50 merge status.
+
+**Next:** Monitor the output until it reaches **14,092** rows, score it against `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/blind_label_manifest.jsonl`, and inspect any triage before rebuilding pyrrho V8 prep.
+
+---
+
+## 2026-05-26 (morning) — fitz-gov V8 target-50 expansion merged
+
+**What landed:**
+
+- Completed Codex subagent blind-label QA for `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target50/subagent_outputs/` and merged **4,694** target-50 rows as batch `v8_target50_template_20260526`.
+- Active fitz-gov vault is now **24,592 rows**: 10,500 V6/V7 + **14,092 V8**.
+- Rebuilt V8 QA artifacts under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/`, including the active blind-label manifest and `full_dataset_gap_target50_after_merge.json`.
+
+**What was learned:**
+
+- The first target-50 Codex blind score found **82** triage rows: `factual_contradiction` and `numerical_conflict` were too easy to collapse into one answer, and some `resolved_candidate_selection` rows let obsolete candidates dominate.
+- Tightening those three template families produced a clean repaired score: **4,694/4,694 agreement**, **0 missing / 0 invalid / 0 error**, **0 triage** at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_target50/score_codex_subagents_combined/`.
+- Post-merge fitz-gov audits passed: V8 cohort **14,092** rows, training schema **14,092/14,092 complete**, split leakage **0**, target-50 coverage **483/483 cells at target / 0 gap**, and `python -m pytest tests/sdgp -q` passed **271** tests.
+
+**Next:** Rebuild pyrrho data prep from published V7 plus the active 14,092-row V8 target-50 vault, then run the next ModernBERT 3-seed ablation.
+
+---
+
+## 2026-05-26 (morning) — fitz-gov V8 target-50 candidate pack prepared
+
+**What landed:**
+
+- Prepared whole-dataset target-50 batch specs at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target50/subagent_batches/`: **157** files / **4,694** slots.
+- Generated deterministic candidate rows at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target50/subagent_outputs/`: **157** `batch_*.jsonl` files / **4,694** rows.
+- Built offline QA artifacts at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_target50/`, including the blind-label queue, manifest, and **12** Codex blind shards.
+
+**What was learned:**
+
+- From the active **19,898-row** vault, target 50 needs **4,694** additional rows, not 4,252, because some cells are already above 50 while **472/483** cells are still below target.
+- Structural dry-run is clean: **4,694 accepted / 0 existing / 0 rejected**.
+- Projected post-merge target-50 coverage would be **483/483** primary cells at target with **0** total gap, recorded at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_target50/projected_gap_target50_after_candidate.json`.
+- This is candidate prep only: no blind-label predictions were run, and no rows were merged into the active vault.
+
+**Next:** Run Codex subagent blind-label QA for the target-50 pack, repair any triage rows, and merge only if the final score is **4,694/4,694** agreement with **0** missing/invalid/error.
+
+---
+
+## 2026-05-26 (morning) — fitz-gov V8 target-40 expansion merged
+
+**What landed:**
+
+- Expanded the fitz-gov deterministic V8 template generator to cover the 18 pre-V8 taxonomy patterns needed for whole-dataset target-40 completion.
+- Added target-40/Codex QA tooling: `C:/Users/yanfi/PycharmProjects/fitz-gov/scripts/sdgp_prepare_v8_target40_batches.py`, `scripts/sdgp_prepare_codex_blind_shards.py`, and `scripts/sdgp_materialize_codex_blind_predictions.py`.
+- Generated **5,198** target-40 rows under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target40/subagent_outputs/` and merged them as batch `v8_target40_template_20260526`.
+- Active fitz-gov vault is now **19,898 rows**: 10,500 V6/V7 + **9,398 V8**.
+
+**What was learned:**
+
+- Codex subagent blind QA was the right gate. First score was **5,135/5,198 agreement** with **63** triage rows, all isolated to `single_authoritative` samples 0/1 and `authority_conflict` sample 6.
+- Tightening those two template families produced a clean final score: **5,198/5,198 agreement**, **0 missing / 0 invalid / 0 error**, **0 triage** at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_target40/score_codex_subagents_combined/`.
+- Post-merge fitz-gov audits passed: V8 cohort **9,398** rows, training schema **9,398/9,398 complete**, split leakage **0**, target-40 coverage **483/483 cells at target / 0 gap**, and `python -m pytest tests/sdgp -q` passed **271** tests.
+
+**Next:** Rebuild pyrrho data prep from published V7 plus the active 9,398-row V8 target-40 vault, then run the next ModernBERT 3-seed ablation.
+
+---
+
+## 2026-05-25 (evening) — V8 target-40 batch specs prepared
+
+**What landed:**
+
+- Added `C:/Users/yanfi/PycharmProjects/fitz-gov/scripts/sdgp_prepare_v8_target40_batches.py` to prepare additive V8 batch specs for whole-dataset target filling.
+- Updated `C:/Users/yanfi/PycharmProjects/fitz-gov/docs/SDGP_TESTCASE_ADDITION_CYCLE.md` with the target-40 prep command.
+- Prepared `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_target40/subagent_batches/` with **174** batch specs / **5,198** slots.
+
+**What was learned:**
+
+- The prepared slots exactly match the target-40 gap report across the **18** pre-V8 patterns; the five V8 gap patterns are already at **40/cell** and were not targeted.
+- Verification passed with `pytest tests/sdgp/test_blind_label.py tests/sdgp/test_providers.py -q` (**32 passed**) and `pytest tests/sdgp -q` (**271 passed**).
+- This is candidate-spec prep only: no target-40 candidate rows have been generated, QA-scored, or merged into the active vault.
+
+**Next:** Generate matching `subagent_outputs/` JSONL files, run structural dry-run and offline blind-label QA, then merge only if the candidate pack is clean.
+
+---
+
+## 2026-05-25 (evening) — Claude merge rechecked before target-40 expansion
+
+**What landed:**
+
+- Verified the patched Claude V8 handoff is already merged in the active fitz-gov vault.
+- Ran an idempotent merge dry-run on the separate 315-row `standalone_35cell_topup_outputs` pack.
+- Updated `docs/HANDOFF.md` so the immediate next action is whole-dataset 40/cell generation, not another Claude merge.
+
+**What was learned:**
+
+- Active vault is still **14,700** rows: 10,500 V6/V7 + **4,200 V8**.
+- The active vault contains **3,360** rows from `v8_candidate_20260525_claude_expand_patched_124_template`.
+- The 315-row standalone top-up dry-run reports **0 accepted / 315 existing / 0 rejected**, so it is duplicate/already represented and should not be re-merged.
+- Full V8 QA remains **4,200/4,200 clean** and V8 training-schema completeness remains **4,200/4,200**.
+
+**Next:** Generate the **5,198** rows needed to bring the whole dataset to target **40/cell** across all **483** canonical generation cells.
+
+---
+
+## 2026-05-25 (evening) — pyrrho-MoE architecture spec written
+
+**What landed:**
+
+- Added `docs/PYRRHO_MOE_ARCHITECTURE.md` as the canonical `pyrrho-MoE-g3` architecture spec.
+- Linked the spec from `docs/INDEX.md`, `docs/ROADMAP.md`, and `docs/HANDOFF.md`.
+- Locked a baseline design for alignment: 24 layers, hidden size 1024, 20 MoE FFN layers, 4 dense FFN layers, 16 physical experts per MoE layer, top-1 routing, 64k tied embeddings, and grouped semantic experts.
+
+**What was learned:**
+
+- The feasible path is dense-to-MoE upcycling plus distillation, not random-initialized pretraining.
+- The baseline parameter math lands at roughly **3.95B total** and **0.412B active** under the inclusive counting convention, or **~0.35B active** excluding the full resident embedding matrix.
+- The old "7-8 experts" language has to mean semantic expert groups; the physical architecture needs more shards, here **16 physical experts/layer**, to hit the 4B-A0.4B sparsity ratio.
+
+**Next:** Search current permissive dense SLM seed candidates that match the baseline dimensions closely enough to upcycle, then implement param-count tooling and the tiny route prototype.
+
+---
+
+## 2026-05-25 (evening) — pyrrho-MoE target clarified
+
+**What landed:**
+
+- Clarified `docs/ROADMAP.md` so the terminal `pyrrho-MoE` target is custom 4B total / 0.4B active, initialized/distilled from pretrained teachers rather than naive full pretraining from scratch.
+- Updated `docs/PROJECT.md` to mark `LiquidAI/LFM2-8B-A1B` as a MoE proxy / teacher candidate, not the final pyrrho-MoE architecture.
+- Added the same clarification to `docs/HANDOFF.md` for fresh-session visibility.
+
+**What was learned:**
+
+- The docs had a real ambiguity: ROADMAP described a custom 4B-A0.4B MoE with pyrrho-defined experts and supervised routing, while older PROJECT language framed LFM2-8B-A1B as "the MoE release."
+- Current decision: keep the CPU target and custom expert design; use off-the-shelf models only as teachers, baselines, or temporary proxies.
+
+**Next:** Define the concrete custom 4B-A0.4B architecture and teacher-distillation plan before starting pyrrho-MoE-g3 implementation.
+
+---
+
+## 2026-05-25 (evening) — Whole-dataset 40/cell gap checked
+
+**What landed:**
+
+- Ran the gap detector over the full active fitz-gov vault, not just the five V8 gap patterns.
+- Wrote the dataset-wide target-40 report to `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/full_dataset_gap_target40_20260525.json`.
+
+**What was learned:**
+
+- Active vault size is **14,700** rows across **483** canonical generation cells.
+- Whole-dataset target **40/cell is not complete**: **119/483** cells are at target, **364** cells are below target, and the total gap is **5,198** rows.
+- The five V8 gap patterns are complete at 40/cell, but that must not be interpreted as whole-dataset 40/cell completion.
+
+**Next:** Decide whether to generate the **5,198** rows needed for whole-dataset 40/cell before running the next pyrrho training ablation.
+
+---
+
+## 2026-05-25 (evening) — V8 gap detector checked after Claude merge
+
+**What landed:**
+
+- Ran a targeted gap-detector check on the active fitz-gov vault and the patched Claude candidate pack.
+- Wrote the report to `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/gap_report_20260525_after_claude_patch.json`.
+
+**What was learned:**
+
+- The active merged vault has **105/105** V8 gap-pattern cells at **40 rows/cell** and **0** gap for targets 32 and 40.
+- The patched Claude pack alone is not full coverage: `authority_status_conflict` and `missing_execution_result` have **35 rows/cell**, while `resolved_candidate_selection`, `verdict_conflict`, and `version_build_mismatch` have **30 rows/cell**.
+- The active vault reaches 40/cell because the preexisting clean V8 rows supply the remainder: 5 rows/cell for the first two patterns and 10 rows/cell for the other three.
+- Global all-cell target 25 remains complete (**483/483** cells). Global all-cell target 30 still has the known V7-style stretch backlog (**1,575** rows), but that is not a V8 gap-pattern miss.
+
+**Next:** Treat V8 gap-pattern coverage as complete at 40/cell; the next pyrrho action remains the `g2.3-v8-claude4200` 3-seed run.
+
+---
+
+## 2026-05-25 (evening) — pyrrho V8 4,200-row prep staged
+
+**What landed:**
+
+- Prepared pyrrho data at `C:/Users/yanfi/PycharmProjects/pyrrho/data/processed_v8_claude4200` from published fitz-gov V7.0.1 plus the active 4,200-row local V8 vault.
+- Added `C:/Users/yanfi/PycharmProjects/pyrrho/configs/encoder/modernbert_base_g2_3_v8_claude4200.yaml` for the next ModernBERT ablation.
+
+**What was learned:**
+
+- Local V8 append counts are **train +3,373 / eval +389 / test +438**.
+- Prepared split sizes are **train=11,773 / eval=1,439 / test=1,488**.
+- This supersedes the old 840-row `g2.2` training input for any future V8 release decision.
+
+**Next:** Run `scripts/run_seeds.py` with `modernbert_base_g2_3_v8_claude4200.yaml` on `data/processed_v8_claude4200` for seeds 42, 1337, and 7.
+
+---
+
+## 2026-05-25 (evening) — Claude V8 handoff repaired and merged
+
+**What landed:**
+
+- Replaced the **124** Codex-subagent triage rows in the normalized Claude V8 candidate handoff with deterministic V8 template rows.
+- Wrote the patched candidate pack to `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_candidate_20260525_claude_expand/subagent_outputs_patched_124_template/`.
+- Rebuilt candidate QA at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_candidate_20260525_claude_expand_patched_124_template/`.
+- Backed up the pre-merge vault as `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_vault_v51_enriched/cases.before_claude_patched_merge_20260525T204433+0200.jsonl`.
+- Merged the patched pack into the active fitz-gov vault as batch `v8_candidate_20260525_claude_expand_patched_124_template`.
+
+**What was learned:**
+
+- Patched candidate structural dry-run passed: **3,360 accepted / 0 existing / 0 rejected**.
+- Patched candidate blind-label QA passed: **3,360/3,360 agreement**, **0 missing / 0 invalid / 0 error**, **0 triage**.
+- Merge result was **3,360 added / 0 duplicate**, bringing the vault to **14,700 total rows** = 10,500 V6/V7 + **4,200 V8**.
+- Full V8 audit is clean at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/clean_4200_score/`: **4,200/4,200 agreement**, **0 triage**, **0 missing / 0 invalid / 0 error**.
+- V8 training-schema completeness is **4,200/4,200** at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_v8_qa/training_schema_summary.json`.
+- The previous `pyrrho-nano-g2.2` run is now an 840-row ablation, not a publish candidate for the active V8 vault.
+
+**Next:** Prepare a new pyrrho V7+4,200-row V8 dataset and run a fresh 3-seed ModernBERT ablation before making any release decision.
+
+---
+
+## 2026-05-25 (evening) — Codex subagent QA on Claude V8 handoff
+
+**What landed:**
+
+- Ran independent blind-label QA on the normalized Claude V8 candidate handoff using Codex `gpt-5.4-mini` subagents.
+- Kept the subagent queue blind by exposing only query/context payloads with anonymized blind IDs, not case IDs, gold labels, taxonomy cells, or manifest metadata.
+- Wrote combined predictions to `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_candidate_20260525_claude_expand_normalized/blind_label_predictions_codex_subagents_combined.jsonl`.
+- Scored the combined run at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_candidate_20260525_claude_expand_normalized/score_codex_subagents_combined/`.
+
+**What was learned:**
+
+- First blind pass scored **3,013/3,360 agreement** with **347** triage rows and **0 missing / 0 invalid / 0 error**.
+- A policy retry on those 347 rows recovered **223** rows.
+- Final combined score is **3,236/3,360 agreement** (**96.31%**) with **124** triage rows and **0 missing / 0 invalid / 0 error**.
+- Residual triage is concentrated in `authority_status_conflict` (**53**), `verdict_conflict` (**32**), and `version_build_mismatch` (**27**). The common failure mode is over-resolving to TRUSTWORTHY when the row was intended to surface a conflict or mismatch.
+- The candidate handoff is structurally clean but not QA-clean; it remains non-training data.
+
+**Next:** Repair or remove the 124 triage rows, then rebuild and re-score candidate QA before any active-vault merge or pyrrho retrain.
+
+---
+
+## 2026-05-25 (evening) — Claude V8 handoff normalized
+
+**What landed:**
+
+- Added fitz-gov `scripts/sdgp_normalize_v8_candidate_handoff.py` to normalize the Claude V8 candidate handoff without touching the active vault.
+- Produced normalized candidate outputs at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_handoff_v8_candidate_20260525_claude_expand/subagent_outputs_normalized/`.
+- Built offline QA files at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/sdgp_qa_v8_candidate_20260525_claude_expand_normalized/`.
+
+**What was learned:**
+
+- The repair recovered **2,646** unique Claude rows from **89** raw output files, including CP1252/non-UTF8 and concatenated JSON rows.
+- **714** missing slots were filled with deterministic V8 template fallback rows, producing the full planned **3,360-row / 113-batch** candidate set.
+- Structural dry-run now passes: **3,360 accepted / 0 existing / 0 rejected**.
+- LM Studio/Qwen healthcheck passed, and the required 10-row pilot scored **10/10 agreement**, **0 missing / 0 invalid / 0 error**.
+- This is still not active V8 data and still not pyrrho training data; full candidate blind-label QA is pending.
+
+**Next:** Run full candidate blind-label QA on the normalized 3,360-row queue; merge only if QA is 3,360/3,360 clean.
+
+---
+
 ## 2026-05-25 (evening) — V8 Claude candidate handoff documented
 
 **What landed:**
