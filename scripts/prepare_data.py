@@ -1,10 +1,10 @@
 """
-prepare_data.py — Convert fitz-gov V7 into HF datasets for pyrrho training.
+prepare_data.py — Convert fitz-gov into HF datasets for pyrrho training.
 
 Default source is the published Hugging Face contract:
-`yafitzdev/fitz-gov`, config `v7`, revision `v7.0.1`. The script preserves
-the query-grouped split contract: train=8,400, validation/eval=1,050,
-test=1,050.
+`yafitzdev/fitz-gov`, config `v8`, revision `v8.0.0`. The script preserves
+the query-grouped split contract: train=19,674, validation/eval=2,459,
+test=2,459.
 
 Local vault mode remains available for development; when no published split
 assignment is provided, it falls back to the historical stratified 80/20 split.
@@ -26,7 +26,8 @@ Produces:
     {output}/hf_dataset/         — HF DatasetDict for direct use with Trainer
 
 Run from project root:
-    python scripts/prepare_data.py --hf yafitzdev/fitz-gov --output data/processed_v7
+    python scripts/prepare_data.py --output data/processed_v8
+    python scripts/prepare_data.py --hf yafitzdev/fitz-gov --hf-config v7 --hf-revision v7.0.1 --output data/processed_v7
     python scripts/prepare_data.py --output data/processed_v8_probe \
       --append-local-vault ../fitz-gov/data/sdgp_vault_v51_enriched \
       --append-local-manifest ../fitz-gov/data/sdgp_v8_qa/blind_label_manifest.jsonl
@@ -286,14 +287,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hf-config",
         type=str,
-        default="v7",
-        help="HuggingFace dataset config to load (default: v7).",
+        default="v8",
+        help="HuggingFace dataset config to load (default: v8).",
     )
     parser.add_argument(
         "--hf-revision",
         type=str,
-        default="v7.0.1",
-        help="HuggingFace revision/tag to load (default: v7.0.1). Use empty string for main.",
+        default="v8.0.0",
+        help="HuggingFace revision/tag to load (default: v8.0.0). Use empty string for main.",
     )
     parser.add_argument(
         "--output",
@@ -397,7 +398,7 @@ def main() -> int:
         eval_ = [normalize_case(c, args.num_classes) for c in raw_splits["eval"]]
         test = [normalize_case(c, args.num_classes) for c in raw_splits.get("test", [])]
         tier0 = [normalize_case(c, args.num_classes) for c in raw_splits.get("tier0_sanity", [])]
-        print("\nUsing published split contract; --train-ratio/--seed do not resplit V7.")
+        print("\nUsing published split contract; --train-ratio/--seed do not resplit HF data.")
     else:
         all_cases = raw_splits["all"]
         raw_tier1 = [c for c in all_cases if c.get("tier", 1) == 1 or c.get("id", "").startswith("t1_")]

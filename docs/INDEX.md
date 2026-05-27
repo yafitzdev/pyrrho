@@ -12,8 +12,9 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 | 2 | [LOG.md](LOG.md) | **Project history.** Append-only reverse-chronological log of findings, decisions, and experiments. Read for the *why* and the *when*. | When HANDOFF.md mentions something you don't have context on. |
 | 3 | [PROJECT.md](PROJECT.md) §1–§5 | Vision, the fitz-gov / fitz-sage / pyrrho triangle, baseline to beat, encoder-vs-SLM rationale. | When you need *why* anything was decided structurally. |
 | 4 | [METHODOLOGY.md](METHODOLOGY.md) | End-to-end model-development pipeline. The 8-step process every release follows. | Before producing any new release. |
-| 5 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
-| 6 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
+| 5 | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) | Canonical `pyrrho-MoE` architecture spec: 4B-A0.4B parameter math, expert layout, upcycling/distillation plan, training gates. | Before touching MoE implementation or model selection. |
+| 6 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
+| 7 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
 
 ---
 
@@ -24,7 +25,12 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 | Repository-wide overview | [../README.md](../README.md) |
 | Training configs (encoder) | [../configs/encoder/](../configs/encoder/) |
 | Training configs (SLM) | [../configs/slm/](../configs/slm/) |
+| Training configs (MoE) | [../configs/moe/](../configs/moe/) |
 | Hyperparameter sweep grids | [../configs/sweep_grids/](../configs/sweep_grids/) |
+| `pyrrho-MoE` architecture spec | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) |
+| Current MoE seed scan | [MOE_SEED_SEARCH_2026-05-26.md](MOE_SEED_SEARCH_2026-05-26.md) |
+| Current MoE upcycling decision | [MOE_UPCYCLING_DECISION_2026-05-26.md](MOE_UPCYCLING_DECISION_2026-05-26.md) |
+| Public model card template | [MODEL_CARD_TEMPLATE.md](MODEL_CARD_TEMPLATE.md) |
 | Python library | [../src/pyrrho/](../src/pyrrho/) |
 | CLI scripts | [../scripts/](../scripts/) |
 | Pytest suites | [../tests/](../tests/) |
@@ -43,15 +49,17 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 
 Full validation methodology and per-seed numbers in [HANDOFF.md](HANDOFF.md). Pipeline that produced these in [METHODOLOGY.md](METHODOLOGY.md). The story of how we got these numbers (5 hyperparameter attempts, 3-seed validation, smoke test) lives in [LOG.md](LOG.md).
 
-`pyrrho-nano-g2` is now published at [`yafitzdev/pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2). Held-out V7 test, 3-seed mean ± std: **95.24 ± 0.48%** accuracy and **3.48 ± 0.40%** false-trustworthy. The local release mirror is `models/pyrrho-nano-g2/`.
+`pyrrho-nano-g2` is published at [`yafitzdev/pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2). Held-out V7 test, 3-seed mean ± std: **95.24 ± 0.48%** accuracy and **3.48 ± 0.40%** false-trustworthy. The local release mirror is `models/pyrrho-nano-g2/`.
+
+`pyrrho-nano-g3` is published at [`yafitzdev/pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3). Held-out V8 test, 3-seed mean ± std: **97.52 ± 0.43%** accuracy and **1.42 ± 0.16%** false-trustworthy. The local release mirror is `models/pyrrho-nano-g3/`.
 
 ---
 
 ## Current dataset state
 
-Published benchmark contract for new `g2` work: `yafitzdev/fitz-gov` **V7.0.1**, 10,500 query-grouped rows. V6.0.0 remains the 2,980-row enriched baseline for V6 apples-to-apples comparisons.
+Published benchmark contract for new work: `yafitzdev/fitz-gov` **V8.0.0**, 24,592 query-grouped rows. V7.0.1 remains the published `pyrrho-nano-g2` contract, and V6.0.0 remains the 2,980-row enriched baseline for V6 apples-to-apples comparisons.
 
-Published V7: `yafitzdev/fitz-gov` **v7.0.1** on Hugging Face, **10,500 rows** total: 2,980 V6 + 7,520 V7. Default config `v7` has query-grouped splits: train=8,400 / validation=1,050 / test=1,050. V7.0.1 is schema-clean: public rows expose SDGP/expert/difficulty fields and do not include the old report axes. Target 25/cell is complete across all 378 primary cells, V6/V7 strict rich-schema audit is clean, canonical `evaluation` is complete across all rows, blind-label QA is **7,520 / 7,520 validated** with **0 triage**, and cross-label exact-query review has **0 unresolved pairs**. V7 is now the published `g2` training contract.
+Published V8: `yafitzdev/fitz-gov` **v8.0.0** on Hugging Face, **24,592 rows** total: V6 2,980 + V7 7,520 + V8 14,092. Default config `v8` has query-grouped splits: train=19,674 / validation=2,459 / test=2,459. Local pyrrho prep is available at `data/processed_v8`; MoE multitask prep is available at `data/moe_v8` with a strict audit showing **0** required-field misses.
 
 ---
 

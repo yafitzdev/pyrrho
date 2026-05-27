@@ -17,6 +17,7 @@ Run from project root:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import sys
 from pathlib import Path
 
@@ -26,6 +27,12 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 REQUIRED_FILES = ("config.json", "tokenizer.json", "tokenizer_config.json", "README.md")
 OPTIONAL_FILES = ("model.safetensors", "model.onnx", "model_quantized.onnx", "special_tokens_map.json")
+IGNORE_PATTERNS = (".cache/**", "*.log")
+
+
+def should_ignore(path: Path) -> bool:
+    rel = path.as_posix()
+    return any(fnmatch.fnmatch(rel, pattern) for pattern in IGNORE_PATTERNS)
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,8 +54,11 @@ def main() -> int:
         return 1
 
     # File checks
-    files = list(release.rglob("*"))
-    files = [f for f in files if f.is_file()]
+    files = [
+        f
+        for f in release.rglob("*")
+        if f.is_file() and not should_ignore(f.relative_to(release))
+    ]
     print(f"Release dir   : {release}")
     print(f"Total files   : {len(files)}")
     by_name = {f.name for f in files}
@@ -91,6 +101,7 @@ def main() -> int:
             repo_id=args.repo_id,
             repo_type="model",
             private=args.private,
+            ignore_patterns=list(IGNORE_PATTERNS),
             num_workers=4,
             print_report=True,
             print_report_every=60,
@@ -101,6 +112,7 @@ def main() -> int:
             folder_path=str(release),
             repo_id=args.repo_id,
             commit_message=commit_message,
+            ignore_patterns=list(IGNORE_PATTERNS),
         )
 
     print(f"\nDONE. Live at: https://huggingface.co/{args.repo_id}")

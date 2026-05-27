@@ -24,7 +24,7 @@ Model names follow the pattern: `pyrrho-{tier}-{generation}`
 |---|---|---|
 | `pyrrho-nano` | Fine-tuned encoder (ModernBERT-class) | CPU-efficient classifier, fast single forward pass |
 | `pyrrho-small` | Fine-tuned generative SLM | Reasoning-capable, classification + rationale output |
-| `pyrrho-MoE` | Sparse MoE, trained from scratch | Full RAG runtime, 4B total / 0.4B active parameters |
+| `pyrrho-MoE` | Custom sparse MoE, initialized/distilled from pretrained teachers | Full RAG runtime, 4B total / 0.4B active parameters |
 
 ### Generations
 
@@ -44,7 +44,7 @@ Generations are suffixed by dataset version trained on:
 - `pyrrho-nano-g1.1` — same architecture, retrained on fitz-gov V6 for apples-to-apples comparison on the enriched schema
 - `pyrrho-nano-g2` — retrained on fitz-gov V7.0.1 (SDGP-scaled, schema-clean; 10,500 rows published on Hugging Face)
 - `pyrrho-small-g2` — generative SLM fine-tuned on fitz-gov V7
-- `pyrrho-MoE-g3` — full sparse MoE trained from scratch on fitz-gov V8
+- `pyrrho-MoE-g3` — custom sparse MoE post-trained/distilled on fitz-gov V8
 
 ---
 
@@ -59,7 +59,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | V5.1 | 2,980 cases | Original baseline (no schema enrichment) |
 | **V6** | **2,980 cases** | **LLM-enriched schema overlay on V5.1. Published 2026-05-20 as `yafitzdev/fitz-gov` v6.0.0; now the enriched-baseline reference, not the current default contract.** |
 | V7 | Published as V7.0.1 | SDGP-scaled benchmark across the existing 7 primary domains, taxonomy × domain × difficulty matrix coverage, MoE training base. **Current `g2` HF contract: 10,500 rows = 2,980 V6 + 7,520 V7, default `v7` query-grouped splits, strict V6/V7 schema complete, canonical `evaluation` block complete, target 25/cell complete, blind-label/cross-label QA passed, public rows schema-clean with no pre-SDGP report axes.** |
-| V8 | 15,000–20,000 cases | Generalization, uncertainty calibration, adversarial cases, and focused single-domain expansions where a domain merits deeper specialist coverage |
+| V8 | Published as V8.0.0 | Generalization, uncertainty calibration, adversarial taxonomy gaps, and target-50 whole-dataset expansion. **Current default HF contract: 24,592 rows = 2,980 V6 + 7,520 V7 + 14,092 V8, default `v8` query-grouped splits train=19,674 / validation=2,459 / test=2,459, target-50 coverage complete across 483/483 cells, full V8 second-pass QA clean.** |
 | V9+ | 30,000+ cases | Infrastructure-grade reliability, false-trustworthy floor |
 
 ### Data Volume vs. Capability
@@ -71,7 +71,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | 15,000–30,000 | Generalization kicks in. Governance signals become calibrated, not just directional |
 | 30,000+ | False-trustworthy approaches floor. Routing stable enough to expose as signal. Infrastructure-grade |
 
-Current status as of 2026-05-24: fitz-gov V7.0.1 is published on Hugging Face as the `g2` training contract. It has **10,500 rows** with default `v7` query-grouped splits (train=8,400 / validation=1,050 / test=1,050), complete V6/MoE training schema on all **7,520 V7** rows, canonical `evaluation` on every row, and evaluator quality constraints on all **2,348 V7 TRUSTWORTHY** rows. V7.0.1 is schema-clean: public rows use `taxonomy.pattern`, `taxonomy.cell_id`, `routing.expert_fired`, and `meta.difficulty` rather than old report axes. Target 25/cell is complete across all 378 primary cells using the original 7 primary domains. Full LM Studio `qwen3.6-35b-a3b` blind-label QA is **7,520 / 7,520 validated** with **0 triage**; cross-label exact-query review has **0 unresolved pairs**. New domain additions, including automotive/ECU test analysis, are deferred to V8 so V7 stays a balanced baseline rather than shifting scope mid-release.
+Current status as of 2026-05-26: fitz-gov V8.0.0 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, and stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050).
 
 ### Distribution Requirements
 
@@ -334,6 +334,8 @@ Distribution Monitor (updated)
 
 ## 5. MoE Architecture Specification
 
+Canonical detailed spec: [`PYRRHO_MOE_ARCHITECTURE.md`](PYRRHO_MOE_ARCHITECTURE.md). This ROADMAP section is the short product-level summary; the architecture doc owns exact parameter math, layer layout, expert grouping, construction method, losses, and implementation gates.
+
 ### Target Architecture
 
 ```
@@ -345,6 +347,8 @@ pyrrho-MoE
 ├── Inference target:   CPU-only, universally deployable
 └── Parallelism:        Per-chunk tasks parallelizable across CPU cores
 ```
+
+This is the terminal pyrrho-MoE target, not a renamed off-the-shelf MoE checkpoint. The model should use pyrrho-defined experts and supervised routing from fitz-gov (`routing.expert_fired`). Because full general-language pretraining from scratch is outside the project budget, the practical path is architecture-first post-training: initialize/distill from one or more pretrained small-language-model teachers, then train the custom sparse expert layout on fitz-gov's governance/routing tasks. Off-the-shelf MoEs such as LFM2-8B-A1B can be used as comparison baselines, teachers, or temporary portfolio proxies, but they are not the final pyrrho-MoE architecture.
 
 ### Expert Domains (7–8 experts)
 
@@ -607,13 +611,13 @@ The complete output of a pyrrho-MoE inference pass:
 - Adversarial evaluation set held out — not used for training, only evaluation
 - Publish adversarial cell distribution alongside dataset so others can target the same failure modes
 
-**Output:** fitz-gov V8, 15,000–20,000 cases. Adversarial eval set published separately with cell-level breakdown.
+**Output:** fitz-gov V8.0.0 is published at **24,592 cases** with target-50 whole-dataset coverage. A separate adversarial eval set remains future work.
 
 ---
 
-### Phase 5 — pyrrho-MoE-g3 (train from scratch)
+### Phase 5 — pyrrho-MoE-g3 (custom 4B-A0.4B post-training)
 
-**Goal:** Train the terminal architecture on fitz-gov V8.
+**Goal:** Train the terminal custom sparse architecture on fitz-gov V8 while preserving enough pretrained language competence through initialization/distillation.
 
 #### Architecture decisions
 - 4B total / 0.4B active parameters
@@ -624,7 +628,12 @@ The complete output of a pyrrho-MoE inference pass:
 
 #### Training stages
 
-**Stage 1 — Supervised multi-task pre-training**
+**Stage 0 — Teacher initialization / distillation**
+- Select one or more 2026-vintage permissive small-language-model teachers with strong CPU-runnable general knowledge
+- Distill general instruction behavior into the custom sparse layout before governance specialization
+- Keep the deployed artifact within the 4B total / 0.4B active CPU target; teacher models are not the deployed pyrrho-MoE
+
+**Stage 1 — Supervised multi-task governance post-training**
 - All 16 v1 output heads trained simultaneously on fitz-gov V8
 - Routing loss + per-task losses combined
 - Verify expert specialization emerging every few epochs: inspect which experts fire on which domains

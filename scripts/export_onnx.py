@@ -57,10 +57,11 @@ def main() -> int:
     # removed from transformers internals.
     print("\nImporting torch + onnxruntime...")
     import importlib
+
     import numpy as np
     import onnx
-    import torch
     import onnxruntime as ort
+    import torch
     from onnxruntime.quantization import QuantType
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -161,7 +162,7 @@ def main() -> int:
     probs = np.exp(logits - logits.max(axis=-1, keepdims=True))
     probs /= probs.sum(axis=-1, keepdims=True)
     labels = ["ABSTAIN", "DISPUTED", "TRUSTWORTHY"]
-    print(f"      Sample input  : speed of light, single source")
+    print("      Sample input  : speed of light, single source")
     print(f"      Predicted     : {labels[int(probs.argmax())]} "
           f"(probs: A={probs[0,0]:.3f}, D={probs[0,1]:.3f}, T={probs[0,2]:.3f})")
     print(f"      Smoke-test done in {time.time() - t0:.2f}s")

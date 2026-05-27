@@ -4,15 +4,15 @@
 
 # pyrrho
 
-### Fine-tuned classification models that decide when your RAG should answer — without an LLM call.
+### A RAG governance co-processor that helps decide when your system should answer, abstain, or flag a dispute.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-v1-green.svg)](docs/LOG.md)
-[![🤗 Model](https://img.shields.io/badge/🤗%20Model-yafitzdev%2Fpyrrho--nano--g1-yellow)](https://huggingface.co/yafitzdev/pyrrho-nano-g1)
+[![🤗 Model](https://img.shields.io/badge/🤗%20Model-yafitzdev%2Fpyrrho--nano--g3-yellow)](https://huggingface.co/yafitzdev/pyrrho-nano-g3)
 [![🤗 Dataset](https://img.shields.io/badge/🤗%20Dataset-yafitzdev%2Ffitz--gov-yellow)](https://huggingface.co/datasets/yafitzdev/fitz-gov)
 
-[Why pyrrho?](#why-pyrrho) • [Results](#headline-results) • [Roadmap](#family-roadmap) • [Usage](#-where-to-start) • [Docs](#documentation) • [GitHub](https://github.com/yafitzdev/pyrrho) • [🤗 HuggingFace](https://huggingface.co/yafitzdev/pyrrho-nano-g1)
+[Why pyrrho?](#why-pyrrho) • [Results](#headline-results) • [Roadmap](#family-roadmap) • [Usage](#-where-to-start) • [Docs](#documentation) • [GitHub](https://github.com/yafitzdev/pyrrho) • [🤗 HuggingFace](https://huggingface.co/yafitzdev/pyrrho-nano-g3)
 
 </div>
 
@@ -52,7 +52,7 @@ Requires:  nothing — self-contained
   </tr>
 </table>
 
-  → A 150 MB CPU-friendly classifier that beats the prior pipeline by **+7.43 accuracy points** and **~50× speedup**, with no LLM dependency at inference.
+  → A 150 MB CPU-friendly evidence governor that reduces unsupported-answer hallucinations in one forward pass, with no LLM dependency at inference.
 
 </div>
 
@@ -61,14 +61,14 @@ Requires:  nothing — self-contained
 ### 🚀 Where to start
 
 > [!IMPORTANT]
-> The model lives on **🤗 HuggingFace** as [`yafitzdev/pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1). Drop it into any RAG pipeline that needs a governance gate.
+> The latest nano encoder lives on **🤗 HuggingFace** as [`yafitzdev/pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3). Drop it into any RAG pipeline that needs an evidence gate before answer generation.
 
 ```python
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
-tokenizer = AutoTokenizer.from_pretrained("yafitzdev/pyrrho-nano-g1")
-model = AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-nano-g1").eval()
+tokenizer = AutoTokenizer.from_pretrained("yafitzdev/pyrrho-nano-g3")
+model = AutoModelForSequenceClassification.from_pretrained("yafitzdev/pyrrho-nano-g3").eval()
 
 query = "Has the company achieved profitability?"
 contexts = [
@@ -80,20 +80,24 @@ text = f"Question: {query}\n\nSources:\n" + "\n".join(f"[{i}] {c}" for i, c in e
 with torch.no_grad():
     probs = torch.softmax(model(**tokenizer(text, return_tensors="pt", truncation=True)).logits[0], dim=-1).numpy()
 print({"ABSTAIN": probs[0], "DISPUTED": probs[1], "TRUSTWORTHY": probs[2]})
-# → DISPUTED ≈ 0.55
+# → DISPUTED
 ```
 
-For **production CPU inference at ~30 ms/query**, use the INT8 ONNX variant via `optimum`. Full usage in the [model card](https://huggingface.co/yafitzdev/pyrrho-nano-g1#cpu-optimized-onnx--int8).
+For **production CPU inference at ~30 ms/query**, use the INT8 ONNX variant via `optimum`. Full usage is in the [model card](https://huggingface.co/yafitzdev/pyrrho-nano-g3#cpu-onnx).
+
+Output contract: the nano encoder emits governance logits only. A product wrapper should expose a normalized decision object with `label`, `raw_label`, `logits`, `probabilities`, `confidence`, `trustworthy_probability`, `threshold`, and `used_threshold_fallback`. It does not detect taxonomy/category tags, routes, source spans, citations, retrieval results, or explanations; taxonomy/category fields in reports are benchmark metadata. Route, taxonomy, and scalar heads are part of the experimental MoE track.
 
 ---
 
 ### About
 
+`pyrrho` is a governance co-processor for RAG. It sits between retrieval and generation, or beside a generator as a fast guardrail, and decides whether the retrieved evidence is sufficient to answer, contradictory, or insufficient. It does not write the answer and it does not check the open web; it governs whether the evidence already in the RAG context is safe to answer from.
+
 Most RAG governance is either **(a) a black-box LLM call** ("ask GPT-4 if these sources support the answer" — slow, expensive, non-deterministic) or **(b) a feature-engineered classifier** (~108 hand-crafted signals fed into sklearn — cheap but capped at ~79% accuracy on hard benchmarks). I built `pyrrho` to replace both with a single fine-tuned encoder that runs at **30 ms on CPU** and **beats both approaches on a public benchmark**.
 
 The architecture call: pure encoder (ModernBERT-base, 149M params) — not a generative SLM, not an LLM. For 3-class classification with constrained label space, encoder + INT8 ONNX is 50–100× faster on CPU than the same task with a generative model, and **doesn't lose accuracy** when the labels are categorical and the input fits in 4K tokens (as RAG retrievals almost always do).
 
-It's the model that powers governance in [`fitz-sage`](https://github.com/yafitzdev/fitz-sage) (the RAG library). `pyrrho-nano-g1` is benchmarked against the original [`fitz-gov`](https://github.com/yafitzdev/fitz-gov) V5.1 eval hold-out; [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) is the published encoder baseline for the fitz-gov V7.0.1 contract with 10,500 query-grouped rows. The three projects form a triangle — benchmark, models, library.
+It's the model family that powers governance in [`fitz-sage`](https://github.com/yafitzdev/fitz-sage) (the RAG library). `pyrrho-nano-g1` is the current fitz-sage production backend; [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) is the published V7 encoder baseline; [`pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3) is the current V8 encoder release. The three projects form a triangle: benchmark, models, library.
 
 Yan Fitzner — ([LinkedIn](https://www.linkedin.com/in/yan-fitzner/), [GitHub](https://github.com/yafitzdev)).
 
@@ -101,7 +105,19 @@ Yan Fitzner — ([LinkedIn](https://www.linkedin.com/in/yan-fitzner/), [GitHub](
 
 ### Headline results
 
-Release v1 — `pyrrho-nano-g1` vs the published `fitz-sage` v0.11 sklearn baseline. 3-seed mean ± std on the [`fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov) V5.1 eval hold-out (584 cases, stratified 20% from `tier1_core`):
+Latest encoder — `pyrrho-nano-g3` on published fitz-gov V8.0.0 default `v8` splits. 3-seed mean ± std on the 2,459-row held-out test split; validation is used only for checkpoint and threshold selection:
+
+| Metric | **pyrrho-nano-g3** |
+|---|---|
+| Overall accuracy | **97.52 ± 0.43 %** |
+| False-trustworthy rate (safety) | **1.42 ± 0.16 %** |
+| Trustworthy recall | **96.28 ± 0.83 %** |
+| Disputed recall | **98.34 ± 0.24 %** |
+| Abstain recall | **97.83 ± 0.76 %** |
+
+Artifacts: [`yafitzdev/pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3), local mirror `models/pyrrho-nano-g3/`, `outputs/multi_seed_g3_v8/summary.json`, `outputs/multi_seed_g3_v8/seed_*/best_model/`, and `configs/encoder/modernbert_base_g3_v8.yaml`.
+
+Release v1 — `pyrrho-nano-g1` vs the published `fitz-sage` v0.11 sklearn baseline. 3-seed mean ± std on the [`fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov) V5.1 eval hold-out (584 cases):
 
 | Metric | **pyrrho v1** | sklearn baseline | Δ |
 |---|---|---|---|
@@ -162,7 +178,7 @@ Three tiers, generation-suffixed by the fitz-gov data version they were trained 
 - **`pyrrho-small`** — fine-tuned generative SLM (1–3B dense). Classification + reasoning trace.
 - **`pyrrho-MoE`** — sparse Mixture-of-Experts trained from scratch (4B total / 0.4B active). The terminal architecture; covers 16 RAG governance capabilities in v1.
 
-Dataset status, 2026-05-24: published fitz-gov is **V7.0.1** on HuggingFace. Default config `v7` has **10,500 rows** (2,980 V6 + 7,520 V7) with query-grouped splits: train=8,400 / validation=1,050 / test=1,050. V7.0.1 is the schema-clean contract: public rows use SDGP fields and do not expose the old `meta.domain`, `meta.subcategory`, `meta.reasoning_type`, `meta.query_type`, or `meta.evidence_pattern` axes. Target-25 coverage is complete across all 378 primary cells, strict V6/V7 schema completion is clean, canonical `evaluation` is complete, blind-label QA is **7,520 validated / 0 triage**, and cross-label exact-query review has **0 unresolved pairs**. V7 is now the `g2` training contract.
+Dataset status, 2026-05-26: published fitz-gov is **V8.0.0** on Hugging Face. Default config `v8` has **24,592 rows** (2,980 V6 + 7,520 V7 + 14,092 V8) with query-grouped splits: train=19,674 / validation=2,459 / test=2,459. V8.0.0 is the current `g3` training contract; V7.0.1 remains the published `g2` contract.
 
 <br>
 
@@ -171,8 +187,9 @@ Dataset status, 2026-05-24: published fitz-gov is **V7.0.1** on HuggingFace. Def
 | [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | encoder | 149M | ✅ **live on HF** (trained on fitz-gov V5.1) |
 | `pyrrho-nano-g1.1` | encoder | 149M | local V6 retrain attempted; not released; superseded by `pyrrho-nano-g2` |
 | [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) | encoder | 149M | **live on HF** (trained on fitz-gov V7.0.1 schema-clean contract); **95.24 ± 0.48% acc / 3.48 ± 0.40% FT** on held-out V7 test |
-| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — first SLM on QA-passed V7, classification + rationale, RL fine-tuned (ROADMAP Phase 3) |
-| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | planned — trained from scratch on V8; 7–8 domain experts + conflict-detection meta-expert; full 16-capability RAG runtime (ROADMAP Phase 5) |
+| [`pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3) | encoder | 149M | **live on HF** (trained on fitz-gov V8.0.0); **97.52 ± 0.43% acc / 1.42 ± 0.16% FT** on held-out V8 test |
+| `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — V8 SLM baseline with asymmetric safety pressure or RL fine-tuning |
+| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | experimental — Stage 0 prototype and Qwen upcycling scaffold run locally; next lever is router-aware distillation or custom sparse-expert adapters |
 | `pyrrho-MoE-g4` | sparse MoE | 4B total / 0.4B active | planned — V9+ retrain, infrastructure-grade reliability (ROADMAP Phase 6) |
 
 Full release roadmap, expert specifications, evaluation metrics, and publication strategy in [`docs/ROADMAP.md`](docs/ROADMAP.md). The older 10-release breakdown in [`docs/PROJECT.md §10`](docs/PROJECT.md) is retained for historical context but superseded.
@@ -203,6 +220,7 @@ pyrrho/
 ├── configs/
 │   ├── encoder/        ← ModernBERT-base, DeBERTa-v3-large (3-class + 4-class)
 │   ├── slm/            ← Qwen3.5-2B, LFM2.5-1.2B, LFM2-8B-A1B MoE
+│   ├── moe/            ← custom pyrrho-MoE configs and upcycling probes
 │   └── sweep_grids/    ← hyperparameter sweep grids
 ├── tests/              ← pytest suites (smoke regression guard)
 ├── data/               ← (gitignored) processed splits from prepare_data.py
@@ -229,23 +247,23 @@ python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\Activate.
 pip install torch --index-url https://download.pytorch.org/whl/cu128   # Blackwell wheels
 pip install -e ".[encoder,hub,dev]"
 
-# 2. Prepare V7 data from the published HF dataset
-python scripts/prepare_data.py --output data/processed_v7
+# 2. Prepare V8 data from the published HF dataset
+python scripts/prepare_data.py --output data/processed_v8
 
 # 3. Verify the environment (driver / CUDA / bitsandbytes / Blackwell)
 python scripts/verify_env.py
 
-# 4. Train the V7 encoder baseline (~3–5 min/run on RTX 5090 depending on contention)
-python scripts/train_encoder.py --config configs/encoder/modernbert_base_g2.yaml --data-dir data/processed_v7 --no-wandb
+# 4. Train the V8 encoder (~10 min/seed on RTX 5090 depending on contention)
+python scripts/train_encoder.py --config configs/encoder/modernbert_base_g3_v8.yaml --data-dir data/processed_v8 --no-wandb
 
 # 5. Multi-seed validation — produces the published mean ± std
-python scripts/run_seeds.py --config configs/encoder/modernbert_base_g2.yaml --data-dir data/processed_v7 --base-output-dir outputs/multi_seed_g2 --seeds 42 1337 7
+python scripts/run_seeds.py --config configs/encoder/modernbert_base_g3_v8.yaml --data-dir data/processed_v8 --base-output-dir outputs/multi_seed_g3_v8 --seeds 42 1337 7
 
-# 6. Full per-breakdown evaluation (difficulty / expert / taxonomy_pattern / taxonomy_cell_id)
-python scripts/eval_report.py --checkpoint outputs/multi_seed_g2/seed_42/best_model --data-dir data/processed_v7 --output outputs/multi_seed_g2/seed_42/eval_report.json
+# 6. Full evaluation report
+python scripts/eval_report.py --checkpoint outputs/multi_seed_g3_v8/seed_42/best_model --data-dir data/processed_v8 --output outputs/multi_seed_g3_v8/seed_42/eval_report.json
 
 # 7. Compare to the sklearn baseline OR an existing pyrrho release
-python scripts/compare_runs.py baseline outputs/multi_seed_g2/summary.json
+python scripts/compare_runs.py baseline outputs/multi_seed_g3_v8/summary.json
 
 # 8. Smoke test regression guard (10 handcrafted cases)
 pytest tests/test_smoke.py -v
@@ -273,7 +291,7 @@ Full methodology, release gates, and W&B conventions in [`docs/METHODOLOGY.md`](
 ### Related projects
 
 - [**`fitz-sage`**](https://github.com/yafitzdev/fitz-sage) — production RAG library that uses `pyrrho` for governance.
-- [**`fitz-gov`**](https://github.com/yafitzdev/fitz-gov) — benchmark for RAG epistemic honesty. Published HF version is V7.0.1 with 10,500 query-grouped rows. Also on HF: [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov).
+- [**`fitz-gov`**](https://github.com/yafitzdev/fitz-gov) — benchmark for RAG epistemic honesty. Published HF version is V8.0.0 with 24,592 query-grouped rows. Also on HF: [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov).
 
 The three projects form a triangle: `fitz-gov` defines the eval contract, `pyrrho` produces the models, `fitz-sage` consumes them in production.
 

@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import subprocess
+import sys
 from pathlib import Path
+from statistics import median
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -107,28 +108,59 @@ def main() -> int:
     model_name = args.model_id.split("/")[-1]
     citation_key = "".join(ch if ch.isalnum() else "_" for ch in model_name).strip("_")
     baseline_label = "fitz-sage v0.11 gate/baseline"
+    dataset_config = args.dataset_config or ("v7" if uses_test_split else None)
+    thresholds = [
+        float(_get(row, "metrics", "threshold"))
+        for row in summary.get("per_seed", [])
+        if _get(row, "metrics", "threshold") is not None
+    ]
+    if thresholds:
+        tau_range = f"{min(thresholds):.2f}-{max(thresholds):.2f}"
+        default_tau = median(thresholds)
+    else:
+        tau_range = "see per-seed metrics"
+        default_tau = 0.50
 
     if uses_test_split:
+        if dataset_config == "v8":
+            validation_size = "2,459"
+            test_size = "2,459"
+            train_size = "19,674"
+            total_rows = "24,592"
+            dataset_composition = "2,980 V6 rows, 7,520 V7 rows, and 14,092 V8 target-50 rows"
+            qa_clause = (
+                "uses query-grouped leakage-safe train/validation/test splits, exposes canonical SDGP breakdown fields, "
+                "has target-50 coverage complete across 483/483 taxonomy cells, and passed stricter second-pass blind-label QA before training"
+            )
+        else:
+            validation_size = "1,050"
+            test_size = "1,050"
+            train_size = "8,400"
+            total_rows = "10,500"
+            dataset_composition = "2,980 V6 rows and 7,520 V7 SDGP rows"
+            qa_clause = (
+                "uses query-grouped leakage-safe train/validation/test splits, exposes canonical SDGP breakdown fields, "
+                "and passed blind-label, dedup, and cross-label semantic QA before training"
+            )
         split_blurb = (
             f"Validated on [fitz-gov](https://github.com/yafitzdev/fitz-gov) {args.fitz_gov_version} "
-            f"default `{args.dataset_config or 'v7'}` splits. Checkpoint and threshold are selected on the "
-            "1,050-row validation split; headline numbers below are from the separate 1,050-row held-out test split. "
+            f"default `{dataset_config}` splits. Checkpoint and threshold are selected on the "
+            f"{validation_size}-row validation split; headline numbers below are from the separate {test_size}-row held-out test split. "
             f"All numbers are **3-seed mean ± std** across seeds {seeds}."
         )
         training_data = (
-            f"Training data: fitz-gov {args.fitz_gov_version} default `{args.dataset_config or 'v7'}` config, "
-            "published query-grouped splits: train=8,400, validation=1,050, held-out test=1,050. "
+            f"Training data: fitz-gov {args.fitz_gov_version} default `{dataset_config}` config, "
+            f"published query-grouped splits: train={train_size}, validation={validation_size}, held-out test={test_size}. "
             "The validation split is used for checkpoint and TRUSTWORTHY-threshold selection; the test split is used for the headline release metrics."
         )
         dataset_blurb = (
             f"This model is trained and evaluated on [**fitz-gov {args.fitz_gov_version}**](https://github.com/yafitzdev/fitz-gov), "
-            "a 10,500-row RAG governance benchmark. The default V7 config combines 2,980 V6 rows and 7,520 V7 SDGP rows, "
-            "uses query-grouped leakage-safe train/validation/test splits, exposes canonical SDGP breakdown fields, "
-            "and passed blind-label, dedup, and cross-label semantic QA before training."
+            f"a {total_rows}-row RAG governance benchmark. The default {dataset_config.upper()} config combines {dataset_composition}, "
+            f"{qa_clause}."
         )
-        known_limitations = """1. **Not a generator.** This is a classification head. It decides whether retrieved evidence supports answering; it does not write the answer.
+        known_limitations = f"""1. **Not a generator.** This is a classification head. It decides whether retrieved evidence supports answering; it does not write the answer.
 
-2. **Low-n breakdowns should not be overread.** V7.0.1 reports canonical SDGP axes only: `taxonomy.pattern`, `taxonomy.cell_id`, `routing.expert_fired`, and `meta.difficulty`. The headline test split is large (1,050 rows), but some taxonomy cells are still small; use aggregate metrics before drawing product conclusions from a single cell.
+2. **Low-n breakdowns should not be overread.** {args.fitz_gov_version} reports canonical SDGP axes only: `taxonomy.pattern`, `taxonomy.cell_id`, `routing.expert_fired`, and `meta.difficulty`. The headline test split is large ({test_size} rows), but some taxonomy cells are still small; use aggregate metrics before drawing product conclusions from a single cell.
 
 3. **English-only benchmark.** fitz-gov is English-only, so multilingual governance is not claimed for this release."""
     else:
@@ -272,10 +304,10 @@ probs = probs / probs.sum()
 
 ### Calibrated decision rule
 
-The headline numbers above use **threshold calibration** on the TRUSTWORTHY softmax probability. To match the published numbers, fall back from `TRUSTWORTHY` to the runner-up class when `P(TRUSTWORTHY) < tau`. The per-seed selected `tau` varied across runs (0.34–0.62); the safest default is `tau = 0.50`.
+The headline numbers above use **threshold calibration** on the TRUSTWORTHY softmax probability. To match the published numbers, fall back from `TRUSTWORTHY` to the runner-up class when `P(TRUSTWORTHY) < tau`. The per-seed selected `tau` varied across runs ({tau_range}); a practical default is `tau = {default_tau:.2f}`.
 
 ```python
-TAU = 0.50
+TAU = {default_tau:.2f}
 pred = int(probs.argmax())
 if pred == 2 and probs[2] < TAU:  # TRUSTWORTHY id is 2
     pred = int(probs[:2].argmax())   # fall back to runner-up between ABSTAIN/DISPUTED
