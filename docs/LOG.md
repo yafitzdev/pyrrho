@@ -13,6 +13,26 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-28 (evening) — Structured/code candidate probe confirms modality gap
+
+**What landed:**
+- Added `scripts/modality_candidate_probe.py`, which reads the fitz-gov structured/code candidate packs, writes reproducible manifests, and scores a pyrrho encoder with per-modality/per-pattern reports.
+- Wrote pyrrho-side manifests under `outputs/modality_candidate_probe/g3_release/manifests/`:
+  - `full_20k.jsonl`: **20,000** rows
+  - `balanced_pattern.jsonl`: **14,628** rows, 636 per taxonomy pattern
+  - `balanced_modality_pattern.jsonl`: **13,938** rows, 303 per `(modality, taxonomy.pattern)` cell
+- Scored `models/pyrrho-nano-g3` at its release threshold **0.58** on all three manifests.
+
+**What was learned:**
+- The full fitz-gov structured/code candidate pack is blind-QA clean (**20,000/20,000** Codex agreement, **0** triage), but current g3 is not safe on it: **52.69%** calibrated accuracy / **51.69%** false-TRUSTWORTHY.
+- Code is the worse modality: **49.35%** accuracy / **71.38%** FT. Structured is also unsafe: **56.02%** / **31.99%** FT.
+- Bucket skew is not the explanation. `balanced_pattern` scored **52.24% / 50.24% FT** and `balanced_modality_pattern` scored **52.22% / 50.79% FT**.
+- Main failure modes are systematic OOD interpretation failures: ABSTAIN rows are often over-trusted (**72.44%** FT on ABSTAIN in the full pack), and code evidence is especially over-trusted.
+
+**Next:** Build a pyrrho prep path for candidate structured/code manifests and run controlled modality retraining probes with separate per-modality gates before merging any candidate rows into the active fitz-gov release.
+
+---
+
 ## 2026-05-27 (evening) — Tabular OOD probe exposes structured-evidence gap
 
 **What landed:**

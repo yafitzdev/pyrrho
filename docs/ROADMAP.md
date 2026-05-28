@@ -71,7 +71,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | 15,000–30,000 | Generalization kicks in. Governance signals become calibrated, not just directional |
 | 30,000+ | False-trustworthy approaches floor. Routing stable enough to expose as signal. Infrastructure-grade |
 
-Current status as of 2026-05-27: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current rows carry `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050).
+Current status as of 2026-05-28: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current active rows carry `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050). Candidate-only structured/code packs now exist locally in fitz-gov: **10,000 structured** + **10,000 code**, full blind-QA clean, not merged into the active vault.
 
 ### Modality Expansion: Unstructured, Structured, Code
 
@@ -100,10 +100,13 @@ Suggested staged targets for the new modalities:
 
 | Stage | Structured data | Code | Purpose |
 |---|---:|---:|---|
-| Probe | 10 rows | 10 rows | Hand-audited behavior comparison; already seeded locally in fitz-gov modality probes |
-| Diagnostic | 300-500 rows | 300-500 rows | Find obvious taxonomy gaps and retrieval failure modes |
-| First trainable slice | 2,000-5,000 rows | 3,000-8,000 rows | Train/evaluate modality specialists with meaningful held-out splits |
-| Scale-up | 10,000+ rows if justified | 10,000+ rows if justified | Only after the modality specialist clears release-style gates |
+| Probe | 10 rows | 10 rows | Complete; hand-audited behavior comparison |
+| Diagnostic | 300-500 rows | 300-500 rows | Superseded by the 20k candidate pack |
+| Candidate pool | 10,000 rows | 10,000 rows | Complete locally; full Codex blind QA clean, candidate-only |
+| First trainable slice | Derived from candidate manifests | Derived from candidate manifests | Next: train/evaluate modality specialists with meaningful held-out splits |
+| Scale-up | Only after specialist clears gates | Only after specialist clears gates | Do not add more rows until pyrrho-side prep/training proves useful |
+
+Current g3 baseline on the candidate pool is negative. `scripts/modality_candidate_probe.py` scored `pyrrho-nano-g3` at the release threshold on the full 20k pack: **52.69%** calibrated accuracy / **51.69%** false-TRUSTWORTHY. Code is especially unsafe (**49.35% / 71.38% FT**); structured is also unsafe (**56.02% / 31.99% FT**). Balanced manifests confirm this is not just pattern skew: balanced-pattern **52.24% / 50.24% FT**, balanced modality-pattern **52.22% / 50.79% FT**.
 
 fitz-sage should eventually route by evidence modality before calling pyrrho: unstructured evidence goes to the current unstructured model, structured evidence goes to a structured-data specialist, and code evidence goes to a code specialist. A later pyrrho-MoE can merge these paths once the separate modalities have enough data and known failure profiles.
 
