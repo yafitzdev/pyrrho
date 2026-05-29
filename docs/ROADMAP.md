@@ -121,9 +121,17 @@ FT**. Adding the 720-row code patch improved code OOD to **95.37 ± 3.21% /
 360-row missing-evidence exposed-seed control fixed the inherited seed-42
 `missing_specific_field` false-TRUSTWORTHY but did not dominate the retry
 branch: exposed-seed code OOD was **93.06 ± 5.89% / 2.08 ± 2.95% FT** and
-tabular OOD was **87.50 ± 13.75% / 0.00 ± 0.00% FT**. These are still
-label-trusted local controls: full blind-label QA for all three patches is the
-next gate before any merge or publish decision.
+tabular OOD was **87.50 ± 13.75% / 0.00 ± 0.00% FT**. A follow-up
+threshold/policy sweep over saved code/tabular OOD probabilities did not rescue
+missing-evidence as a successor: retry-patch stayed stronger on combined OOD
+(best fixed OOD threshold tau **0.73**, combined **96.76%** accuracy /
+**0.00%** FT) than missing-evidence (tau **0.34**, combined **93.06%** /
+**1.04%** FT), and missing-evidence seeds need thresholds in opposite
+directions. These are still label-trusted local controls: full blind-label QA
+for all three patches is the next gate before any merge or publish decision.
+If continuing local modeling first, compare specialist heads or separate
+structured/code specialist encoders against the retry-patch branch instead of
+adding more rows.
 
 fitz-sage should eventually route by evidence modality before calling pyrrho: unstructured evidence goes to the current unstructured model, structured evidence goes to a structured-data specialist, and code evidence goes to a code specialist. A later pyrrho-MoE can merge these paths once the separate modalities have enough data and known failure profiles.
 

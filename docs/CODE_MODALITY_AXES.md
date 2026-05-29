@@ -244,6 +244,28 @@ This is still not release evidence: labels are trusted only for local controls,
 full blind-label QA remains required, and the branch is a mixed tradeoff rather
 than a clear successor to the retry-patch branch.
 
+## Threshold/Policy Sweep
+
+The local OOD-only threshold sweep is written to:
+
+- `outputs/modality_policy_sweep/retry_vs_missing_evidence/summary.json`
+- `outputs/modality_policy_sweep/retry_vs_missing_evidence/report.md`
+
+It used the saved code/tabular OOD prediction probabilities only; no retraining,
+LM Studio, or API calls were used.
+
+Readout:
+
+- Retry-patch remains the current local baseline. At eval-selected thresholds,
+  code OOD is **99.07 ± 1.60% / 1.39 ± 2.41% FT** and tabular OOD is
+  **93.52 ± 8.93% / 1.39 ± 2.41% FT**.
+- The diagnostic best fixed OOD threshold for retry-patch is tau **0.73**,
+  giving code OOD **100.00 ± 0.00% / 0.00 ± 0.00% FT** and tabular OOD
+  **93.52 ± 11.23% / 0.00 ± 0.00% FT** on the small probes.
+- Missing-evidence does not become a clean successor under threshold tuning:
+  its best fixed OOD threshold is tau **0.34**, combined **93.06%** accuracy /
+  **1.04%** FT, and its exposed seeds need thresholds in opposite directions.
+
 ## Concrete Next Data Work
 
 Do not merge or publish the current structured/code candidate rows yet. The
@@ -254,7 +276,7 @@ blind-label QA for `modality_code_patch_v1_20260528`,
 `modality_code_retry_conflict_patch_v1_20260529`, and
 `modality_missing_evidence_patch_v1_20260529` is the next required gate before
 any merge or publish decision. If doing more local modeling first, compare
-threshold/selection policy or specialist heads against the retry-patch branch
+specialist heads or separate specialist encoders against the retry-patch branch
 rather than adding more rows blindly.
 
 After that, compare:

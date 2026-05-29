@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-29 (morning) — Retry vs missing-evidence policy sweep
+
+**What landed:**
+- Completed the missing retry-patch tabular OOD runs for seeds **1337** and **7**, then wrote the local aggregate to `outputs/tabular_ood_probe/structured_code_retry_patch_3seed_summary.json`.
+- Ran an OOD-only threshold/policy sweep over saved code/tabular probe probabilities for retry-patch and missing-evidence branches, with artifacts at `outputs/modality_policy_sweep/retry_vs_missing_evidence/summary.json` and `outputs/modality_policy_sweep/retry_vs_missing_evidence/report.md`.
+- Updated `docs/HANDOFF.md`, `docs/ROADMAP.md`, and `docs/CODE_MODALITY_AXES.md` with the policy decision.
+
+**What was learned:**
+- Retry-patch remains the current best local baseline: current eval-selected thresholds give code OOD **99.07 ± 1.60% / 1.39 ± 2.41% FT** and tabular OOD **93.52 ± 8.93% / 1.39 ± 2.41% FT**.
+- The diagnostic best fixed OOD threshold for retry-patch is tau **0.73**, giving code OOD **100.00 ± 0.00% / 0.00 ± 0.00% FT** and tabular OOD **93.52 ± 11.23% / 0.00 ± 0.00% FT** on the small probes.
+- Missing-evidence is not rescued by threshold policy: its best fixed OOD threshold is tau **0.34** with combined **93.06%** accuracy / **1.04%** FT, while seed 42 needs lower thresholds to recover TRUSTWORTHY support and seed 7 needs a higher threshold to demote the remaining retry-limit conflict.
+- No LM Studio process was started and no API calls were made; patch labels remain trusted only for local controls.
+
+**Next:** Use the retry-patch branch as the local baseline for specialist-head or separate-specialist comparisons; blind-label QA remains required before any merge/publish decision.
+
+---
+
 ## 2026-05-29 (morning) — Missing-evidence exposed-seed control
 
 **What landed:**
