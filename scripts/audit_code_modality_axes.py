@@ -58,6 +58,7 @@ EXT_LANGUAGE = {
 
 MECHANISM_FAILURE_MODE = {
     "exact_function_answer": "exact_symbol_support",
+    "exact_symbol_support": "exact_symbol_support",
     "control_flow_support": "control_flow_support",
     "decorator_guard_support": "control_flow_support",
     "transaction_order_support": "control_flow_support",

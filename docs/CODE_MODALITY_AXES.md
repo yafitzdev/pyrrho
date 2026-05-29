@@ -182,16 +182,80 @@ the 20k structured/code candidate pack + patch v1 + this retry patch:
 This is still not release evidence: labels are trusted only for local controls,
 and full blind-label QA remains required before merge/publish.
 
+## Targeted Missing-Evidence Patch v1
+
+The third targeted patch is generated in fitz-gov by
+`scripts/sdgp_generate_missing_evidence_patch.py`.
+
+Candidate workspace:
+
+- `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/handoff/modality_missing_evidence_patch_v1_20260529/`
+
+Pyrrho audit outputs:
+
+- Patch only: `outputs/code_modality_axis_audit/modality_missing_evidence_patch_v1_20260529/`
+- Original 10k + patch v1 + retry patch + missing-evidence patch:
+  `outputs/code_modality_axis_audit/modality_code_v1_plus_patch_v1_plus_retry_patch_v1_plus_missing_evidence_patch_v1_20260529/`
+
+Patch status:
+
+- **360** candidate-only rows.
+- Modality-balanced: **180 code** / **180 structured**.
+- Label-balanced: **120 TRUSTWORTHY / 120 ABSTAIN / 120 DISPUTED**.
+- Code serialization: `diff_context` only, targeting the inherited
+  `missing_specific_field` OOD miss plus exact-support and docs/code-conflict
+  controls.
+- Structured serializations: `markdown_table`, `csv_extract`, and
+  `evidence_packet`, targeting missing result grids plus exact filtered rows
+  and same-metric conflicting values.
+- Structural validation: **0 errors** via fitz-gov `Checker(require_training_schema=True)`.
+- Patch-only syntax mismatch audit: **0/180** code rows.
+- Original 10k + patch v1 + retry patch + missing-evidence patch has
+  **11,260** code rows and **180** structured rows in the code-axis audit,
+  **0** hard-OOD target gaps, and **239** syntax mismatch flags inherited from
+  the original 10k code pack.
+
+The label-trusted exposed-seed control has been trained on published V8.0.1 +
+the 20k structured/code candidate pack + patch v1 + retry patch + this
+missing-evidence patch:
+
+- Data: `data/processed_v8_plus_structured_code_missing_evidence_patch_candidate`
+- Seed checkpoints:
+  `outputs/modality_retraining/structured_code_missing_evidence_patch_seed{42,7}/best_model`
+- Summary: `outputs/modality_retraining/structured_code_missing_evidence_patch_2seed_summary.json`
+- Held-out test: **98.70 ± 0.18%** calibrated accuracy /
+  **0.75 ± 0.25%** false-TRUSTWORTHY
+- Modality test slices: code **100.00 ± 0.00% / 0.00 ± 0.00% FT**
+  (n=1,121), structured **100.00 ± 0.00% / 0.00 ± 0.00% FT**
+  (n=1,023), unstructured **97.56 ± 0.35% / 1.39 ± 0.46% FT**
+  (n=2,459)
+- Hand-authored code OOD probe:
+  `outputs/code_ood_probe/structured_code_missing_evidence_patch_2seed_summary.json`
+  scored **93.06 ± 5.89%** accuracy / **2.08 ± 2.95%** FT. The inherited
+  seed-42 `missing_specific_field` false-TRUSTWORTHY is fixed, but seed 42 now
+  over-demotes TRUSTWORTHY support examples and seed 7 still false-trusts one
+  retry-limit conflict.
+- Hand-authored tabular OOD probe:
+  `outputs/tabular_ood_probe/structured_code_missing_evidence_patch_2seed_summary.json`
+  scored **87.50 ± 13.75%** accuracy / **0.00 ± 0.00%** FT, with large seed
+  spread from seed-42 over-demotion of exact-row/SLA TRUSTWORTHY cases.
+
+This is still not release evidence: labels are trusted only for local controls,
+full blind-label QA remains required, and the branch is a mixed tradeoff rather
+than a clear successor to the retry-patch branch.
+
 ## Concrete Next Data Work
 
 Do not merge or publish the current structured/code candidate rows yet. The
-retry patch now has 3-seed local-control evidence, but the patch labels are
-still label-trusted only. Full blind-label QA for
-`modality_code_patch_v1_20260528` and
-`modality_code_retry_conflict_patch_v1_20260529` is the next required gate before
-any merge or publish decision. If doing more local controls first, target the
-inherited `missing_specific_field` diff-context ABSTAIN failure rather than the
-retry-limit conflict family.
+retry patch has the best 3-seed code OOD evidence so far, and the missing-evidence
+patch has exposed-seed evidence that fixes one inherited FT but introduces a
+TRUSTWORTHY-recall tradeoff. Patch labels are still label-trusted only. Full
+blind-label QA for `modality_code_patch_v1_20260528`,
+`modality_code_retry_conflict_patch_v1_20260529`, and
+`modality_missing_evidence_patch_v1_20260529` is the next required gate before
+any merge or publish decision. If doing more local modeling first, compare
+threshold/selection policy or specialist heads against the retry-patch branch
+rather than adding more rows blindly.
 
 After that, compare:
 

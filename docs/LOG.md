@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-29 (morning) — Missing-evidence exposed-seed control
+
+**What landed:**
+- Added fitz-gov `scripts/sdgp_generate_missing_evidence_patch.py` and generated `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/handoff/modality_missing_evidence_patch_v1_20260529/` with **360** candidate-only rows.
+- Rebuilt pyrrho processed data at `data/processed_v8_plus_structured_code_missing_evidence_patch_candidate` from the local V8 split manifest plus structured/code candidate packs, the 720-row code patch, the 360-row retry patch, and the new missing-evidence patch.
+- Trained exposed ModernBERT seeds **42** and **7**, ran `scripts/eval_report.py`, `scripts/code_ood_probe.py`, and `scripts/tabular_ood_probe.py`, then wrote aggregate summaries to `outputs/modality_retraining/structured_code_missing_evidence_patch_2seed_summary.json`, `outputs/modality_retraining/structured_code_missing_evidence_patch_2seed_report.md`, `outputs/code_ood_probe/structured_code_missing_evidence_patch_2seed_summary.json`, and `outputs/tabular_ood_probe/structured_code_missing_evidence_patch_2seed_summary.json`.
+
+**What was learned:**
+- The exposed-seed held-out test is very strong: **98.70 ± 0.18%** calibrated accuracy / **0.75 ± 0.25%** false-TRUSTWORTHY.
+- Candidate code and structured test slices remain clean at **100.00 ± 0.00% / 0.00 ± 0.00% FT**. The unstructured slice is **97.56 ± 0.35% / 1.39 ± 0.46% FT**.
+- The patch fixes the previous seed-42 code OOD false-TRUSTWORTHY on `code_10_missing_audit__diff_context`; code `missing_specific_field` is now **3/3** for both exposed seeds.
+- The control is not a clear improvement over the retry-patch branch. Code OOD is **93.06 ± 5.89% / 2.08 ± 2.95% FT**: seed 42 is safer but over-conservative on TRUSTWORTHY code support, while seed 7 still false-trusts one retry-limit conflict. Tabular OOD is **87.50 ± 13.75% / 0.00 ± 0.00% FT**, with seed 42 over-demoting exact-row/SLA TRUSTWORTHY cases.
+- This remains label-trusted local-control evidence only; no LM Studio or API blind-label QA was run.
+
+**Next:** Complete full blind-label QA for all three candidate patches before any merge/publish decision; if continuing local modeling first, compare threshold/selection policy or specialist heads against the retry-patch branch rather than adding more rows blindly.
+
+---
+
 ## 2026-05-29 (morning) — Retry-patch 3-seed stability
 
 **What landed:**
