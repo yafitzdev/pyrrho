@@ -134,9 +134,10 @@ def train_one_fold(
     metrics = compute_classification_metrics(preds.predictions, preds.label_ids)
 
     diffs = eval_split["difficulty"]
-    domains = eval_split["domain"]
+    experts = eval_split["expert"] if "expert" in eval_split.column_names else []
     metrics["_by_difficulty"] = breakdown_by(preds.predictions, preds.label_ids, diffs)
-    metrics["_by_domain"] = breakdown_by(preds.predictions, preds.label_ids, domains)
+    if experts:
+        metrics["_by_expert"] = breakdown_by(preds.predictions, preds.label_ids, experts)
     return metrics
 
 

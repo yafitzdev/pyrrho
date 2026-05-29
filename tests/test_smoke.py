@@ -22,10 +22,8 @@ import pytest
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-
 # Lazy imports — pyrrho package only needed at test execution, not collection
 from pyrrho.data import ID2LABEL, build_encoder_text
-
 
 # Floor below which the smoke test fails outright. Increase as the model improves.
 # Current attempt-4 model lands at 8/10; we leave 1-case wiggle.
@@ -166,6 +164,11 @@ def latest_checkpoint(search_dirs: list[Path]) -> Path | None:
     for base in search_dirs:
         if not base.exists():
             continue
+        if (base / "config.json").exists() and (base / "model.safetensors").exists():
+            return base
+        best_model = base / "best_model"
+        if best_model.exists():
+            return best_model
         candidates = sorted(
             base.glob("checkpoint-*"),
             key=lambda p: int(p.name.split("-")[-1]),
@@ -183,10 +186,18 @@ def model_and_tokenizer():
     on a fresh clone before the first training run.
     """
     search = [
+        Path("models/pyrrho-nano-g3"),
+        Path("outputs/multi_seed_g3_v8/seed_42"),
+        Path("outputs/multi_seed_g3_v8/seed_1337"),
+        Path("outputs/multi_seed_g3_v8/seed_7"),
+        Path("models/pyrrho-nano-g2"),
         Path("outputs/modernbert_base_v1"),
         Path("outputs/multi_seed/seed_42"),
         Path("outputs/multi_seed/seed_1337"),
         Path("outputs/multi_seed/seed_7"),
+        Path("outputs/multi_seed_g2/seed_42"),
+        Path("outputs/multi_seed_g2/seed_1337"),
+        Path("outputs/multi_seed_g2/seed_7"),
     ]
     ckpt = latest_checkpoint(search)
     if ckpt is None:

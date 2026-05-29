@@ -74,8 +74,8 @@ def smoke_test_bnb_4bit() -> int:
         print(f"ERROR: bnb smoke-test requires transformers + bitsandbytes — {e}")
         return 1
 
-    test_model = "Qwen/Qwen3.5-0.8B-Instruct"
-    print(f"\n4-bit smoke test on {test_model} (may download ~800 MB):")
+    test_model = "Qwen/Qwen3.5-0.8B"
+    print(f"\n4-bit smoke test on {test_model} (may download ~1.5 GB):")
     try:
         bnb = BitsAndBytesConfig(
             load_in_4bit=True,

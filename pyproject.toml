@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Fine-tuned classification models for RAG quality (governance + grounding)"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
-license = { text = "Apache-2.0" }
+license = { text = "CC-BY-NC-4.0" }
 authors = [
     { name = "Yan Fitzner", email = "yanfitzner@yahoo.de" }
 ]
@@ -17,7 +17,7 @@ keywords = ["rag", "governance", "hallucination", "classification", "modernbert"
 dependencies = [
     # PyTorch is installed separately with --index-url https://download.pytorch.org/whl/cu128
     # See SETUP.md
-    "transformers>=4.46",
+    "transformers>=4.58",  # Qwen3.5 (model_type qwen3_5) requires >=4.58
     "datasets>=3.0",
     "accelerate>=1.0",
     "evaluate>=0.4",
@@ -33,6 +33,7 @@ dependencies = [
 encoder = [
     "optimum[onnxruntime]>=1.23",
     "onnxruntime>=1.20",
+    "onnxscript>=0.7",
 ]
 slm = [
     "trl>=0.12",

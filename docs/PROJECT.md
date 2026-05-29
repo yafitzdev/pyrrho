@@ -4,7 +4,9 @@
 
 **Owner:** Yan Fitzner
 **Created:** 2026-05-13
-**Status:** Planning complete, ready to start v1
+**Status:** Historical vision doc. `pyrrho-nano-g1` is shipped; current state lives in [HANDOFF.md](HANDOFF.md), and the active model/data roadmap lives in [ROADMAP.md](ROADMAP.md).
+
+> 2026-05-27 note: this document still preserves the original planning record. Treat §10 release sequencing and older V6/V7 naming as superseded by [ROADMAP.md](ROADMAP.md). Current published fitz-gov is V8.0.1 on Hugging Face: 24,592 rows, default `v8` query-grouped splits, V8 second-pass QA clean, no unresolved triage, and explicit `meta.modality: "unstructured"` on current rows. `pyrrho-nano-g3` is the published V8 encoder release: https://huggingface.co/yafitzdev/pyrrho-nano-g3. `pyrrho-nano-g2` remains the published V7 encoder baseline: https://huggingface.co/yafitzdev/pyrrho-nano-g2.
 
 ---
 
@@ -94,7 +96,7 @@ Encoders also give us:
 
 **Track A — Production workhorse (fitz-sage default)**: encoder family. ModernBERT-base first, DeBERTa-v3-large as "accuracy mode" later.
 
-**Track B — Portfolio showcase (HuggingFace)**: generative SLM family. Qwen3.5-0.8B → 2B → 4B, QLoRA fine-tuned. Positioned as "premium / GPU-accelerated / rationale-producing." Each model card explicitly says "for CPU use, see `pyrrho-modernbert-base`."
+**Track B — Portfolio showcase (HuggingFace)**: generative SLM family. Qwen3.5-0.8B → 2B → 4B, QLoRA fine-tuned. Positioned as "premium / GPU-accelerated / rationale-producing." Each model card explicitly says "for CPU use, see `pyrrho-nano`."
 
 Same fitz-gov dataset, same eval protocol, same naming convention. Two architectures, one coherent family.
 
@@ -141,13 +143,13 @@ Refreshed to 2026 state-of-the-art. Every model in this track must run on consum
 | B4 | `Qwen/Qwen3.5-4B-Instruct` | 4B dense | ~2.8 GB | **Same-family scaling curve.** B1 (0.8B) → B2a (2B) → B4 (4B). Produces a clean within-family scaling chart for the model card. |
 | B5 | `google/gemma-4-E4B-it` | 4.5B dense | ~3 GB | **Apples-to-apples cross-family at 4B class.** Matches B4 in size. Same task, same fitz-gov data, same size, different family — the honest "architecture matters" comparison. |
 | B6 | `microsoft/Phi-4-mini-instruct` | 3.8B dense | ~2.5 GB | **Synthetic-data architecture probe.** Phi family is famous for heavy filtered-synthetic-data pretraining. Tests whether that data philosophy beats Gemma/Qwen's web-corpus approach on a narrow classification task. Genuinely interesting research question. |
-| **B7** | `LiquidAI/LFM2-8B-A1B` | 8B / 1B (**MoE**) | ~5 GB | **The MoE release — and one that's actually CPU-runnable.** 8B total / 1B active. Loads on an 8 GB laptop; inference cost is 1B-class. Replaces the earlier Qwen3.6-35B-A3B plan, which needed ~17 GB Q4 RAM and excluded typical hardware. |
+| **B7** | `LiquidAI/LFM2-8B-A1B` | 8B / 1B (**MoE**) | ~5 GB | **MoE proxy / teacher candidate, not the terminal pyrrho-MoE architecture.** Useful for a CPU-runnable MoE comparison and possible distillation teacher. The terminal pyrrho-MoE target remains the custom 4B total / 0.4B active architecture in ROADMAP.md. |
 
 **Why not Qwen2.5 / older Gemma / Llama families?** Stale (Qwen2.5 is Nov 2024) or license-restrictive (Llama Community License). Stick to 2026-vintage Apache-2.0-compatible models.
 
 **Why both B2a and B2b?** They're alternatives in the 1-2B class slot — Qwen3.5-2B is the transformer baseline, LFM2.5-1.2B is the Liquid hybrid. Train both; the head-to-head comparison at the same capability class is itself a portfolio chip ("transformer vs hybrid Liquid architecture at ~1.5B").
 
-**Why MoE in the portfolio at LFM2-8B-A1B and not Qwen3.6-35B-A3B?** The 35B variant needs ~17 GB Q4 RAM — that's a portfolio piece that excludes the majority of your fitz-sage user base, which contradicts the "CPU-runnable" project axiom. LFM2-8B-A1B (8B / 1B) hits the same MoE narrative at a footprint that actually fits a laptop. Honest small-MoE pick, not aspirational.
+**Why keep LFM2-8B-A1B in the portfolio at all?** The 35B-class MoEs need too much RAM for the CPU-runnable project axiom. LFM2-8B-A1B is small enough to compare against dense SLMs and may be useful as a distillation teacher. It should not be treated as the final pyrrho-MoE design, because it is too large on the active path and does not use pyrrho-defined experts.
 
 **Honest caveat on MoE for classification:** classification is a shallow output; MoE typically wins 1–3 points over dense at the same active params. The portfolio value is the *framing*, not necessarily a higher fitz-gov number. Don't expect 8B-A1B to crush 4B-dense on accuracy — expect it to look more interesting on the model card.
 
@@ -251,9 +253,9 @@ metric_for_best_model: accuracy
 
 **Expected accuracy**: 82–86% overall. Will likely *match* the encoder, not beat it — generative models on small classification datasets often underperform encoders. The portfolio value is the architecture variety, not necessarily a higher number.
 
-### 8.3 MoE release (LFM2-8B-A1B v1)
+### 8.3 MoE proxy release (LFM2-8B-A1B v1)
 
-The MoE portfolio chip — chosen specifically because it stays CPU-runnable (~5 GB Q4 RAM, 1B active per token). Same prompt template as §8.2.
+The MoE portfolio proxy — chosen because it stays broadly CPU-runnable and gives a comparison point before the custom pyrrho-MoE architecture exists. This is not the terminal pyrrho-MoE release. The terminal target is custom 4B total / 0.4B active with pyrrho-defined experts and supervised routing from fitz-gov, as specified in ROADMAP.md.
 
 **QLoRA hyperparameters (MoE-specific differences)**:
 ```yaml
@@ -345,17 +347,17 @@ Ten releases plus the grounding sidecar. Three architectures (encoder, generativ
 
 | # | Release | Type | Trained on | Target metric | Headline claim |
 |---|---|---|---|---|---|
-| **1** | `pyrrho-modernbert-base-v1` | Encoder 149M | fitz-gov v5.1 short-context | ≥82% overall, ≤5% false-trustworthy | "Single 30ms forward pass replaces the constraint+sklearn pipeline" |
+| **1** | `pyrrho-nano-g1` | Encoder 149M | fitz-gov v5.1 short-context | ≥82% overall, ≤5% false-trustworthy | "Single 30ms forward pass replaces the constraint+sklearn pipeline" |
 | 2 | `pyrrho-qwen3.5-0.8b-v1` | Generative QLoRA dense | fitz-gov v5.1 | Match encoder ±2 points | "Smallest credible generative governance head — sub-1B floor of the family" |
-| 3 | `pyrrho-modernbert-base-v2-long` | Encoder 149M | fitz-gov v5.1 + 500 synthetic long-context | ≥80% on long-context split | "Handles 5K-50K token sources (ECU logs, test reports)" |
+| 3 | `pyrrho-nano-g1.1` | Encoder 149M | fitz-gov V5.1-enriched (schema-retrofitted, same 2,920 cases) | Match g1 ±1 pt, clean V5.1-enriched baseline | "Apples-to-apples baseline on the enriched schema before scaling to V6" (ROADMAP Phase 1) |
 | 4a | `pyrrho-qwen3.5-2b-v1` | Generative QLoRA dense | fitz-gov v5.1 | Beat #2 by 2-3 pts | "Transformer scaling from 0.8B → 2B in the same family" |
 | **4b** *(alternative to 4a)* | `pyrrho-lfm2.5-1.2b-v1` | Generative QLoRA Liquid hybrid | fitz-gov v5.1 | Beat #2 by 2-3 pts | "Non-transformer architecture — Liquid hybrid claims 2× CPU speedup over similar-size transformers; direct head-to-head with #4a" |
-| 5 | `pyrrho-deberta-v3-large-v1` | Encoder 435M | fitz-gov v5.1 | +2–4 points over ModernBERT-base | "Accuracy mode for users with spare CPU budget" |
+| 5 | `pyrrho-nano-g2` | Encoder 149M | fitz-gov V6 (5K–10K cases, expanded evidence patterns + long-context) | ≥+2 pts vs g1; addresses v1's multi-source-convergence failure | "First retrain on the scaled benchmark — V6 lands the synthetic-data pipeline" (ROADMAP Phase 3) |
 | 6 | `pyrrho-gemma-4-E2B-v1` | Generative QLoRA dense | fitz-gov v6 | ≥85% overall | "Cross-family transformer anchor — Gemma 4 at 2B class, 256K context" |
 | 7 | `pyrrho-qwen3.5-4b-v1` | Generative QLoRA dense | fitz-gov v6 | ≥86% overall | "Same-family scaling: Qwen3.5 0.8B → 2B → 4B clean curve" |
 | 8 | `pyrrho-gemma-4-E4B-v1` | Generative QLoRA dense | fitz-gov v6 | ≥86% overall | "Apples-to-apples cross-family at 4B (Qwen3.5-4B vs Gemma 4 E4B, same data same task same size)" |
 | 9 | `pyrrho-phi-4-mini-v1` | Generative QLoRA dense | fitz-gov v6 | ≥86% overall | "Synthetic-data architecture probe — does Phi's data philosophy beat web-corpus models on a narrow classification task?" |
-| **10** | `pyrrho-lfm2-8b-a1b-v1` | Generative QLoRA **MoE** | fitz-gov v6 + cross-domain expansion | ≥88% overall | "First CPU-runnable fine-tuned MoE for RAG governance — 8B total / 1B active, loads on 8GB laptops" |
+| **10** | `pyrrho-lfm2-8b-a1b-v1` | Generative QLoRA **MoE proxy** | fitz-gov v6 + cross-domain expansion | ≥88% overall | "CPU-runnable MoE comparison / teacher candidate for RAG governance; not the terminal custom pyrrho-MoE" |
 
 **Sidecar (parallel track)**: `pyrrho-grounding-modernbert-base-v1` (see §11). Slotted any time after release #1 ships.
 
@@ -505,7 +507,7 @@ pyrrho/
 - [ ] Write `scripts/eval.py` matching fitz-sage's 5-fold CV protocol
 - [ ] Run v1 training; verify pass/fail bar
 - [ ] Write model card
-- [ ] Push to HF as `yafitzdev/pyrrho-modernbert-base-v1`
+- [ ] Push to HF as `yafitzdev/pyrrho-nano-g1`
 - [ ] Open fitz-sage PR to add pyrrho as optional governance backend
 
 ---
@@ -514,7 +516,7 @@ pyrrho/
 
 1. **Label space**: stick with 3-class (ABSTAIN/DISPUTED/TRUSTWORTHY) or expose 4-class (split TRUSTWORTHY into HEDGED/DIRECT)? Recommend 3-class for v1 (matches fitz-sage production), revisit later.
 2. **HF organization name**: ship under `yafitzdev/` (personal) or create a `fitz/` org? Personal is faster; org reads more serious. Recommend org once v1 ships with real numbers.
-3. **License**: Apache-2.0 for both code and models. Permissive enough that fitz-sage users adopt it without legal review.
+3. **License**: CC BY-NC 4.0 for both code and models (changed 2026-05-20, was Apache-2.0). Allows free research/evaluation/personal use; commercial deployment requires a separate license. fitz-sage itself remains permissive — pyrrho is invoked as a runtime artifact, not redistributed.
 4. **Should v1 ship a CLI binary?** `pyrrho predict --query "..." --contexts ...`? Probably not — direct Python/Transformers usage is enough, and a CLI feels like demo bloat.
 5. **Multilingual?** fitz-gov is English-only. Multilingual is a v3+ consideration, possibly using XLM-RoBERTa-large, ModernBERT-multilingual, or Qwen3.5 (which is natively multilingual) when that ships.
 6. **LFM2 LoRA target naming**: LFM2 is a hybrid architecture (multiplicative gates, short convolutions) — not a standard transformer. Before training releases #4b and #10, run `for n, _ in model.named_modules(): print(n)` and identify the actual attention/MLP/expert paths. PEFT may need patches if module types are non-standard. Budget half a day before either LFM2 release.
@@ -563,7 +565,7 @@ This project was scoped across a planning session on 2026-05-13. Key decision po
 8. **Use-case expansion**: rather than ship multiple narrow classifiers, add exactly ONE companion: a **grounding/hallucination detector** trained on the same fitz-gov dataset using `forbidden_claims` / `required_elements` to synthesize answer pairs. Doubles search-traffic surface area without diluting the niche.
 9. **Long-term goal**: 90%+ on any test case is a 12–18 month arc requiring long-context data work, cross-domain expansion, and 7B model scale — not a single training run.
 10. **Model lineup refresh to 2026 vintage**: scrapped Qwen2.5 (stale, Nov 2024) in favor of Qwen3.5 (Feb-Mar 2026), Gemma 4 (Apr 2, 2026), Phi-4-mini, and Liquid AI LFM2.5. Picks now span four families × three architectures (transformer dense, Liquid hybrid, MoE).
-11. **MoE pick revised for CPU-runnability**: original Qwen3.6-35B-A3B (~17 GB Q4 RAM) excluded typical user hardware → contradicts project axiom. Swapped to `LiquidAI/LFM2-8B-A1B` (8B total / 1B active, ~5 GB Q4 RAM) — the only credible small-MoE that actually loads on an 8 GB laptop.
+11. **MoE path clarified for CPU-runnability**: original Qwen3.6-35B-A3B (~17 GB Q4 RAM) excluded typical user hardware. `LiquidAI/LFM2-8B-A1B` remains a CPU-runnable MoE proxy / possible teacher, but the terminal pyrrho-MoE is not an off-the-shelf checkpoint. The final target is the ROADMAP custom sparse model: 4B total / 0.4B active, pyrrho-defined experts, and supervised routing from fitz-gov.
 12. **LFM2.5-1.2B added as architecture alternative to Qwen3.5-2B** in the same slot. Non-transformer (Liquid hybrid) gives the portfolio a "different architecture" chip without abandoning the transformer baseline.
 13. **Brand naming**: project rebranded from `fitz-judge` to `pyrrho` (after Pyrrho of Elis, founder of philosophical skepticism — practiced suspension of judgment when evidence was insufficient). The `fitz-` prefix was dropped because the HF org segment already carries the "this is mine" signal; model names should be brand-only (matching the Qwen / Gemma / Phi convention). HF naming pattern fixed: `yafitzdev/pyrrho-{base-model}-{size}-v{n}`.
 14. **Strategy: v5-first, v6-later**: train the encoder on the current fitz-gov v5 (2,920 cases) *before* doing any v6 data expansion. Reasons: (a) direct apples-to-apples comparison with fitz-sage's published 78.7% baseline, (b) de-risks the architecture hypothesis in 30 min instead of weeks, (c) v6 (long-context augmentation) is already on the roadmap as release #3, so doing it after #1 ships gives two distinct news beats instead of one muddled claim.

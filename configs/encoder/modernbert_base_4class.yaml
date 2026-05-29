@@ -1,4 +1,4 @@
-# pyrrho-modernbert-base-v1 (4-class experiment)
+# pyrrho-nano-g1 4-class experiment
 # Same architecture as modernbert_base.yaml but the label space is 4-way:
 # ABSTAIN / DISPUTED / TRUSTWORTHY_HEDGED / TRUSTWORTHY_DIRECT.
 # All metrics + gates collapse 4-class predictions to 3-class internally so numbers
@@ -56,7 +56,7 @@ training:
 
   logging_steps: 20
   report_to: [wandb]
-  run_name: pyrrho-modernbert-base-4class-v1
+  run_name: pyrrho-nano-g1-4class
   seed: 42
 
 eval:
@@ -76,4 +76,4 @@ eval:
 export:
   format: onnx
   quantization: int8
-  output_path: ./models/pyrrho-modernbert-base-4class-v1.onnx
+  output_path: ./models/pyrrho-nano-g1-4class.onnx

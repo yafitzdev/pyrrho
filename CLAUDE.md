@@ -4,16 +4,17 @@ Loaded into every Claude Code session that opens this directory. Keep it short a
 
 ## What pyrrho is
 
-Fine-tuned classification models for RAG governance. Given a `(query, retrieved_contexts)` pair, predicts one of `ABSTAIN / DISPUTED / TRUSTWORTHY`. Drop-in replacement for the constraint+sklearn pipeline in `fitz-sage`. Benchmarked against `fitz-gov` v5.
+Fine-tuned classification models for RAG governance. Given a `(query, retrieved_contexts)` pair, predicts one of `ABSTAIN / DISPUTED / TRUSTWORTHY`. Drop-in replacement for the constraint+sklearn pipeline in `fitz-sage`. Benchmarked against `fitz-gov` V6 (V5.1 + LLM-enriched schema overlay, 2,980 cases).
 
 ## Read these in order on any fresh session
 
 1. **[docs/HANDOFF.md](docs/HANDOFF.md)** — current state snapshot. Always reflects "what's true right now." Read this first.
-2. **[docs/LOG.md](docs/LOG.md)** — append-only project history. Read when HANDOFF mentions something you don't have context on.
-3. **[docs/PROJECT.md](docs/PROJECT.md)** — vision, full roadmap, training recipes, all 18 sections of original planning.
-4. **[docs/METHODOLOGY.md](docs/METHODOLOGY.md)** — the 8-step pipeline every release follows.
-5. **[docs/SETUP.md](docs/SETUP.md)** — RTX 5090 / Blackwell / Windows specifics.
-6. **[docs/INDEX.md](docs/INDEX.md)** — index of all docs with reading order.
+2. **[docs/ROADMAP.md](docs/ROADMAP.md)** — current vision: model tiers (`pyrrho-nano` / `-small` / `-MoE`), fitz-gov data path (V5.1 → V6 → V7 → V8), training phases through pyrrho-MoE. Supersedes PROJECT.md §10 release table.
+3. **[docs/LOG.md](docs/LOG.md)** — append-only project history. Read when HANDOFF mentions something you don't have context on.
+4. **[docs/PROJECT.md](docs/PROJECT.md)** — original vision document. Still load-bearing for §1–§9, §11–§18. Section §10 release table is superseded by ROADMAP.md.
+5. **[docs/METHODOLOGY.md](docs/METHODOLOGY.md)** — the 8-step pipeline every release follows.
+6. **[docs/SETUP.md](docs/SETUP.md)** — RTX 5090 / Blackwell / Windows specifics.
+7. **[docs/INDEX.md](docs/INDEX.md)** — index of all docs with reading order.
 
 ---
 
@@ -81,9 +82,11 @@ These were decided in earlier sessions. Don't re-propose alternatives unless exp
 - **Brand**: `pyrrho` (after Pyrrho of Elis). Don't suggest renames.
 - **Production track**: encoder only, must run on CPU. No generative SLMs in `fitz-sage`'s default path.
 - **Portfolio track**: generative SLMs, all CPU-runnable (≤8 GB RAM at Q4). No 35B+ MoE bases.
-- **Model bases**: 2026-vintage Apache-2.0-compatible only. No Qwen 2.5 (stale), no Llama family (license).
-- **Benchmark**: fitz-gov v5. No v6 data work until release #1 ships and validates the architecture.
-- **HF naming**: `yafitzdev/pyrrho-{base-model}-{size}-v{n}`. No `fitz-` prefix on model names.
+- **Model bases**: 2026-vintage permissive bases. No Qwen 2.5 (stale), no Llama family (license-restrictive).
+- **License (pyrrho + fitz-gov)**: CC BY-NC 4.0. Don't suggest re-permissive licensing. Commercial use requires a separate license; research/eval/personal use is free.
+- **Benchmark**: fitz-gov V6 (V5.1-enriched, shipped 2026-05-20 as `yafitzdev/fitz-gov` v6.0.0). pyrrho-nano-g1.1 is the V6 retrain per ROADMAP.md Phase 1. The next major dataset version (scaled to 5K–10K cases via SDGP) is V7 — no V7 data work until pyrrho v2 ships.
+- **HF naming**: `yafitzdev/pyrrho-{tier}-{generation}` where tier ∈ {nano, small, MoE} and generation ∈ {g1, g1.1, g2, ...}. Live model is `pyrrho-nano-g1`. No `fitz-` prefix on model names. (Was `yafitzdev/pyrrho-{base-model}-{size}-v{n}` until 2026-05-20.)
+- **Dataset distribution**: fitz-gov dataset rows (`data/`) live on HuggingFace only — `yafitzdev/fitz-gov`. Gitignored in the fitz-gov repo. Don't suggest re-committing.
 - **Release gates**: overall accuracy ≥ 78.7% AND false-trustworthy ≤ 5.7%, mean across 3 seeds. The tier0 95% sanity gate was dropped (unreachable on N=60 with ~5 ambiguous labels).
 
 Full rationale for each: PROJECT.md §18.

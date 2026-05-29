@@ -1,0 +1,74 @@
+# pyrrho-nano-g3 V8 ablation (ModernBERT-base encoder).
+# Data: yafitzdev/fitz-gov config v8, revision v8.0.1.
+# Prepared locally as data/processed_v8 with train=19,674 / eval=2,459 / test=2,459.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  num_labels: 3
+  id2label:
+    0: ABSTAIN
+    1: DISPUTED
+    2: TRUSTWORTHY
+  label2id:
+    ABSTAIN: 0
+    DISPUTED: 1
+    TRUSTWORTHY: 2
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.0.1
+  max_seq_length: 4096
+  truncation: longest_first
+
+training:
+  output_dir: ./outputs/pyrrho-nano-g3-v8
+  num_train_epochs: 5
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 32
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: false
+
+  learning_rate: 5.0e-5
+
+  # Preserve the validated g2 safety recipe for the first V8 ablation.
+  class_weights: [2.3, 2.3, 1.0]
+  label_smoothing: 0.15
+
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  lr_scheduler_type: cosine
+
+  bf16: true
+  optim: adamw_torch_fused
+
+  eval_strategy: epoch
+  save_strategy: epoch
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: ft_penalized_accuracy
+  greater_is_better: true
+  early_stopping_patience: 2
+
+  logging_steps: 20
+  report_to: [wandb]
+  run_name: pyrrho-nano-g3-v8
+  seed: 42
+
+eval:
+  metrics:
+    - accuracy
+    - macro_f1
+    - per_class_recall
+    - per_class_precision
+    - false_trustworthy_rate
+  breakdowns:
+    - difficulty
+    - expert
+    - taxonomy_pattern
+    - taxonomy_cell_id
+
+export:
+  format: onnx
+  quantization: int8
+  output_path: ./models/pyrrho-nano-g3-v8.onnx

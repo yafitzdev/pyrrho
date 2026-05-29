@@ -33,8 +33,8 @@ must say so explicitly.
             ▼
   ┌──────────────────────────────────────────────────────────────┐
   │  4. eval_report.py     full per-breakdown report                │
-  │                        per-domain / difficulty / reasoning /    │
-  │                        evidence_pattern / subcategory           │
+  │                        difficulty / expert / taxonomy pattern / │
+  │                        taxonomy cell                            │
   └──────────────────────────────────────────────────────────────┘
             │
             ▼
@@ -71,7 +71,7 @@ is config-driven so the same code works across the whole pyrrho family.
 
 | Step | Script | Outputs |
 |---|---|---|
-| 1. Data prep | `prepare_data.py` | `data/processed/{train,eval,tier0_sanity}.jsonl` + `hf_dataset/` |
+| 1. Data prep | `prepare_data.py` | `data/processed/{train,eval,test}.jsonl` + `hf_dataset/`; `tier0_sanity.jsonl` is optional/legacy |
 | 2. Hyperparameter sweep | `sweep.py` | `outputs/sweeps/<name>/<cell>/{final_metrics.json,manifest.json,checkpoint-*}` + `sweep_summary.json` |
 | 3. Multi-seed validation | `run_seeds.py` | `outputs/multi_seed/<run>/seed_<N>/` + `summary.json` |
 | 4. Full evaluation | `eval_report.py` | `<checkpoint_parent>/eval_report.json` |
@@ -120,7 +120,7 @@ corresponding fitz-gov commit, that's a bug — open an issue.
 
 ## Release gates (revised 2026-05-14)
 
-A pyrrho model release MUST pass these two on the eval split (mean across 3 seeds):
+A pyrrho model release MUST pass these two as a mean across 3 seeds. On V5/V6-style data this means the eval split; on V7+ data with a dedicated held-out test split, checkpoint/threshold selection happens on validation and the gates are applied to held-out test:
 
 - **Overall accuracy ≥ 78.7%** — matches fitz-sage v0.11 sklearn baseline.
 - **False-trustworthy rate ≤ 5.7%** — matches baseline; this is the safety axis.
@@ -141,7 +141,7 @@ A release SHOULD also:
 When `--no-wandb` is not passed, training scripts log to W&B with:
 
 - **Project**: `pyrrho`
-- **Run name**: from config `training.run_name`, e.g. `pyrrho-modernbert-base-v1`
+- **Run name**: from config `training.run_name`, e.g. `pyrrho-nano-g1`
 - **Tags**: `["v1", "encoder", "modernbert"]` or equivalent. Set in config.
 - **Logged metrics** (every epoch + final): accuracy, macro_f1, per-class P/R/F1,
   false_trustworthy_rate, ft_penalized_accuracy.

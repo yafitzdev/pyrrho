@@ -124,15 +124,13 @@ def breakdown_by(
 
 
 def check_release_gates(
-    eval_metrics: dict[str, float], tier0_metrics: dict[str, float]
+    eval_metrics: dict[str, float], tier0_metrics: dict[str, float] | None = None
 ) -> tuple[bool, list[tuple[str, bool, str]]]:
-    """Three gates from PROJECT.md §4 / §9. Returns (all_passed, [(name, passed, detail), ...])."""
+    """Release gates from HANDOFF / METHODOLOGY.
+
+    Tier0 is kept as a diagnostic but is no longer a release gate.
+    """
     gates = [
-        (
-            f"tier0_sanity >= {TIER0_SANITY_GATE:.0%}",
-            tier0_metrics["accuracy"] >= TIER0_SANITY_GATE,
-            f"got {tier0_metrics['accuracy']:.1%}",
-        ),
         (
             f"overall accuracy >= {BASELINE_OVERALL:.1%}",
             eval_metrics["accuracy"] >= BASELINE_OVERALL,

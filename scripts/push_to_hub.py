@@ -9,13 +9,15 @@ Requires `huggingface_hub` installed (pyproject extra `[hub]`) and the user
 authenticated via `huggingface-cli login` (one-time).
 
 Run from project root:
-    python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1 --dry-run
-    python scripts/push_to_hub.py --release-dir models/pyrrho-modernbert-base-v1 --repo-id yafitzdev/pyrrho-modernbert-base-v1
+    python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g1 --dry-run
+    python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g1 --repo-id yafitzdev/pyrrho-nano-g1
+    python scripts/push_to_hub.py --release-dir models/pyrrho-nano-g2 --repo-id yafitzdev/pyrrho-nano-g2 --large-folder
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import sys
 from pathlib import Path
 
@@ -25,15 +27,22 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 REQUIRED_FILES = ("config.json", "tokenizer.json", "tokenizer_config.json", "README.md")
 OPTIONAL_FILES = ("model.safetensors", "model.onnx", "model_quantized.onnx", "special_tokens_map.json")
+IGNORE_PATTERNS = (".cache/**", "*.log")
+
+
+def should_ignore(path: Path) -> bool:
+    rel = path.as_posix()
+    return any(fnmatch.fnmatch(rel, pattern) for pattern in IGNORE_PATTERNS)
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--release-dir", type=Path, required=True, help="Directory containing model + README + ONNX")
-    p.add_argument("--repo-id", type=str, default="yafitzdev/pyrrho-modernbert-base-v1")
+    p.add_argument("--repo-id", type=str, default="yafitzdev/pyrrho-nano-g1")
     p.add_argument("--private", action="store_true", help="Create the repo private (default: public)")
     p.add_argument("--dry-run", action="store_true", help="List what would be uploaded but don't push")
-    p.add_argument("--commit-message", type=str, default="Initial release: pyrrho-modernbert-base-v1")
+    p.add_argument("--large-folder", action="store_true", help="Use Hugging Face's resumable large-folder uploader")
+    p.add_argument("--commit-message", type=str, default=None)
     return p.parse_args()
 
 
@@ -45,8 +54,11 @@ def main() -> int:
         return 1
 
     # File checks
-    files = list(release.rglob("*"))
-    files = [f for f in files if f.is_file()]
+    files = [
+        f
+        for f in release.rglob("*")
+        if f.is_file() and not should_ignore(f.relative_to(release))
+    ]
     print(f"Release dir   : {release}")
     print(f"Total files   : {len(files)}")
     by_name = {f.name for f in files}
@@ -60,7 +72,8 @@ def main() -> int:
     total_bytes = sum(f.stat().st_size for f in files)
     print(f"Total size    : {total_bytes / 1e6:.1f} MB")
     print(f"Target repo   : {args.repo_id} ({'private' if args.private else 'public'})")
-    print(f"Commit message: {args.commit_message}")
+    commit_message = args.commit_message or f"Release: {release.name}"
+    print(f"Commit message: {commit_message}")
     print()
 
     # Show file list, sorted by size
@@ -80,13 +93,27 @@ def main() -> int:
     print("Creating repo (no-op if it already exists)...")
     create_repo(repo_id=args.repo_id, private=args.private, exist_ok=True)
 
-    print("Uploading folder...")
     api = HfApi()
-    api.upload_folder(
-        folder_path=str(release),
-        repo_id=args.repo_id,
-        commit_message=args.commit_message,
-    )
+    if args.large_folder:
+        print("Uploading folder with resumable large-folder uploader...")
+        api.upload_large_folder(
+            folder_path=str(release),
+            repo_id=args.repo_id,
+            repo_type="model",
+            private=args.private,
+            ignore_patterns=list(IGNORE_PATTERNS),
+            num_workers=4,
+            print_report=True,
+            print_report_every=60,
+        )
+    else:
+        print("Uploading folder...")
+        api.upload_folder(
+            folder_path=str(release),
+            repo_id=args.repo_id,
+            commit_message=commit_message,
+            ignore_patterns=list(IGNORE_PATTERNS),
+        )
 
     print(f"\nDONE. Live at: https://huggingface.co/{args.repo_id}")
     return 0

@@ -39,6 +39,12 @@ METRIC_KEYS_TIER0 = ["accuracy", "false_trustworthy_rate"]
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", type=Path, default=Path("configs/encoder/modernbert_base.yaml"))
+    p.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("data/processed"),
+        help="Processed dataset directory to pass through to train_encoder.py",
+    )
     p.add_argument("--seeds", type=int, nargs="+", default=[42, 1337, 7])
     p.add_argument(
         "--base-output-dir",
@@ -70,6 +76,7 @@ def main() -> int:
     args.base_output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Config       : {args.config}")
+    print(f"Data dir     : {args.data_dir}")
     print(f"Seeds        : {args.seeds}")
     print(f"Output base  : {args.base_output_dir.resolve()}")
     print(f"Python       : {args.python}\n")
@@ -87,6 +94,8 @@ def main() -> int:
             "scripts/train_encoder.py",
             "--config",
             str(args.config),
+            "--data-dir",
+            str(args.data_dir),
             "--output-dir",
             str(out_dir),
             "--seed",
@@ -108,15 +117,18 @@ def main() -> int:
             metrics = json.load(fh)
         per_seed_results.append({"seed": seed, "metrics": metrics})
         print(f"\n[{i}/{len(args.seeds)}] seed={seed} done")
+        gate_split = "test_calibrated" if "test_calibrated" in metrics else "eval_calibrated"
         print(
-            f"  eval (cal):  acc={metrics['eval_calibrated']['accuracy']:.4f}  "
-            f"FT={metrics['eval_calibrated']['false_trustworthy_rate']:.4f}  "
+            f"  {gate_split.replace('_calibrated', '')} (cal): "
+            f"acc={metrics[gate_split]['accuracy']:.4f}  "
+            f"FT={metrics[gate_split]['false_trustworthy_rate']:.4f}  "
             f"tau={metrics['threshold']:.2f}"
         )
-        print(
-            f"  tier0 (cal): acc={metrics['tier0_calibrated']['accuracy']:.4f}  "
-            f"FT={metrics['tier0_calibrated']['false_trustworthy_rate']:.4f}\n"
-        )
+        if "tier0_calibrated" in metrics:
+            print(
+                f"  tier0 (cal): acc={metrics['tier0_calibrated']['accuracy']:.4f}  "
+                f"FT={metrics['tier0_calibrated']['false_trustworthy_rate']:.4f}\n"
+            )
 
     if not per_seed_results:
         print("\nNo successful runs. Aborting.")
@@ -127,12 +139,26 @@ def main() -> int:
     print(f"AGGREGATE ACROSS {len(per_seed_results)} SEED(S): {[r['seed'] for r in per_seed_results]}")
     print("=" * 80)
 
-    for split_label, split_key, keys in (
+    split_specs = [
         ("eval uncalibrated", "eval_uncalibrated", METRIC_KEYS_EVAL),
         ("eval calibrated   ", "eval_calibrated", METRIC_KEYS_EVAL),
-        ("tier0 uncalibrated", "tier0_uncalibrated", METRIC_KEYS_TIER0),
-        ("tier0 calibrated  ", "tier0_calibrated", METRIC_KEYS_TIER0),
-    ):
+    ]
+    if all("test_uncalibrated" in r["metrics"] for r in per_seed_results):
+        split_specs.extend(
+            [
+                ("test uncalibrated", "test_uncalibrated", METRIC_KEYS_EVAL),
+                ("test calibrated   ", "test_calibrated", METRIC_KEYS_EVAL),
+            ]
+        )
+    if all("tier0_uncalibrated" in r["metrics"] for r in per_seed_results):
+        split_specs.extend(
+            [
+                ("tier0 uncalibrated", "tier0_uncalibrated", METRIC_KEYS_TIER0),
+                ("tier0 calibrated  ", "tier0_calibrated", METRIC_KEYS_TIER0),
+            ]
+        )
+
+    for split_label, split_key, keys in split_specs:
         print(f"\n[{split_label}]")
         for k in keys:
             vals = [r["metrics"][split_key][k] for r in per_seed_results]
@@ -160,10 +186,26 @@ def main() -> int:
                 for k in keys
             }
             for split_key, keys in [
-                ("eval_uncalibrated", METRIC_KEYS_EVAL),
-                ("eval_calibrated", METRIC_KEYS_EVAL),
-                ("tier0_uncalibrated", METRIC_KEYS_TIER0),
-                ("tier0_calibrated", METRIC_KEYS_TIER0),
+                *[
+                    ("eval_uncalibrated", METRIC_KEYS_EVAL),
+                    ("eval_calibrated", METRIC_KEYS_EVAL),
+                ],
+                *(
+                    [
+                        ("test_uncalibrated", METRIC_KEYS_EVAL),
+                        ("test_calibrated", METRIC_KEYS_EVAL),
+                    ]
+                    if all("test_uncalibrated" in r["metrics"] for r in per_seed_results)
+                    else []
+                ),
+                *(
+                    [
+                        ("tier0_uncalibrated", METRIC_KEYS_TIER0),
+                        ("tier0_calibrated", METRIC_KEYS_TIER0),
+                    ]
+                    if all("tier0_uncalibrated" in r["metrics"] for r in per_seed_results)
+                    else []
+                ),
             ]
         },
     }

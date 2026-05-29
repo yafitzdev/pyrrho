@@ -1,0 +1,87 @@
+# pyrrho-MoE-g3-alpha-qwen — Qwen3-0.6B-Base aligned upcycling target.
+#
+# Decision point:
+# - Keep Qwen's tokenizer/vocab and trunk shape to preserve seed competence.
+# - Qwen3-0.6B uses explicit 128-dim attention heads, so the first naive
+#   24-expert / 2112-FFN shape exceeded the active budget once real tensors
+#   were inspected.
+# - Stay inside the hard 4B/A0.4B budget by using 48 physical experts per MoE
+#   layer and FFN dim 1056.
+# - This is the preferred config for dense-to-MoE upcycling experiments.
+
+architecture:
+  layers: 28
+  hidden_size: 1024
+  attention_heads: 16
+  head_dim: 128
+  kv_heads: 8
+  attention_qk_norms: true
+  ffn_dim: 1056
+  dense_ffn_layers: 4
+  moe_ffn_layers: 24
+  experts_per_moe_layer: 48
+  top_k: 1
+  vocab_size: 151936
+  tied_embeddings: true
+  taxonomy_patterns: 23
+  scalar_heads: 15
+  governance_classes: 3
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+    - conflict_detection
+
+seed_candidate:
+  status: selected_for_first_upcycling_attempt
+  model_id: Qwen/Qwen3-0.6B-Base
+  license: apache-2.0
+  hidden_size: 1024
+  num_hidden_layers: 28
+  intermediate_size: 3072
+  num_attention_heads: 16
+  num_key_value_heads: 8
+  head_dim: 128
+  vocab_size: 151936
+  note: >
+    Keep the Qwen tokenizer and embeddings. The old 64k tokenizer budget is not
+    compatible with direct embedding upcycling, and accepting Qwen's full vocab
+    with the old 16-expert/3840-FFN shape exceeds A0.4B. Real-weight inspection
+    also showed Qwen uses explicit 128-dim attention heads (`q_proj` 2048x1024),
+    so the previous 24-expert/2112-FFN alpha was undercounted. This repaired
+    variant preserves Qwen's hidden/layer/KV/head-dim/vocab shape and restores
+    the active budget by using 48 experts/layer and 1056-wide expert FFNs.
+
+upcycling:
+  ffn_init: select_seed_channels_by_combined_gate_up_down_norm
+  attention_init: copy_seed_attention
+  embedding_init: copy_seed_embeddings
+  norm_init: copy_seed_norms
+  router_init: supervised_from_fitz_gov
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.0.1
+  moe_output_dir: data/moe_v8
+  max_seq_length: 4096
+  scalar_fields:
+    - trustworthy
+    - disputed
+    - abstain
+    - confidence
+    - grounding
+    - conflict_density
+    - evidence_sufficiency
+    - domain_familiarity
+    - false_trustworthy_risk
+    - hallucination_pressure
+    - retrieval_retry_value
+    - human_escalation_score
+    - query_evidence_alignment
+    - answer_coverage
+    - evidence_bias_score

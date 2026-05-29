@@ -59,7 +59,13 @@ def format_slm_messages(query: str, contexts: Iterable[str]) -> list[dict[str, s
 
 
 def load_processed(data_dir: str | Path) -> DatasetDict:
-    """Load the DatasetDict written by `prepare_data.py`. Expects splits: train / eval / tier0_sanity."""
+    """Load the DatasetDict written by `prepare_data.py`.
+
+    Required splits are `train` and `eval`. V7+ processed datasets also include
+    `test`, which callers should use for final held-out reporting after
+    checkpoint/threshold selection on `eval`. `tier0_sanity` is optional because
+    the published V7 split contract already includes the legacy tier0 rows.
+    """
     hf_dir = Path(data_dir) / "hf_dataset"
     if not hf_dir.exists():
         raise FileNotFoundError(
@@ -67,7 +73,7 @@ def load_processed(data_dir: str | Path) -> DatasetDict:
             f"Run: python scripts/prepare_data.py --output {data_dir}"
         )
     ds = load_from_disk(str(hf_dir))
-    expected = {"train", "eval", "tier0_sanity"}
+    expected = {"train", "eval"}
     missing = expected - set(ds.keys())
     if missing:
         raise ValueError(f"Loaded dataset is missing splits: {sorted(missing)}")
