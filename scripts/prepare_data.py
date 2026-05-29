@@ -28,6 +28,9 @@ Produces:
 Run from project root:
     python scripts/prepare_data.py --output data/processed_v8
     python scripts/prepare_data.py --hf yafitzdev/fitz-gov --hf-config v7 --hf-revision v7.0.1 --output data/processed_v7
+    python scripts/prepare_data.py --vault ../fitz-gov/data/fitz-gov \
+      --split-manifest ../fitz-gov/data/_workspaces/qa/sdgp_v8_qa/split_assignments.jsonl \
+      --output data/processed_v8_offline
     python scripts/prepare_data.py --output data/processed_v8_probe \
       --append-local-vault ../fitz-gov/data/sdgp_vault_v51_enriched \
       --append-local-manifest ../fitz-gov/data/sdgp_v8_qa/blind_label_manifest.jsonl
@@ -37,7 +40,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import Counter
+import random
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from datasets import Dataset, DatasetDict
@@ -54,6 +58,9 @@ LABEL2ID_4: dict[str, int] = {
 # Module-level — set in main() based on --num-classes flag.
 LABEL2ID: dict[str, int] = LABEL2ID_3
 ID2LABEL: dict[int, str] = {v: k for k, v in LABEL2ID.items()}
+
+ALLOWED_MODALITIES = {"unstructured", "structured", "code"}
+APPEND_SPLITS = ("train", "eval", "test")
 
 
 def label_for(case: dict, num_classes: int) -> str:
@@ -84,6 +91,15 @@ def load_vault_jsonl(path: Path) -> list[dict]:
     return out
 
 
+def normalize_split_name(split: str) -> str:
+    """Normalize fitz-gov/HF split names to pyrrho's local split names."""
+    if split == "validation":
+        return "eval"
+    if split in {"train", "eval", "test"}:
+        return split
+    raise ValueError(f"unsupported split {split!r}; expected train|validation|eval|test")
+
+
 def load_split_manifest(path: Path) -> dict[str, str]:
     """Load `{case_id: split}` from a fitz-gov QA manifest or split assignment file."""
     if not path.exists():
@@ -102,8 +118,290 @@ def load_split_manifest(path: Path) -> dict[str, str]:
                 raise ValueError(
                     f"{path}:{line_no}: expected case_id and split=train|validation|eval|test"
                 )
-            split_by_id[case_id] = "eval" if split == "validation" else split
+            split_by_id[case_id] = normalize_split_name(split)
     return split_by_id
+
+
+def apply_split_manifest(cases: list[dict], manifest_path: Path) -> dict[str, list[dict]]:
+    """Assign local vault rows to train/eval/test using a published split manifest."""
+    split_by_id = load_split_manifest(manifest_path)
+    raw_splits: dict[str, list[dict]] = {"train": [], "eval": [], "test": []}
+    seen_ids: set[str] = set()
+    missing: list[str] = []
+    for case in cases:
+        case_id = str(case.get("id") or "")
+        if not case_id:
+            raise ValueError("local split-manifest row is missing id")
+        split = split_by_id.get(case_id)
+        if split is None:
+            missing.append(case_id)
+            continue
+        raw_splits.setdefault(split, []).append(case)
+        seen_ids.add(case_id)
+
+    if missing:
+        raise ValueError(
+            f"{len(missing)} local cases are missing from split manifest; "
+            f"first 5: {sorted(missing)[:5]}"
+        )
+    unused = set(split_by_id) - seen_ids
+    if unused:
+        raise ValueError(
+            f"{len(unused)} split-manifest IDs were not found in local cases; "
+            f"first 5: {sorted(unused)[:5]}"
+        )
+    return raw_splits
+
+
+def load_candidate_pack(path: Path) -> tuple[list[dict], dict]:
+    """Load a candidate modality pack without touching the active fitz-gov vault.
+
+    `path` may be a candidate directory containing `cases.jsonl` and `manifest.json`,
+    or a direct JSONL path. Directory manifests are treated as source metadata, not
+    split assignments.
+    """
+    if path.is_dir():
+        cases_path = path / "cases.jsonl"
+        manifest_path = path / "manifest.json"
+        manifest = (
+            json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest_path.exists()
+            else {}
+        )
+    else:
+        cases_path = path
+        manifest = {}
+
+    cases = load_vault_jsonl(cases_path)
+    if manifest:
+        expected_rows = manifest.get("rows")
+        if expected_rows is not None and int(expected_rows) != len(cases):
+            raise ValueError(
+                f"{path}: manifest rows={expected_rows} but cases.jsonl has {len(cases)}"
+            )
+        expected_modality = manifest.get("modality")
+        if expected_modality:
+            mismatched = [
+                str(case.get("id") or "")
+                for case in cases
+                if case.get("meta", {}).get("modality") != expected_modality
+            ]
+            if mismatched:
+                raise ValueError(
+                    f"{path}: {len(mismatched)} rows do not match manifest modality "
+                    f"{expected_modality!r}; first 5: {mismatched[:5]}"
+                )
+
+    for case in cases:
+        case_id = str(case.get("id") or "")
+        modality = case.get("meta", {}).get("modality")
+        if not case_id:
+            raise ValueError(f"{path}: candidate row without id")
+        if modality not in ALLOWED_MODALITIES - {"unstructured"}:
+            raise ValueError(
+                f"{path}: candidate row {case_id!r} has invalid candidate modality "
+                f"{modality!r}; expected structured|code"
+            )
+
+    return cases, {"path": str(path), **manifest}
+
+
+def load_candidate_selection_ids(paths: list[Path] | None) -> set[str] | None:
+    """Load selected case IDs from one or more probe/training manifest JSONLs."""
+    if not paths:
+        return None
+    selected: set[str] = set()
+    for path in paths:
+        for row in load_vault_jsonl(path):
+            case_id = str(row.get("case_id") or row.get("id") or "")
+            if not case_id:
+                raise ValueError(f"{path}: selection manifest row without case_id/id")
+            selected.add(case_id)
+    return selected
+
+
+def canonical_query(case: dict) -> str:
+    query = str(case.get("input", {}).get("query") or "")
+    return " ".join(query.casefold().split())
+
+
+def candidate_group_key(case: dict, split_key: str) -> str:
+    if split_key == "id":
+        return str(case.get("id") or "")
+    if split_key == "query":
+        return canonical_query(case) or str(case.get("id") or "")
+    raise ValueError(f"unsupported candidate split key: {split_key}")
+
+
+def candidate_stratum(cases: list[dict]) -> str:
+    """Derive a stable split-balancing stratum for a candidate query group."""
+    labels = Counter(label_for(case, 3) for case in cases)
+    modalities = Counter(str(case.get("meta", {}).get("modality") or "unknown") for case in cases)
+    difficulties = Counter(str(case.get("meta", {}).get("difficulty") or "unknown") for case in cases)
+    label = sorted(labels.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    modality = sorted(modalities.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    difficulty = sorted(difficulties.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    return f"{modality}|{label}|{difficulty}"
+
+
+def split_candidate_cases(
+    cases: list[dict],
+    *,
+    eval_ratio: float,
+    test_ratio: float,
+    seed: int,
+    split_key: str,
+) -> dict[str, list[dict]]:
+    """Deterministically split candidate rows, keeping query groups together."""
+    if not 0.0 <= eval_ratio < 1.0:
+        raise ValueError("--candidate-eval-ratio must be in [0, 1)")
+    if not 0.0 <= test_ratio < 1.0:
+        raise ValueError("--candidate-test-ratio must be in [0, 1)")
+    if eval_ratio + test_ratio >= 1.0:
+        raise ValueError("candidate eval+test ratios must sum to less than 1")
+
+    groups_by_stratum: dict[str, list[list[dict]]] = defaultdict(list)
+    by_group: dict[str, list[dict]] = defaultdict(list)
+    for case in cases:
+        by_group[candidate_group_key(case, split_key)].append(case)
+    for group_cases in by_group.values():
+        groups_by_stratum[candidate_stratum(group_cases)].append(group_cases)
+
+    rng = random.Random(seed)
+    out: dict[str, list[dict]] = {"train": [], "eval": [], "test": []}
+    for stratum in sorted(groups_by_stratum):
+        groups = sorted(groups_by_stratum[stratum], key=lambda rows: str(rows[0].get("id") or ""))
+        rng.shuffle(groups)
+        n = len(groups)
+        n_test = int(round(n * test_ratio))
+        n_eval = int(round(n * eval_ratio))
+        if n_test + n_eval > n:
+            n_eval = max(0, n - n_test)
+
+        for idx, group_cases in enumerate(groups):
+            if idx < n_test:
+                split = "test"
+            elif idx < n_test + n_eval:
+                split = "eval"
+            else:
+                split = "train"
+            out[split].extend(group_cases)
+
+    for split in out:
+        out[split].sort(key=lambda case: str(case.get("id") or ""))
+    return out
+
+
+def counter_dict(values: list[str]) -> dict[str, int]:
+    return dict(sorted(Counter(values).items()))
+
+
+def summarize_cases(cases: list[dict]) -> dict:
+    return {
+        "rows": len(cases),
+        "labels": counter_dict([label_for(case, 3) for case in cases]),
+        "modalities": counter_dict(
+            [str(case.get("meta", {}).get("modality") or "unknown") for case in cases]
+        ),
+        "patterns": counter_dict(
+            [str(case.get("taxonomy", {}).get("pattern") or "unknown") for case in cases]
+        ),
+        "experts": counter_dict(
+            [str(case.get("routing", {}).get("expert_fired") or "unknown") for case in cases]
+        ),
+        "difficulties": counter_dict(
+            [str(case.get("meta", {}).get("difficulty") or "unknown") for case in cases]
+        ),
+    }
+
+
+def append_candidate_packs_to_splits(
+    raw_splits: dict[str, list[dict]],
+    *,
+    candidate_paths: list[Path],
+    selection_manifest_paths: list[Path] | None,
+    eval_ratio: float,
+    test_ratio: float,
+    seed: int,
+    split_key: str,
+) -> dict:
+    """Append candidate structured/code rows to an existing split contract."""
+    if not {"train", "eval"} <= set(raw_splits.keys()):
+        raise ValueError("--append-candidate-pack requires an existing train/eval split contract")
+
+    selection_ids = load_candidate_selection_ids(selection_manifest_paths)
+    candidate_cases: list[dict] = []
+    source_manifests: list[dict] = []
+    seen_candidate_ids: set[str] = set()
+    for path in candidate_paths:
+        cases, manifest = load_candidate_pack(path.resolve())
+        source_manifests.append(manifest)
+        for case in cases:
+            case_id = str(case.get("id") or "")
+            if selection_ids is not None and case_id not in selection_ids:
+                continue
+            if case_id in seen_candidate_ids:
+                raise ValueError(f"duplicate candidate case id: {case_id}")
+            seen_candidate_ids.add(case_id)
+            candidate_cases.append(case)
+
+    if selection_ids is not None:
+        missing = selection_ids - seen_candidate_ids
+        if missing:
+            raise ValueError(
+                f"{len(missing)} selected candidate IDs were not found in candidate packs; "
+                f"first 5: {sorted(missing)[:5]}"
+            )
+    if not candidate_cases:
+        raise ValueError("candidate pack selection produced 0 rows")
+
+    existing_ids = {
+        str(case.get("id") or "")
+        for split_cases in raw_splits.values()
+        for case in split_cases
+        if isinstance(case, dict)
+    }
+    duplicated = existing_ids & seen_candidate_ids
+    if duplicated:
+        raise ValueError(
+            f"{len(duplicated)} candidate IDs duplicate existing split IDs; "
+            f"first 5: {sorted(duplicated)[:5]}"
+        )
+
+    base_queries = {
+        canonical_query(case)
+        for split_cases in raw_splits.values()
+        for case in split_cases
+        if isinstance(case, dict) and canonical_query(case)
+    }
+    candidate_queries = {canonical_query(case) for case in candidate_cases if canonical_query(case)}
+    query_overlap = base_queries & candidate_queries
+    if query_overlap:
+        raise ValueError(
+            f"{len(query_overlap)} candidate queries exactly overlap the base contract; "
+            f"first 5: {sorted(query_overlap)[:5]}"
+        )
+
+    candidate_splits = split_candidate_cases(
+        candidate_cases,
+        eval_ratio=eval_ratio,
+        test_ratio=test_ratio,
+        seed=seed,
+        split_key=split_key,
+    )
+    for split in APPEND_SPLITS:
+        raw_splits.setdefault(split, []).extend(candidate_splits[split])
+
+    return {
+        "sources": source_manifests,
+        "selection_manifests": [str(path) for path in (selection_manifest_paths or [])],
+        "split_key": split_key,
+        "seed": seed,
+        "eval_ratio": eval_ratio,
+        "test_ratio": test_ratio,
+        "total": summarize_cases(candidate_cases),
+        "splits": {split: summarize_cases(candidate_splits[split]) for split in APPEND_SPLITS},
+    }
 
 
 def load_hf(
@@ -195,6 +493,7 @@ def normalize_case(case: dict, num_classes: int) -> dict:
     contexts = case.get("input", {}).get("contexts") or []
     # Keep contexts as a plain list[str] for compatibility with existing eval scripts.
     context_texts = [c.get("text", "") if isinstance(c, dict) else str(c) for c in contexts]
+    modality = meta.get("modality", "unstructured")
     return {
         "id": case.get("id", ""),
         "text": build_text(case),
@@ -210,7 +509,11 @@ def normalize_case(case: dict, num_classes: int) -> dict:
         "taxonomy_cell_id": taxonomy.get("cell_id", ""),
         "expert": routing.get("expert_fired", ""),
         "dataset_version": meta.get("dataset_version", ""),
-        "source_file": f"{meta.get('dataset_version', 'unknown')}:{meta.get('category', 'unknown')}",
+        "modality": modality,
+        "source_file": (
+            f"{modality}:{meta.get('dataset_version', 'unknown')}:"
+            f"{meta.get('category', 'unknown')}"
+        ),
     }
 
 
@@ -236,6 +539,26 @@ def print_distribution(name: str, records: list[dict]) -> None:
     for expert, c in expert_counts:
         pct = (c / n * 100) if n else 0.0
         print(f"    {expert:22s}: {c:5d}  ({pct:5.1f}%)")
+
+    modality_counts = Counter(r.get("modality", "unknown") for r in records)
+    if modality_counts:
+        print("  by modality:")
+        for modality, c in sorted(modality_counts.items()):
+            pct = (c / n * 100) if n else 0.0
+            print(f"    {modality:14s}: {c:5d}  ({pct:5.1f}%)")
+
+
+def summarize_records(records: list[dict]) -> dict:
+    return {
+        "rows": len(records),
+        "labels": counter_dict([str(r["label"]) for r in records]),
+        "modalities": counter_dict([str(r.get("modality", "unknown")) for r in records]),
+        "difficulties": counter_dict([str(r.get("difficulty", "unknown")) for r in records]),
+        "experts": counter_dict([str(r.get("expert", "unknown")) for r in records]),
+        "taxonomy_patterns": counter_dict(
+            [str(r.get("taxonomy_pattern", "unknown")) for r in records]
+        ),
+    }
 
 
 def stratified_split(
@@ -295,6 +618,13 @@ def parse_args() -> argparse.Namespace:
         help="HuggingFace revision/tag to load (default: v8.0.1). Use empty string for main.",
     )
     parser.add_argument(
+        "--split-manifest",
+        type=Path,
+        default=None,
+        help="Offline split assignment JSONL for --vault mode; preserves train/eval/test splits "
+        "without loading the HuggingFace dataset.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("data/processed"),
@@ -338,6 +668,41 @@ def parse_args() -> argparse.Namespace:
         default="v8",
         help="meta.dataset_version cohort to append from --append-local-vault (default: v8).",
     )
+    parser.add_argument(
+        "--append-candidate-pack",
+        type=Path,
+        action="append",
+        default=None,
+        help="Append a structured/code candidate pack directory containing cases.jsonl + "
+        "manifest.json, or a direct candidate cases.jsonl. Repeat for multiple modalities.",
+    )
+    parser.add_argument(
+        "--candidate-selection-manifest",
+        type=Path,
+        action="append",
+        default=None,
+        help="Optional JSONL manifest with case_id/id values selecting a subset from the "
+        "candidate packs. Repeatable; omitted means use every candidate row.",
+    )
+    parser.add_argument(
+        "--candidate-eval-ratio",
+        type=float,
+        default=0.1,
+        help="Fraction of candidate query groups appended to eval (default: 0.1).",
+    )
+    parser.add_argument(
+        "--candidate-test-ratio",
+        type=float,
+        default=0.1,
+        help="Fraction of candidate query groups appended to test (default: 0.1).",
+    )
+    parser.add_argument(
+        "--candidate-split-key",
+        choices=["query", "id"],
+        default="query",
+        help="Grouping key for candidate splits; query prevents exact-query leakage "
+        "(default: query).",
+    )
     return parser.parse_args()
 
 
@@ -364,7 +729,16 @@ def main() -> int:
     else:
         vault_root = (args.vault or Path("../fitz-gov/data/sdgp_vault_v51_enriched")).resolve()
         print(f"source          : SDGP vault {vault_root}")
-        raw_splits = {"all": load_vault_jsonl(vault_root / "cases.jsonl")}
+        local_cases = load_vault_jsonl(vault_root / "cases.jsonl")
+        if args.split_manifest is not None:
+            manifest_path = args.split_manifest.resolve()
+            print(f"split manifest  : {manifest_path}")
+            raw_splits = apply_split_manifest(local_cases, manifest_path)
+        else:
+            raw_splits = {"all": local_cases}
+
+    append_summary = None
+    candidate_summary = None
 
     if args.append_local_vault is not None:
         if args.append_local_manifest is None:
@@ -380,6 +754,31 @@ def main() -> int:
             f"cohort={args.append_local_cohort} "
             f"train={append_counts['train']} eval={append_counts['eval']} "
             f"test={append_counts['test']}"
+        )
+        append_summary = {
+            "cohort": args.append_local_cohort,
+            "splits": append_counts,
+            "vault": str(args.append_local_vault.resolve()),
+            "manifest": str(args.append_local_manifest.resolve()),
+        }
+
+    if args.append_candidate_pack:
+        candidate_summary = append_candidate_packs_to_splits(
+            raw_splits,
+            candidate_paths=args.append_candidate_pack,
+            selection_manifest_paths=args.candidate_selection_manifest,
+            eval_ratio=args.candidate_eval_ratio,
+            test_ratio=args.candidate_test_ratio,
+            seed=args.seed,
+            split_key=args.candidate_split_key,
+        )
+        split_counts = candidate_summary["splits"]
+        print(
+            "appended candidates: "
+            f"train={split_counts['train']['rows']} "
+            f"eval={split_counts['eval']['rows']} "
+            f"test={split_counts['test']['rows']} "
+            f"modalities={candidate_summary['total']['modalities']}"
         )
 
     print(f"output dir      : {output_dir}")
@@ -441,6 +840,29 @@ def main() -> int:
     if tier0:
         save_jsonl(tier0, output_dir / "tier0_sanity.jsonl")
     print(f"\nWrote JSONL splits to {output_dir}")
+
+    prep_summary = {
+        "source": {
+            "hf": bool(args.hf or args.vault is None),
+            "hf_repo": args.hf or "yafitzdev/fitz-gov",
+            "hf_config": args.hf_config,
+            "hf_revision": args.hf_revision or None,
+            "vault": str(args.vault.resolve()) if args.vault else None,
+            "split_manifest": str(args.split_manifest.resolve()) if args.split_manifest else None,
+        },
+        "num_classes": args.num_classes,
+        "base_append": append_summary,
+        "candidate_append": candidate_summary,
+        "splits": {
+            "train": summarize_records(train),
+            "eval": summarize_records(eval_),
+            "test": summarize_records(test),
+            "tier0_sanity": summarize_records(tier0),
+        },
+    }
+    with (output_dir / "prep_summary.json").open("w", encoding="utf-8") as fh:
+        json.dump(prep_summary, fh, indent=2, ensure_ascii=False)
+    print(f"Wrote prep summary -> {output_dir / 'prep_summary.json'}")
 
     hf_dir = output_dir / "hf_dataset"
     dataset_splits = {

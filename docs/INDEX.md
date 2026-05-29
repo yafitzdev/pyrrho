@@ -12,9 +12,10 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 | 2 | [LOG.md](LOG.md) | **Project history.** Append-only reverse-chronological log of findings, decisions, and experiments. Read for the *why* and the *when*. | When HANDOFF.md mentions something you don't have context on. |
 | 3 | [PROJECT.md](PROJECT.md) §1–§5 | Vision, the fitz-gov / fitz-sage / pyrrho triangle, baseline to beat, encoder-vs-SLM rationale. | When you need *why* anything was decided structurally. |
 | 4 | [METHODOLOGY.md](METHODOLOGY.md) | End-to-end model-development pipeline. The 8-step process every release follows. | Before producing any new release. |
-| 5 | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) | Canonical `pyrrho-MoE` architecture spec: 4B-A0.4B parameter math, expert layout, upcycling/distillation plan, training gates. | Before touching MoE implementation or model selection. |
-| 6 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
-| 7 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
+| 5 | [CODE_MODALITY_AXES.md](CODE_MODALITY_AXES.md) | Current structured/code modality axis decision, code coverage audit, targeted patch status, and local-control results. | Before touching structured/code candidate rows or code OOD probes. |
+| 6 | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) | Canonical `pyrrho-MoE` architecture spec: 4B-A0.4B parameter math, expert layout, upcycling/distillation plan, training gates. | Before touching MoE implementation or model selection. |
+| 7 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
+| 8 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
 
 ---
 
@@ -30,6 +31,7 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 | `pyrrho-MoE` architecture spec | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) |
 | Current MoE seed scan | [MOE_SEED_SEARCH_2026-05-26.md](MOE_SEED_SEARCH_2026-05-26.md) |
 | Current MoE upcycling decision | [MOE_UPCYCLING_DECISION_2026-05-26.md](MOE_UPCYCLING_DECISION_2026-05-26.md) |
+| Structured/code modality status | [CODE_MODALITY_AXES.md](CODE_MODALITY_AXES.md) |
 | Public model card template | [MODEL_CARD_TEMPLATE.md](MODEL_CARD_TEMPLATE.md) |
 | Python library | [../src/pyrrho/](../src/pyrrho/) |
 | CLI scripts | [../scripts/](../scripts/) |

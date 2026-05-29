@@ -13,6 +13,202 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-05-29 (morning) — Retry-patch 3-seed stability
+
+**What landed:**
+- Trained retry-patch ModernBERT controls for seeds **42** and **1337**, completing the seed **42/1337/7** set on `data/processed_v8_plus_structured_code_retry_patch_candidate`.
+- Ran `scripts/eval_report.py` and `scripts/code_ood_probe.py` for the new seeds, then wrote aggregate summaries to `outputs/modality_retraining/structured_code_retry_patch_3seed_summary.json`, `outputs/modality_retraining/structured_code_retry_patch_3seed_report.md`, and `outputs/code_ood_probe/structured_code_retry_patch_3seed_summary.json`.
+- Updated `docs/HANDOFF.md` and `docs/CODE_MODALITY_AXES.md` with the completed 3-seed result.
+
+**What was learned:**
+- The retry-patch 3-seed held-out test passes gates at **98.62 ± 0.15%** calibrated accuracy / **1.06 ± 0.05%** false-TRUSTWORTHY.
+- Candidate code and structured test slices remain clean: both are **100.00 ± 0.00% / 0.00 ± 0.00% FT**. The unstructured slice is **97.47 ± 0.28% / 1.94 ± 0.09% FT**.
+- Hand-authored code OOD improved from the joint+patch branch's **95.37 ± 3.21% / 6.94 ± 4.81% FT** to **99.07 ± 1.60% / 1.39 ± 2.41% FT**.
+- The targeted retry-limit `constant_config_conflict` mechanism is now clean across all three seeds: **100.00 ± 0.00% / 0.00 ± 0.00% FT**. The only remaining OOD miss is seed 42 on `code_10_missing_audit__diff_context`, an inherited `missing_specific_field` / `evidence_absent` ABSTAIN case.
+- This remains label-trusted local-control evidence only; the code patches still need full blind-label QA before any merge/publish decision.
+
+**Next:** Complete full blind-label QA for `modality_code_patch_v1_20260528` and `modality_code_retry_conflict_patch_v1_20260529`; if doing another local control first, target the inherited `missing_specific_field` diff-context failure.
+
+---
+
+## 2026-05-29 (morning) — Retry-limit conflict patch seed-7 check
+
+**What landed:**
+- Added fitz-gov `scripts/sdgp_generate_code_retry_conflict_patch.py` and generated `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/handoff/modality_code_retry_conflict_patch_v1_20260529/` with **360** candidate-only code rows.
+- Added offline local split support to `scripts/prepare_data.py` via `--split-manifest`, then rebuilt `data/processed_v8_plus_structured_code_retry_patch_candidate` from the local V8 vault plus structured/code candidate packs, patch v1, and the retry patch without LM Studio or API calls.
+- Trained seed **7** at `outputs/modality_retraining/structured_code_retry_patch_seed7/`, wrote `eval_report.json`, and scored the 36-row code OOD probe at `outputs/code_ood_probe/structured_code_retry_patch_seed7/`.
+- Updated `docs/HANDOFF.md` and `docs/CODE_MODALITY_AXES.md`.
+
+**What was learned:**
+- The retry patch is structurally clean: **360/360** rows pass fitz-gov `Checker(require_training_schema=True)`, with **0/360** syntax mismatches in the pyrrho audit.
+- Seed 7 held-out test by `eval_report.py` is **98.68%** calibrated accuracy / **1.01%** false-TRUSTWORTHY; code and structured slices are both **100.00% / 0.00% FT**, and unstructured is **97.56% / 1.84% FT**.
+- The hand-authored code OOD probe is clean for seed 7: **100.00%** accuracy / **0.00%** FT. The former retry-limit `constant_config_conflict` miss is now **3/3**, and all three serializations are **12/12**.
+- This is still label-trusted evidence only: the retry patch has not had blind-label QA, and only seed 7 has been retrained.
+
+**Next:** Run seeds 42/1337 for retry-patch stability if continuing the local control, and complete full blind-label QA for both code patches before any merge/publish decision.
+
+---
+
+## 2026-05-29 (morning) — Joint+patch 3-seed stability
+
+**What landed:**
+- Trained and evaluated label-trusted joint+patch ModernBERT controls for seeds **1337** and **7**, completing the seed **42/1337/7** set on `data/processed_v8_plus_structured_code_patch_candidate`.
+- Wrote aggregate summaries to `outputs/modality_retraining/structured_code_patch_3seed_summary.json`, `outputs/modality_retraining/structured_code_patch_3seed_report.md`, and `outputs/code_ood_probe/structured_code_patch_3seed_summary.json`.
+- Updated `docs/HANDOFF.md` and `docs/CODE_MODALITY_AXES.md` with the completed 3-seed result and remaining code OOD failure family.
+
+**What was learned:**
+- The 3-seed held-out test passes comfortably: **98.52 ± 0.13%** calibrated accuracy / **1.06 ± 0.22%** false-TRUSTWORTHY.
+- Candidate code and structured test slices are both **100.00 ± 0.00% / 0.00 ± 0.00% FT**; unstructured remains strong but below published g3 safety at **97.28 ± 0.25% / 1.92 ± 0.40% FT**.
+- Hand-authored code OOD improved from the unpatched joint branch's **77.78 ± 14.70% / 29.17 ± 27.32% FT** to **95.37 ± 3.21% / 6.94 ± 4.81% FT**.
+- The remaining code OOD instability is narrow: every false-TRUSTWORTHY failure is `constant_config_conflict`, specifically retry-limit code/config numerical conflict. Seeds 42/1337 only miss the review-packet serialization; seed 7 misses all three serializations.
+
+**Next:** Add a small second targeted patch for same-query retry-limit / code-vs-config numerical conflicts, rerun at least seed 7 plus the 36-row code OOD probe, and keep full blind-label QA as a pre-merge requirement.
+
+---
+
+## 2026-05-28 (night) — Joint+patch code OOD probe
+
+**What landed:**
+- Ran `scripts/code_ood_probe.py` against `outputs/modality_retraining/structured_code_patch_seed42/best_model`.
+- Wrote artifacts to `outputs/code_ood_probe/structured_code_patch_seed42/`.
+
+**What was learned:**
+- The label-trusted joint+patch seed-42 checkpoint scored **97.22% accuracy / 4.17% false-TRUSTWORTHY** on the 36-row hand-authored code OOD probe.
+- This improves the earlier seed-42 joint structured+code branch from **88.89% / 4.17% FT** to **97.22% / 4.17% FT**.
+- ABSTAIN code boundaries are now clean in this seed: wrong symbol, wrong API version, missing specific field, and missing test-result rows all scored **3/3**.
+- The only remaining miss is `code_05_retry_conflict__review_packet`: expected **DISPUTED**, predicted **TRUSTWORTHY** with P(T)=**0.751** on a code/config retry-limit conflict.
+
+**Next:** Run seeds **1337/7** for the label-trusted joint+patch control if testing stability, or add more same-query code/config conflict rows if prioritizing the remaining OOD miss before scaling.
+
+---
+
+## 2026-05-28 (night) — Label-trusted code patch control
+
+**What landed:**
+- Repaired the targeted code patch generator's config/runtime conflict family into an unresolved same-environment runtime-status conflict.
+- Regenerated `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/handoff/modality_code_patch_v1_20260528/` as **720** structural-clean rows.
+- Prepared `data/processed_v8_plus_structured_code_patch_candidate` from published V8.0.1 plus the 10k structured pack, 10k original code pack, and 720-row code patch.
+- Trained seed **42** ModernBERT control at `outputs/modality_retraining/structured_code_patch_seed42/` and wrote `eval_report.json`.
+- Stopped LM Studio/API blind-label processes after user requested no more API calls.
+
+**What was learned:**
+- Qwen blind QA caught two fragile families before the user paused full QA: the original wrong-symbol query was too answerable, and config/runtime conflicts looked resolvable until rewritten as two same-timestamp runtime sources with no precedence rule.
+- Targeted post-repair blind-label slices were clean: config/runtime **10/10**, wrong-symbol **10/10**. The full blind run was intentionally stopped at **115** predictions; the patch is not fully blind-label-QA-clean.
+- The label-trusted seed-42 control has splits **train=36,258 / eval=4,529 / test=4,525**, with patch rows **588 / 66 / 66**.
+- Seed-42 calibrated held-out test result: **98.45% accuracy / 0.98% false-TRUSTWORTHY** overall; code **100.00% / 0.00% FT** (n=1,071), structured **100.00% / 0.00% FT** (n=995), unstructured **97.15% / 1.78% FT** (n=2,459).
+- Compared with the earlier seed-42 joint structured+code control, the patch run improved overall held-out accuracy **98.09% -> 98.45%** and unstructured FT **1.95% -> 1.78%**, but this is one seed only.
+
+**Next:** Decide whether to run seeds **1337/7** for the label-trusted joint+patch control or finish full blind-label QA first. Do not publish or merge candidate modality rows yet.
+
+---
+
+## 2026-05-28 (night) — Targeted code patch generated
+
+**What landed:**
+- Added `C:/Users/yanfi/PycharmProjects/fitz-gov/scripts/sdgp_generate_code_modality_patch.py`.
+- Generated candidate-only patch workspace `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/handoff/modality_code_patch_v1_20260528/`.
+- Built blind-label QA files and 12 Codex blind shards at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_code_patch_v1_20260528/`.
+- Updated `scripts/audit_code_modality_axes.py` to accept multiple `--input` files, map the new patch mechanisms, and check syntax mismatches per context instead of across all row contexts.
+- Wrote pyrrho audits at `outputs/code_modality_axis_audit/modality_code_patch_v1_20260528/` and `outputs/code_modality_axis_audit/modality_code_v1_plus_patch_v1_20260528/`.
+
+**What was learned:**
+- The patch has **720** SDGP V8-shaped code candidate rows, label-balanced at **240 TRUSTWORTHY / 240 ABSTAIN / 240 DISPUTED**.
+- Targeted mechanism counts are: control-flow support **80**, decorator guard support **80**, transaction order support **80**, missing-specific-field **60**, wrong-symbol **60**, wrong API version **60**, test-definition-without-run **60**, config/runtime conflict **80**, docs/code conflict **80**, and test/implementation conflict **80**.
+- fitz-gov structural validation passes with **0** errors via `Checker(require_training_schema=True)`.
+- Patch-only code-axis audit has **0/720** syntax mismatches.
+- Original code pack plus patch has **10,720** rows and **0** audited hard-code OOD target gaps. The original-pack syntax mismatch count is now **239/10,000** after fixing the audit to check syntax per context.
+- Verification passed: fitz-gov `python -m pytest tests\sdgp\test_modality_metadata.py tests\sdgp\test_checker.py -q`, fitz-gov `ruff check scripts\sdgp_generate_code_modality_patch.py`, pyrrho `ruff check ...`, pyrrho `pytest tests\test_prepare_data_candidates.py -q`, and pyrrho `pytest tests\test_smoke.py -q`.
+
+**Next:** Run blind-label QA on `modality_code_patch_v1_20260528`; only if clean, build a selection manifest and start retraining comparisons.
+
+---
+
+## 2026-05-28 (night) — Code modality axes nailed down
+
+**What landed:**
+- Added `docs/CODE_MODALITY_AXES.md`, which fixes the current modeling contract: `routing.expert_fired` remains the semantic subject route, while code language/artifact/question-target/failure-mode are code-modality audit axes.
+- Added `scripts/audit_code_modality_axes.py`, a read-only audit for the fitz-gov code candidate pack.
+- Ran the audit on `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/handoff/modality_code_v1_20260527/cases.jsonl` and wrote `outputs/code_modality_axis_audit/modality_code_v1_20260527/{audit.json,records.jsonl,report.md}`.
+
+**What was learned:**
+- The 10,000-row code candidate pack is correctly marked as code modality: **10,000/10,000** rows have `meta.modality: "code"`.
+- Code does not need replacement primary domains. The current pack still routes by subject: **7,144** technology, **1,428** finance, **1,428** science.
+- The current pack has useful mechanism coverage, but the hard-code OOD gaps are concrete: **0** direct control-flow-support rows and **0** missing-specific-field rows by the audit mapping.
+- Apparent language coverage is partly synthetic: **479/10,000** rows have extension/syntax mismatch flags, mostly `.sql`/`.yaml`/`.go`/`.java_kotlin` paths containing JS-like `function ...` snippets.
+- Verification passed: `ruff check scripts\audit_code_modality_axes.py scripts\prepare_data.py scripts\eval_report.py scripts\code_ood_probe.py tests\test_prepare_data_candidates.py`, `pytest tests\test_prepare_data_candidates.py -q`, and `pytest tests\test_smoke.py -q`.
+
+**Next:** Build a targeted code hard-negative/coverage patch for syntax-matched languages, control-flow support, missing-specific-field ABSTAIN, wrong-symbol/version, and missing-result boundaries before comparing generalist versus code-specialist models.
+
+---
+
+## 2026-05-28 (night) — Code OOD probe shows unstable modality generalization
+
+**What landed:**
+- Added `scripts/code_ood_probe.py`, a 36-row hand-authored code-evidence OOD probe: 12 scenarios x 3 serializations.
+- The fixture covers exact code support, implementation/config conflicts, security metadata conflicts, wrong symbol retrieval, wrong API version, missing audit-field evidence, and missing test-result evidence.
+- Scored frozen `models/pyrrho-nano-g3` and joint structured+code checkpoints for seeds **42/1337/7**.
+- Wrote per-run outputs under `outputs/code_ood_probe/g3_release/` and `outputs/code_ood_probe/structured_code_seed{42,1337,7}/`; aggregate summary is `outputs/code_ood_probe/structured_code_3seed_summary.json`.
+
+**What was learned:**
+- Frozen g3 remains unsafe on hand-authored code evidence: **58.33% accuracy / 62.50% FT**.
+- Joint candidate training improves the mean but not release stability: **77.78 ± 14.70% accuracy / 29.17 ± 27.32% FT**.
+- Seed spread is the main blocker. Seed 42 is promising (**88.89% / 4.17% FT**), seed 1337 leaks (**83.33% / 25.00% FT**), and seed 7 is barely rescued (**61.11% / 58.33% FT**).
+- The hardest failures are code ABSTAIN boundaries: wrong symbol, wrong API version, missing audit event, and missing test-result evidence are over-predicted as TRUSTWORTHY, especially in review-packet and diff-context serializations.
+
+**Next:** Do not publish or merge the candidate modality data; compare joint-generalist training with code/structured specialist heads or separate specialist encoders, with explicit pressure on code ABSTAIN leakage.
+
+---
+
+## 2026-05-28 (night) — Hand-authored tabular OOD check for joint modality branch
+
+**What landed:**
+- Scored the existing 36-row `scripts/tabular_ood_probe.py` fixture against joint structured+code checkpoints for seeds **42/1337/7**.
+- Wrote per-seed outputs under `outputs/tabular_ood_probe/structured_code_seed{42,1337,7}/`.
+- Wrote aggregate summary at `outputs/tabular_ood_probe/structured_code_3seed_summary.json`.
+
+**What was learned:**
+- The joint branch substantially improves the existing hard structured probe versus frozen g3: **83.33 ± 4.81% accuracy / 4.17 ± 7.22% FT** versus g3 release **55.56% / 45.83% FT**.
+- Stability is not clean. Seeds 42 and 1337 scored **0.00% FT**, but seed 7 scored **12.50% FT** by predicting TRUSTWORTHY on all three `missing_execution_result` serializations.
+- TRUSTWORTHY structured recall is still uneven (**66.67 ± 16.67%** by expected-label accuracy), so the model is safer but not robustly fluent on hand-authored structured evidence.
+
+**Next:** Add a code-specific hard OOD probe and compare joint-generalist behavior with modality-specialist heads or separate specialist encoders before any merge/publish decision.
+
+---
+
+## 2026-05-28 (night) — Joint modality branch 3-seed stability
+
+**What landed:**
+- Trained the joint structured+code modality branch for the remaining seeds **1337** and **7**, reusing the existing seed **42** artifact.
+- Wrote per-seed reports at `outputs/modality_retraining/structured_code_seed{42,1337,7}/eval_report.json`.
+- Wrote aggregate 3-seed summary at `outputs/modality_retraining/structured_code_3seed_summary.json`.
+
+**What was learned:**
+- The joint branch passes aggregate release gates on the mixed held-out test: **98.34 ± 0.23% accuracy / 1.14 ± 0.33% FT**.
+- Candidate structured and code rows are solved in this split across all three seeds: structured **100.00 ± 0.00% / 0.00 ± 0.00% FT** and code **100.00 ± 0.00% / 0.00 ± 0.00% FT**.
+- The release blocker is not aggregate quality; it is evidence strength and unstructured tradeoff. The unstructured test slice is **96.99 ± 0.41% accuracy / 2.03 ± 0.60% FT**, worse on FT than published g3's V8 baseline (**97.52 ± 0.43% / 1.42 ± 0.16% FT**), and the candidate modality rows are same-generator splits rather than hard cross-template/cross-generator OOD.
+
+**Next:** Do not merge or publish the candidate modalities yet; build harder structured/code OOD and compare the joint generalist against modality-specialist heads or separate specialist encoders.
+
+---
+
+## 2026-05-28 (night) — Candidate modality prep and seed-42 retraining controls
+
+**What landed:**
+- Added candidate structured/code append support to `scripts/prepare_data.py`: repeatable `--append-candidate-pack`, optional selection manifests, deterministic query-grouped candidate splits, duplicate/query-overlap guards, processed-row `modality`, and `prep_summary.json`.
+- Added modality breakdowns to `scripts/eval_report.py`.
+- Added `tests/test_prepare_data_candidates.py` for candidate selection, duplicate-query split grouping, and processed modality/source metadata.
+- Generated local modality prep dirs: `data/processed_v8_plus_structured_candidate`, `data/processed_v8_plus_code_candidate`, and `data/processed_v8_plus_structured_code_candidate`.
+- Ran one-seed ModernBERT controls under `outputs/modality_retraining/` and wrote aggregate summary at `outputs/modality_retraining/summary_seed42.json`.
+
+**What was learned:**
+- Frozen published g3 has a real structured/code modality gap, but the candidate distribution is trainable: seed-42 retrains scored **100.00% accuracy / 0.00% FT** on held-out candidate structured/code rows in structured-only, code-only, and joint branches.
+- Mixed held-out test results were strong in aggregate: structured-only **98.17% / 0.98% FT**, code-only **98.00% / 1.27% FT**, joint structured+code **98.09% / 1.09% FT**.
+- The release concern moved to stability and generalization. The joint branch's unstructured slice was **96.54% / 1.95% FT**, below published g3's 3-seed unstructured baseline (**97.52% / 1.42% FT**) and below seed-42 g3 on FT (**97.03% / 1.48% FT**). One seed plus same-generator candidate splits is not release evidence.
+
+**Next:** Do not merge or publish structured/code rows yet; run 3-seed stability and harder cross-template/cross-generator modality OOD, or split into modality-specialist heads/separate encoders before treating modality as solved.
+
+---
+
 ## 2026-05-28 (evening) — Structured/code candidate probe confirms modality gap
 
 **What landed:**

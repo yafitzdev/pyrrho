@@ -71,7 +71,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | 15,000–30,000 | Generalization kicks in. Governance signals become calibrated, not just directional |
 | 30,000+ | False-trustworthy approaches floor. Routing stable enough to expose as signal. Infrastructure-grade |
 
-Current status as of 2026-05-28: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current active rows carry `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050). Candidate-only structured/code packs now exist locally in fitz-gov: **10,000 structured** + **10,000 code**, full blind-QA clean, not merged into the active vault.
+Current status as of 2026-05-29: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current active rows carry `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050). Candidate-only structured/code packs now exist locally in fitz-gov: **10,000 structured** + **10,000 code**, full blind-QA clean, not merged into the active vault. Two additional candidate-only code patches exist for local controls: a **720-row** targeted hard-negative/coverage patch and a **360-row** retry-limit conflict patch. Those patch labels are trusted only for local controls until full blind-label QA is completed.
 
 ### Modality Expansion: Unstructured, Structured, Code
 
@@ -103,10 +103,24 @@ Suggested staged targets for the new modalities:
 | Probe | 10 rows | 10 rows | Complete; hand-audited behavior comparison |
 | Diagnostic | 300-500 rows | 300-500 rows | Superseded by the 20k candidate pack |
 | Candidate pool | 10,000 rows | 10,000 rows | Complete locally; full Codex blind QA clean, candidate-only |
-| First trainable slice | Derived from candidate manifests | Derived from candidate manifests | Next: train/evaluate modality specialists with meaningful held-out splits |
+| First trainable slice | Derived from candidate manifests | Derived from candidate manifests | Complete as local label-trusted joint controls; not release evidence |
+| Targeted code patches | n/a | 720 + 360 rows | Complete locally; patch blind-label QA still required before merge/publish |
 | Scale-up | Only after specialist clears gates | Only after specialist clears gates | Do not add more rows until pyrrho-side prep/training proves useful |
 
 Current g3 baseline on the candidate pool is negative. `scripts/modality_candidate_probe.py` scored `pyrrho-nano-g3` at the release threshold on the full 20k pack: **52.69%** calibrated accuracy / **51.69%** false-TRUSTWORTHY. Code is especially unsafe (**49.35% / 71.38% FT**); structured is also unsafe (**56.02% / 31.99% FT**). Balanced manifests confirm this is not just pattern skew: balanced-pattern **52.24% / 50.24% FT**, balanced modality-pattern **52.22% / 50.79% FT**.
+
+Local retraining controls show the candidate distribution is learnable but not
+yet publishable. The joint structured+code branch reached **98.34 ± 0.23%**
+held-out accuracy / **1.14 ± 0.33%** false-TRUSTWORTHY, with candidate
+structured and code rows both **100.00 ± 0.00% / 0.00 ± 0.00% FT**, but
+hand-authored code OOD was still unsafe at **77.78 ± 14.70% / 29.17 ± 27.32%
+FT**. Adding the 720-row code patch improved code OOD to **95.37 ± 3.21% /
+6.94 ± 4.81% FT**; adding the 360-row retry-limit patch improved it to
+**99.07 ± 1.60% / 1.39 ± 2.41% FT** and fixed the targeted
+`constant_config_conflict` mechanism across all three seeds. The remaining OOD
+miss is an inherited `missing_specific_field` diff-context ABSTAIN case. These
+are still label-trusted local controls: full blind-label QA for both patches is
+the next gate before any merge or publish decision.
 
 fitz-sage should eventually route by evidence modality before calling pyrrho: unstructured evidence goes to the current unstructured model, structured evidence goes to a structured-data specialist, and code evidence goes to a code specialist. A later pyrrho-MoE can merge these paths once the separate modalities have enough data and known failure profiles.
 

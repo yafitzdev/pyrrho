@@ -22,16 +22,12 @@ import json
 import sys
 from pathlib import Path
 
-if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
-
 import numpy as np
 import torch
 from datasets import Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from pyrrho.data import ID2LABEL, LABEL2ID, load_processed
+from pyrrho.data import ID2LABEL, load_processed
 from pyrrho.metrics import (
     breakdown_by,
     compute_classification_metrics,
@@ -39,8 +35,13 @@ from pyrrho.metrics import (
     gated_predictions,
 )
 
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 BREAKDOWN_FIELDS = (
+    "modality",
     "difficulty",
     "expert",
     "taxonomy_pattern",
@@ -164,9 +165,9 @@ def report_split(
                 f"{m[f'recall_{lbl}']:>8.4f}  {m[f'f1_{lbl}']:>8.4f}"
             )
 
-    print(f"\n  Confusion (gold -> pred), calibrated:")
+    print("\n  Confusion (gold -> pred), calibrated:")
     cm = confusion_matrix(cal_preds, labels)
-    print(f"    {'':>13s} " + "  ".join(f"{l:>11s}" for l in ID2LABEL.values()))
+    print(f"    {'':>13s} " + "  ".join(f"{label:>11s}" for label in ID2LABEL.values()))
     for g in ID2LABEL.values():
         row = [f"{cm[g][p]:>11d}" for p in ID2LABEL.values()]
         print(f"    {g:>13s} " + "  ".join(row))
