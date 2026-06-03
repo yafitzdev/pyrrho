@@ -26,7 +26,12 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 import yaml
 from datasets import load_dataset
 
-from pyrrho.data import LABEL2ID, build_encoder_text
+from pyrrho.data import (
+    LABEL2ID,
+    QUERY_CONTRACT_LABEL2ID,
+    build_encoder_text,
+    build_query_contract_text,
+)
 from pyrrho.manifest import write_manifest
 from pyrrho.moe import DEFAULT_SEMANTIC_EXPERT_GROUPS
 
@@ -90,6 +95,19 @@ def normalize_label(row: dict[str, Any]) -> str:
     return label
 
 
+def normalize_query_contract(row: dict[str, Any], *, required: bool) -> str:
+    routing = row.get("routing") or {}
+    query_contract = routing.get("query_contract") if isinstance(routing, dict) else None
+    kind = ""
+    if isinstance(query_contract, dict):
+        kind = str(query_contract.get("kind") or "")
+    if kind in QUERY_CONTRACT_LABEL2ID:
+        return kind
+    if required:
+        raise ValueError(f"case {row.get('id')!r} has invalid query_contract kind {kind!r}")
+    return ""
+
+
 def context_features(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for ctx in contexts:
@@ -116,6 +134,7 @@ def flatten_case(
     route2id: dict[str, int],
     taxonomy2id: dict[str, int],
     scalar_fields: tuple[str, ...],
+    require_query_contract: bool,
 ) -> dict[str, Any]:
     label = normalize_label(row)
     input_block = row.get("input") or {}
@@ -126,6 +145,7 @@ def flatten_case(
     routing = row.get("routing") or {}
     taxonomy = row.get("taxonomy") or {}
     meta = row.get("meta") or {}
+    query_contract = normalize_query_contract(row, required=require_query_contract)
 
     route = str(routing.get("expert_fired") or "")
     pattern = str(taxonomy.get("pattern") or "")
@@ -142,6 +162,7 @@ def flatten_case(
         "version": row.get("version", ""),
         "dataset_version": meta.get("dataset_version", ""),
         "text": build_encoder_text(query, context_texts),
+        "query_text": build_query_contract_text(query),
         "query": query,
         "query_rewritten": input_block.get("query_rewritten"),
         "contexts": context_texts,
@@ -150,6 +171,8 @@ def flatten_case(
         "label_id": LABEL2ID[label],
         "route": route,
         "route_id": route2id[route],
+        "query_contract": query_contract,
+        "query_contract_id": QUERY_CONTRACT_LABEL2ID.get(query_contract, -1),
         "secondary_expert": routing.get("secondary_expert"),
         "routing_confidence": routing.get("routing_confidence"),
         "taxonomy_pattern": pattern,
@@ -204,6 +227,7 @@ def main() -> int:
     semantic_groups = tuple(arch_cfg.get("semantic_expert_groups") or DEFAULT_SEMANTIC_EXPERT_GROUPS)
     route2id = {name: i for i, name in enumerate(semantic_groups)}
     scalar_fields = tuple(data_cfg.get("scalar_fields") or DEFAULT_SCALAR_FIELDS)
+    require_query_contract = bool(data_cfg.get("require_query_contract", False))
 
     print(f"source          : HuggingFace {repo_id}")
     print(f"hf config       : {hf_config}")
@@ -238,6 +262,12 @@ def main() -> int:
             label_counts[normalize_label(row)] += 1
         except ValueError:
             audit_missing["governance.classification.invalid"] += 1
+        try:
+            normalize_query_contract(row, required=require_query_contract)
+        except ValueError:
+            audit_missing["routing.query_contract.invalid"] += 1
+            if len(audit_examples["routing.query_contract.invalid"]) < 5:
+                audit_examples["routing.query_contract.invalid"].append(case_id)
         route = str(get_path(row, ("routing", "expert_fired")) or "")
         pattern = str(get_path(row, ("taxonomy", "pattern")) or "")
         route_counts[route] += 1
@@ -270,6 +300,7 @@ def main() -> int:
                 route2id=route2id,
                 taxonomy2id=taxonomy2id,
                 scalar_fields=scalar_fields,
+                require_query_contract=require_query_contract,
             )
             for row in rows
             if not missing_required(row)
@@ -295,6 +326,8 @@ def main() -> int:
         "route_counts": dict(route_counts),
         "taxonomy_pattern2id": taxonomy2id,
         "taxonomy_pattern_counts": dict(taxonomy_counts),
+        "query_contract2id": QUERY_CONTRACT_LABEL2ID,
+        "require_query_contract": require_query_contract,
         "scalar_fields": list(scalar_fields),
     }
     (output_dir / "metadata.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

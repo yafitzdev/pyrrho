@@ -1,0 +1,63 @@
+# pyrrho-nano-g3.1 V8.1 multi-head ModernBERT encoder.
+# Data: yafitzdev/fitz-gov config v8, revision v8.1.0.
+# Heads:
+#   - governance class from query + evidence
+#   - query_contract from query text only
+#   - route/domain from query text only
+#   - taxonomy pattern from query + evidence
+#   - selected scalar signals from query + evidence
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  dropout: 0.0
+
+architecture:
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.1.0
+  moe_output_dir: data/multitask_v8_1_query_contract
+  input_dir: data/multitask_v8_1_query_contract
+  require_query_contract: true
+  max_seq_length: 4096
+  max_query_length: 256
+  scalar_fields:
+    - evidence_sufficiency
+    - query_evidence_alignment
+    - answer_coverage
+    - conflict_density
+    - retrieval_retry_value
+    - false_trustworthy_risk
+
+training:
+  output_dir: outputs/pyrrho-nano-g3_1_multitask/seed_42
+  num_train_epochs: 5
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_workers: 0
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  bf16: true
+  label_smoothing: 0.15
+  governance_class_weights: [2.3, 2.3, 1.0]
+  balance_query_contract: true
+  seed: 42
+
+loss:
+  governance: 1.0
+  query_contract: 0.55
+  route: 0.20
+  taxonomy: 0.25
+  scalars: 0.25

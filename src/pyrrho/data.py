@@ -24,6 +24,30 @@ LABEL2ID_4CLASS: dict[str, int] = {
 }
 ID2LABEL_4CLASS: dict[int, str] = {v: k for k, v in LABEL2ID_4CLASS.items()}
 
+QUERY_CONTRACT_LABELS: tuple[str, ...] = (
+    "evidence_sufficiency",
+    "structured_lookup",
+    "temporal_grounding",
+    "exhaustive_coverage",
+    "comparison_coverage",
+    "representative_overview",
+)
+QUERY_CONTRACT_LABEL2ID: dict[str, int] = {
+    label: idx for idx, label in enumerate(QUERY_CONTRACT_LABELS)
+}
+QUERY_CONTRACT_ID2LABEL: dict[int, str] = {
+    idx: label for label, idx in QUERY_CONTRACT_LABEL2ID.items()
+}
+
+PYRRHO_G3_1_SCALAR_FIELDS: tuple[str, ...] = (
+    "evidence_sufficiency",
+    "query_evidence_alignment",
+    "answer_coverage",
+    "conflict_density",
+    "retrieval_retry_value",
+    "false_trustworthy_risk",
+)
+
 
 def collapse_4_to_3(label_id_4: int) -> int:
     """Map a 4-class label id to the 3-class space (HEDGED+DIRECT collapse to TRUSTWORTHY)."""
@@ -46,6 +70,11 @@ def build_encoder_text(query: str, contexts: Iterable[str]) -> str:
     for i, ctx in enumerate(contexts or [], start=1):
         parts.append(f"[{i}] {str(ctx).strip()}")
     return "\n".join(parts)
+
+
+def build_query_contract_text(query: str) -> str:
+    """Query-only input format for pre-retrieval query-contract classification."""
+    return f"Question: {(query or '').strip()}"
 
 
 def format_slm_messages(query: str, contexts: Iterable[str]) -> list[dict[str, str]]:

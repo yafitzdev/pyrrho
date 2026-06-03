@@ -13,6 +13,1028 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-02 (evening) - pyrrho-nano-g3.1 published and snapshot-verified
+
+**What landed:**
+- Created the Hugging Face model repo `yafitzdev/pyrrho-nano-g3.1`.
+- Uploaded `models/pyrrho-nano-g3.1/` as a custom multitask package.
+- Corrected package metadata so Hub config reports `PyrrhoMultiTaskModernBert` instead of the backbone masked-LM architecture and added model-card YAML metadata.
+- Downloaded final commit `211d3131b2b1b0e74302b4213b16eb242b5b1e31` into `outputs/hf_download_pyrrho_nano_g3_1_final_verify/`.
+
+**What was learned:**
+- Final Hub repo: https://huggingface.co/yafitzdev/pyrrho-nano-g3.1
+- Hub reports **13** sibling files including `.gitattributes`, **596,210,628 bytes** used storage for the safetensors object, `library_name=transformers`, and `architectures=["PyrrhoMultiTaskModernBert"]`.
+- Downloaded-snapshot verification passed: `.venv\\Scripts\\python.exe scripts\\package_multitask_encoder.py verify --package-dir outputs\\hf_download_pyrrho_nano_g3_1_final_verify --device cpu` returned `ok=True`.
+- The release remains a custom package, not an ONNX package.
+
+**Next:** Integrate `PyrrhoMultiTaskPredictor` into fitz-sage and use g3.1 for pre-retrieval query contract, retrieval policy hints, and richer Pyrrho governance metadata.
+
+---
+
+## 2026-06-02 (evening) - pyrrho-nano-g3.1 local package verified
+
+**What landed:**
+- Added the package-clean multitask runtime loader and prediction API in `src/pyrrho/multitask_inference.py`.
+- Hardened `PyrrhoMultiTaskModernBert.from_pretrained` so packaged models can instantiate from local `config.json` and load weights without first loading base pretrained weights.
+- Added `scripts/package_multitask_encoder.py` with `create` and `verify` subcommands for the custom g3.1 package shape.
+- Built `models/pyrrho-nano-g3.1/` from seed **7** with eval-selected TRUSTWORTHY threshold **0.39**.
+
+**What was learned:**
+- The local package verifier passes on CPU: `scripts/package_multitask_encoder.py verify --package-dir models/pyrrho-nano-g3.1 --device cpu` wrote `release_verify_report.json` with `ok=true`.
+- Package smoke rows correctly produced TRUSTWORTHY, DISPUTED, and ABSTAIN governance outputs while also returning query-contract, route/domain, taxonomy, scalar signals, threshold metadata, probabilities, runner-up, margin, and entropy.
+- Smoke timing was roughly **100-120 ms/row** on CPU for the short package examples.
+- This is still a custom package, not the old single-head/ONNX release shape.
+
+**Next:** Publish `models/pyrrho-nano-g3.1/` to Hugging Face as a custom multitask package, download a fresh snapshot, run the same verifier against the snapshot, then integrate `PyrrhoMultiTaskPredictor` into fitz-sage.
+
+---
+
+## 2026-06-02 (evening) - pyrrho-nano-g3.1 multitask encoder trained
+
+**What landed:**
+- Added the `pyrrho-nano-g3.1` multitask ModernBERT path for the fitz-sage retrieval pipeline contract.
+- Prepared `data/multitask_v8_1_query_contract` from the fitz-gov V8 row set with mandatory `routing.query_contract`, query-only text, semantic route/domain, taxonomy pattern, and six scalar targets.
+- Added the custom multitask model, trainer, metrics helpers, config, and tests:
+  - `src/pyrrho/multitask.py`
+  - `scripts/train_multitask_encoder.py`
+  - `configs/encoder/modernbert_base_g3_1_multitask.yaml`
+  - `tests/test_multitask_encoder.py`
+- Trained seeds **42 / 1337 / 7** at `outputs/pyrrho-nano-g3_1_multitask/seed_*/` and wrote the aggregate report to `outputs/pyrrho-nano-g3_1_multitask/summary.json`.
+
+**What was learned:**
+- The multitask head stack is viable. Held-out test across three seeds: governance **97.84 ± 0.15%** accuracy / **0.85 ± 0.07%** false-TRUSTWORTHY, query-contract macro F1 **94.24 ± 0.28%**, route accuracy **93.41 ± 0.32%**, taxonomy accuracy **89.26 ± 0.23%**, scalar MAE **0.0592 ± 0.0005**.
+- Query-contract recall is strong enough for pre-retrieval routing: `evidence_sufficiency` **96.70 ± 0.21%**, `structured_lookup` **94.94 ± 0.26%**, `temporal_grounding` **89.75 ± 0.31%**, `exhaustive_coverage` **96.51 ± 0.31%**, `comparison_coverage` **91.98 ± 2.31%**, and `representative_overview` **92.59 ± 0.00%**.
+- This model should not be represented as the old g3 shape. It is a custom multi-head encoder, so fitz-sage needs a dedicated loader/runtime surface or an export path that preserves all heads.
+
+**Next:** Package g3.1 for runtime use: choose the release seed, add a public inference wrapper that exposes all heads, export/package for fitz-sage, then publish only after package smoke and downloaded-snapshot verification pass.
+
+---
+
+## 2026-06-01 (morning) - Fitz-sage retrieval-first cleanup plan
+
+**What landed:**
+- Assessed the fitz-sage query pipeline using the measured Qwen 0.8B Q4_K_M CPU-only timings from the real CLI run.
+- Wrote a new fitz-sage roadmap handoff at `C:/Users/yanfi/PycharmProjects/fitz-sage/docs/roadmap/retrieval-first-pivot.md`.
+- Updated the fitz-sage local roadmap index and `HANDOFF.md` so a fresh fitz-sage cleanup session starts from the retrieval-first plan.
+
+**What was learned:**
+- The best product direction is retrieval-first: query + source path in, ranked governed evidence pack out.
+- Synthesis should be optional because the warm CPU-Qwen run spent **14.2s** in final generation and **5.3s** in LLM query prep, while pyrrho governance cost only **0.6s**.
+- Qwen 0.8B Q4_K_M is a plausible optional enrichment/synthesis backend, but it should not be a default fitz-sage dependency.
+
+**Next:** A fresh fitz-sage session should implement the roadmap phases: `EvidencePack`, `fitz retrieve`, no-chat heuristic query planning, and explicit optional synthesis.
+
+---
+
+## 2026-06-01 (morning) - Qwen 0.8B Q2_K CPU enrichment control
+
+**What landed:**
+- Confirmed LM Studio's `qwen/qwen3.5-0.8b` alias only exposes Q4_K_M, while `lmstudio-community/Qwen3.5-0.8B-GGUF` only has Q4_K_M/Q6_K/Q8_0.
+- Found Q2 variants in other GGUF repos and selected `bartowski/Qwen_Qwen3.5-0.8B-GGUF` because it includes `Qwen_Qwen3.5-0.8B-Q2_K.gguf`.
+- Downloaded `Qwen_Qwen3.5-0.8B-Q2_K.gguf` to `outputs/external_baselines/Qwen_Qwen3.5-0.8B-GGUF-Q2_K/`, hard-link imported it into LM Studio, and loaded it CPU-only as `qwen35-08b-q2k-cpu`.
+- Ran the same real fitz-sage `KragEnricher` probe with default batching and with `--batch-size 1`.
+
+**What was learned:**
+- Q2_K is smaller but not better: **464,231,520** bytes on disk, **442.73 MiB** reported load size, and **464.23 MB** in `lms ps`, versus Q4_K_M's **527,502,816** byte GGUF plus **700.98 MiB** reported load size.
+- Default 4-item enrichment batches failed the fitz-sage contract. Both calls produced parseable JSON arrays but returned only **1** object for **4** requested items, so `KragEnricher` would fallback to empty enrichment. Throughput was only **16.88 completion tok/s**.
+- Batch size **1** made parse/count pass, but usefulness was poor and speed worsened: **12.00 completion tok/s**, **8/8** keyword lists, **8/8** entity lists, **0/8** temporal metadata, and only **12/39** anchor hits.
+- Conclusion: for this use case, Q2_K is a bad trade. It saves only about **258 MiB** of reported load memory versus Q4_K_M, but it is slower and fails the batched enrichment contract.
+
+**Next:** Keep Qwen 0.8B Q4_K_M as the smallest tested viable enrichment backend; do not use Q2_K for fitz-sage enrichment unless a different Q2 quant/provider is proven separately.
+
+---
+
+## 2026-06-01 (morning) - Fitz-sage Qwen CPU query timing
+
+**What landed:**
+- Loaded LM Studio `qwen/qwen3.5-0.8b` Q4_K_M CPU-only with `--gpu off -c 4096 --identifier qwen35-08b-q4km-cpu`.
+- Ran real fitz-sage CLI queries through the local endpoint against `C:/Users/yanfi/PycharmProjects/fitz-sage/rag_test_corpus/keyword_test` using collection `qwen_cpu_speed_keyword`.
+- Query: `Which test case failed in Sprint 47?`
+
+**What was learned:**
+- Cold-ish `--source` run answered correctly but was slow: fitz-sage reported **63.9s** wall-clock to answer (**57.6s** pipeline: query prep **6.8s**, retrieval **39.7s**, governance **0.5s**, generation **10.6s**). Shell elapsed was **117.4s** because the command waited for background indexing/enrichment after displaying the answer.
+- Warm repeated `--source` run answered at **30.4s** wall-clock (**29.3s** pipeline: query prep **5.3s**, retrieval **9.2s**, governance **0.6s**, generation **14.2s**). Shell elapsed was **36.0s** including CLI overhead and final indexing wait.
+- The practical answer for a tiny already-indexed corpus with this CPU-only Qwen is therefore about **30 seconds per fitz-sage query**, not the raw **39 tok/s** model speed. The model is fast enough; fitz-sage's query-prep/retrieval/synthesis orchestration dominates.
+
+**Next:** If Qwen 0.8B becomes a serious local enrichment backend, measure a larger corpus separately for ingestion throughput and avoid using it as the final answer generator unless the 30s/query latency and mediocre answer quality are acceptable.
+
+---
+
+## 2026-06-01 (morning) - Qwen 0.8B Q4_K_M CPU enrichment runtime
+
+**What landed:**
+- Downloaded the LM Studio `qwen/qwen3.5-0.8b` Q4_K_M GGUF variant with `lms get "qwen/qwen3.5-0.8b@q4_k_m" --gguf -y`.
+- Loaded it CPU-only with `lms load "qwen/qwen3.5-0.8b" --gpu off -c 2048 --identifier qwen35-08b-q4km-cpu --ttl 300 -y`.
+- Extended `scripts/probe_fitz_sage_enrichment_bus.py` so OpenAI-compatible endpoint runs record returned `usage` token counts and completion tokens/sec.
+- Ran three LM Studio endpoint enrichment-bus probes through the real fitz-sage `KragEnricher` fixture and wrote `outputs/enrichment_bus_probe/fitz_sage_enrichment_bus_qwen3_5_0_8b_q4_k_m_lmstudio_cpu_1024*.json`.
+
+**What was learned:**
+- The Q4_K_M model loads quickly and small: **3.39s** load time, **700.98 MiB** reported by `lms load`, and **735.03 MB** in `lms ps` at context **2048**, parallel **4**.
+- CPU-only enrichment speed is stable on this fixture: **38.54 / 39.49 / 39.77 completion tok/s**, mean **39.26 tok/s**, with **666** completion tokens per full run over two batch calls.
+- Quality remained usable for this small enrichment bus check: all three runs passed parse/count gates, **8/8** items had valid shape and nonempty keywords, **5/8** had nonempty entities, **3/8** had temporal metadata, and anchor recall was **34/39**.
+- The quantized CPU result is slightly lower anchor recall than the local HF F16/BF16-ish run (**34/39** vs **35/39**) but still good enough to treat Qwen 0.8B Q4_K_M as a plausible local enrichment backend.
+
+**Next:** For a real fitz-sage integration decision, run this against a larger mixed corpus and measure end-to-end ingestion throughput; keep governance/MoE conclusions separate because this does not solve the generative governance failure.
+
+---
+
+## 2026-06-01 (morning) - Fitz-sage enrichment-bus local probe
+
+**What landed:**
+- Located the current fitz-sage enrichment path: `fitz_sage/engines/fitz_krag/ingestion/enricher.py` (`KragEnricher`), not a separate public bus object. It calls `chat(messages)` and expects one parseable JSON array object per symbol/section in the batch.
+- Added `scripts/probe_fitz_sage_enrichment_bus.py`, which imports the real sibling-repo `KragEnricher`, runs a mixed code/document fixture, scores parse/count/shape gates plus keyword/entity/temporal anchor recall, and supports either local HF checkpoints or an OpenAI-compatible local endpoint.
+- Ran the probe for `Qwen/Qwen3.5-0.8B-Base`, `LiquidAI/LFM2.5-8B-A1B`, and the currently loaded LM Studio endpoint model `pyrrho-moe-g4-real-olmoe-donor-init`.
+
+**What was learned:**
+- `Qwen/Qwen3.5-0.8B-Base` can handle the fitz-sage enrichment contract on this small local fixture when generation is not truncated: **2/2** batch calls parsed with correct item count, **8/8** item shapes, **8/8** nonempty keyword lists, **3/8** nonempty entity lists, **3/8** temporal metadata, and **35/39** anchor hits. Report: `outputs/enrichment_bus_probe/fitz_sage_enrichment_bus_qwen3_5_0_8b_base_1024.json`.
+- The same Qwen run with **512** output tokens failed because the second JSON array was cut off, so enrichment bus tests need a realistic output cap. Truncated generations would make fitz-sage silently fall back for that batch.
+- `LiquidAI/LFM2.5-8B-A1B` did not produce parseable enrichment output in the local HF setup (**0** response chars for both calls), and the current LM Studio endpoint model returned repeated non-JSON text. Reports: `outputs/enrichment_bus_probe/fitz_sage_enrichment_bus_lfm2_5_8b_a1b_1024.json` and `outputs/enrichment_bus_probe/fitz_sage_enrichment_bus_lmstudio_endpoint.json`.
+- This does not rescue the governance/MoE path. It says a small local model can plausibly serve an enrichment module, while governance remains hard and still blocked at the ~39% small-probe ceiling for the tested generative bases.
+
+**Next:** If pyrrho is split into governance plus enrichment, promote this probe into a fitz-sage integration smoke and test a real local instruct endpoint/GGUF; for `pyrrho-MoE-g4-real`, continue with stronger OLMoE initialization or broader training-surface work.
+
+---
+
+## 2026-05-31 (night) - External Qwen/LFM baseline controls
+
+**What landed:**
+- Downloaded `Qwen/Qwen3.5-0.8B-Base` to `outputs/external_baselines/Qwen3.5-0.8B-Base/`; it advertises image-text metadata but also loads as `Qwen3_5ForCausalLM` for the local label-score harness.
+- Downloaded `LiquidAI/LFM2.5-8B-A1B` to `outputs/external_baselines/LFM2.5-8B-A1B/`; it loads as `Lfm2MoeForCausalLM` with **8.47B** params.
+- Ran the same 64-row label-score baseline plus 128-row LoRA+teacher label-JSON probe for both models.
+- Wrote `outputs/external_baselines/pyrrho_moe_external_baseline_control_summary_2026-05-31.json` and updated the g4-real handoff/goal docs.
+
+**What was learned:**
+- Raw Qwen is unsafe at tau **0.50** (**31.25% / 90.70% FT**) and only ties the current **39.06%** safe ceiling at tau **0.90**, with **0** DISPUTED predictions. Its 128-row LoRA+teacher probe regressed to **35.94% / 2.33% FT** at the best safe gate.
+- Raw LFM has more class movement but is still unsafe at useful thresholds: tau **0.90** reached **42.19% / 11.63% FT**. Its best safe raw gate was only **34.38% / 4.65% FT**.
+- LFM's 128-row LoRA+teacher probe collapsed safe but non-useful: **35.94% / 0.00% FT** with **0** TRUSTWORTHY predictions.
+
+**Next:** Treat these as enrichment candidates, not governance replacements. For `pyrrho-MoE`, stop 64-128 row adapter controls and move to a materially broader training surface or stronger initialization.
+
+---
+
+## 2026-05-31 (night) - OLMoE head-topnorm donor-resize probe
+
+**What landed:**
+- Added `--resize-strategy` to `scripts/init_olmoe_from_donor.py`, keeping the original `block-mean` behavior and adding `head-topnorm-slice`.
+- Built a second donor-initialized HF seed at `outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_head_topnorm_slice_hf/` using head-wise top-norm hidden-channel selection.
+- Ran a no-training 64-row label-score baseline and a controlled expert-down rank-4 teacher-distillation comparison on the new seed.
+- Wrote `outputs/moe/g4_real_olmoe_donor_init/head_topnorm_slice_init_probe_summary_2026-05-31.json` and updated the g4-real handoff, goal, architecture, training-path doc, and config.
+
+**What was learned:**
+- The new seed is mechanically valid: **3,969,688,576 / 3,969,688,576** target params copied, **0** missing tensors, **1,024** hidden channels selected, and **267** tensors resized.
+- No-training label-score was not useful: tau **0.50** scored **35.94% accuracy / 46.51% FT**, and the best safe gate reached **37.50% / 0.00% FT** only by predicting **62/64** ABSTAIN.
+- The controlled expert-down distillation comparison tied the old block-resize accuracy ceiling at **39.06%**, but with worse FT (**4.65%** vs **2.33%**) and the same TRUSTWORTHY recall.
+
+**Next:** Stop simple donor-resize variants with the same tiny adapter recipe; the next branch needs stronger upcycling/pretraining-style initialization or a materially broader training surface.
+
+---
+
+## 2026-05-31 (night) - OLMoE gate/up expert-surface probe
+
+**What landed:**
+- Added raw OLMoE expert `gate_up_proj` LoRA support to `scripts/train_moe_qwen_sft.py` with `--olmoe-expert-gate-up-lora-r` and `--olmoe-expert-gate-up-lora-alpha`, alongside the existing expert-down hook.
+- Ran a 2-step mechanical smoke on the donor checkpoint and two bounded rank-4 gate/up+down teacher-distillation probes from `outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_block_resize_hf/`.
+- Wrote `outputs/moe/g4_real_olmoe_donor_init/gate_up_expert_surface_probe_summary_2026-05-31.json` and updated the g4-real handoff, goal, architecture, training-path doc, and config.
+
+**What was learned:**
+- The hook is mechanically real: the smoke attached to OLMoE raw expert tensors, trained/evaled, and reported **9.22M** trainable params for rank-2 gate/up+down LoRA.
+- The fuller surface can move TRUSTWORTHY behavior, but not usefully. Rank-4 LR **1e-4** was unsafe at tau **0.50** (**35.94% / 48.84% FT**) and only became safe by collapsing to **34.38% / 2.33% FT** at tau **0.65**.
+- Lowering LR to **3e-5** avoided the unsafe TRUSTWORTHY surge but collapsed useful recall: tau **0.50** scored **31.25% / 2.33% FT**, and the best safe gate was **32.81% / 0.00% FT** with **0** TRUSTWORTHY predictions.
+
+**Next:** Do not scale gate/up+down LoRA as-is; keep the stock OLMoE carrier shape and move to stronger initialization/upcycling or a materially broader training surface.
+
+---
+
+## 2026-05-31 (night) - OLMoE teacher-distillation probes
+
+**What landed:**
+- Added teacher-logit distillation to `scripts/train_moe_qwen_sft.py` with `--teacher-logits-dir`, `--label-distillation-weight`, `--distillation-temperature`, and `--label-distillation-length-normalization`.
+- Ran bounded distillation probes from `outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_block_resize_hf/` across expert-down LoRA, stronger teacher weight, label-only targets, router+expert LoRA, and BF16 low-LR raw router/lm_head unfreeze.
+- Wrote `outputs/moe/g4_real_olmoe_donor_init/teacher_distillation_probe_summary_2026-05-31.json` and updated the g4-real handoff/goal/config/training docs.
+
+**What was learned:**
+- The teacher signal is strong on the exact 64-row eval sample: `pyrrho-nano-g3` logits score **96.88% accuracy / 2.33% FT** with balanced class predictions (**22** ABSTAIN / **21** DISPUTED / **21** TRUSTWORTHY).
+- The student does not absorb that signal through the tested small surfaces. Best expert-down LoRA distillation reached only **39.06% / 2.33% FT**, tying the old small ceiling rather than improving it.
+- Stronger teacher weight, label-only targets, router LoRA, and BF16 low-LR raw router/lm_head unfreeze all collapsed or regressed; the raw fullparam path stayed finite but only reached **32.81% / 0.00% FT** under safe calibration.
+
+**Next:** Stop scaling these tiny adapter SFT/distillation recipes; keep the stock OLMoE carrier shape and move to stronger initialization/training-surface work before any longer fitz-gov scale-up.
+
+---
+
+## 2026-05-31 (night) - Stable OLMoE expert-adapter probes
+
+**What landed:**
+- Added OLMoE-specific raw adapter hooks to `scripts/train_moe_qwen_sft.py`: `--olmoe-expert-down-lora-r`, `--olmoe-expert-down-lora-alpha`, `--olmoe-router-lora-r`, and `--olmoe-router-lora-alpha`.
+- Ran a BF16 low-LR raw router/lm_head unfreeze probe, an expert-down LoRA rank-4 probe, and a combined attention+expert LoRA probe from the donor-initialized OLMoE seed.
+- Wrote `outputs/moe/g4_real_olmoe_donor_init/stable_adaptation_probe_summary_2026-05-31.json` and updated the g4-real docs/config.
+
+**What was learned:**
+- The earlier raw-parameter NaN is avoidable: BF16 plus LR **1e-5** trained **51.98M** router/lm_head parameters for 128 steps without NaN. Quality was still bad: raw label-score **34.38% accuracy / 62.79% FT**, and safe calibration collapsed to **32.81%** accuracy.
+- OLMoE expert-down LoRA reaches the raw expert tensor surface PEFT cannot target. Rank 4 trained **6.77M** params stably for 256 steps, but only reached **37.50% / 2.33% FT**, tying the earlier attention-LoRA small probe rather than improving it.
+- Combining attention LoRA with expert-down LoRA overfit harder but generalized worse: **31.25% / 0.00% FT**, mostly DISPUTED collapse.
+
+**Next:** Use the stable expert-adapter surface for teacher distillation; do not scale supervised-only adapter SFT.
+
+---
+
+## 2026-05-31 (night) - Donor-seed SFT probes
+
+**What landed:**
+- Ran bounded donor-seed SFT probes from `outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_block_resize_hf/` using label-JSON, label-only, attention LoRA, lm_head LoRA, and a raw router/lm_head unfreeze diagnostic.
+- Added `--unfreeze-parameter-patterns` to `scripts/train_moe_qwen_sft.py` so raw base-model parameters can be explicitly unfrozen for diagnostics when PEFT LoRA cannot target them.
+- Wrote `outputs/moe/g4_real_olmoe_donor_init/sft_probe_summary_2026-05-31.json` and updated the g4-real handoff, goal, architecture, OLMoE training-path doc, and config.
+
+**What was learned:**
+- Attention-LoRA donor SFT is quality-negative. The best small gated label-score probe reached only **39.06% accuracy / 0.00% FT**; scaling the same label-JSON recipe to 1,024 train rows regressed to **33.59% / 0.58% FT**.
+- Generation did not become release-usable: the 256-row label-JSON smoke had **0.00%** JSON parse and **43.75%** label parse with **27.27%** FT; the 1,024-row smoke had **6.25%** JSON parse and collapsed selected classifications to ABSTAIN.
+- OLMoE routers/experts are raw `nn.Parameter` tensors, not ordinary `nn.Linear` modules, so standard PEFT LoRA does not adapt them. Naive float16 raw unfreeze of `lm_head.weight` plus router weights trained **51.98M** params but went **NaN** from step 2 onward.
+
+**Next:** Stop scaling attention-LoRA SFT; preserve the stock OLMoE carrier and move to teacher distillation or a numerically stable router/expert adaptation path.
+
+---
+
+## 2026-05-31 (night) - OLMoE donor initialization
+
+**What landed:**
+- Added `scripts/init_olmoe_from_donor.py`, which initializes the exact `g4-real` OLMoE carrier from a donor with explicit layer mapping and tensor resizing.
+- Downloaded `allenai/OLMoE-1B-7B-0924` to `outputs/moe/g4_real_olmoe_training_path/donors/OLMoE-1B-7B-0924/` (**26** files / **13,841,165,654** bytes).
+- Built the donor-initialized HF checkpoint at `outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_block_resize_hf/`.
+- Converted it to `outputs/moe/g4_real_olmoe_donor_init/pyrrho_g4_real_olmoe_1b7b_block_resize_f16.gguf` and imported it into LM Studio.
+- Wrote the runtime report at `outputs/moe/g4_real_olmoe_donor_init/donor_init_runtime_probe_report.json`.
+
+**What was learned:**
+- The transplant filled **3,969,688,576 / 3,969,688,576** target CausalLM parameters with **0** missing tensors; **267** tensors were resized because the donor shape differs materially from the target.
+- The donor-initialized F16 GGUF is **7,942,296,800** bytes with SHA256 `e646c254f4bf7f11605ef6b9dc463994245ff104b6d4e711f635b05baacefaf4`.
+- Clean upstream `llama-cli` loaded/generated successfully and reported **7,623 MiB** host memory; LM Studio loaded the model as `pyrrho-moe-g4-real-olmoe-donor-init`, CPU/local, **5.69s**, **7.40 GiB**.
+- Quality is not proven. A tiny 12-row label-score smoke scored **1/12** accuracy with **0/12** false-TRUSTWORTHY at tau **0.50**.
+- Redirected `Start-Process` logging can still time out after LM Studio has successfully loaded; direct `lms load` returned cleanly.
+
+**Next:** Run bounded SFT or teacher distillation from the donor-initialized OLMoE seed, then rerun full GGUF and LM Studio load gates on trained weights.
+
+---
+
+## 2026-05-31 (night) - OLMoE SFT smoke and donor audit
+
+**What landed:**
+- Generalized `scripts/train_moe_qwen_sft.py` enough for non-Qwen local CausalLM checkpoints by adding `--run-label` and float32 token cross-entropy.
+- Added `scripts/train_moe_olmoe_sft.py`, an OLMoE-default wrapper for the `g4-real` carrier.
+- Ran a tiny OLMoE SFT smoke at `outputs/moe/olmoe_g4_real_sft_tiny_smoke/`.
+- Ran the full 3.970B random-carrier one-step LoRA smoke at `outputs/moe/olmoe_g4_real_sft_full_smoke_fp32loss/`.
+- Ran adapter reload evaluation at `outputs/moe/olmoe_g4_real_sft_full_smoke_fp32loss_reload/`.
+- Wrote donor/training-path audit `outputs/moe/g4_real_olmoe_training_path/training_path_audit.json` and decision doc `docs/OLMOE_TRAINING_PATH_2026-05-31.md`.
+
+**What was learned:**
+- The exact stock-loadable OLMoE carrier can run the pyrrho generative SFT loop, save a LoRA adapter, and reload it.
+- Full-shape smoke loaded **3,970,475,008** base params and trained **786,432** LoRA params for one step with finite loss **11.070787**.
+- Computing token CE on float16 logits produced `inf` loss; casting logits to float32 fixes the training smoke.
+- Random-only SFT is only mechanical. It should not be scaled as quality training.
+- `allenai/OLMoE-1B-7B-0924` is the closest donor because it shares tokenizer/model family, but direct weight transfer needs explicit compression: donor is **2048 hidden / 16 layers / 64 experts / top-8 / ffn 1024**, while target is **1024 hidden / 24 layers / 19 experts / top-1 / ffn 2688**.
+- `allenai/OLMo-2-0425-1B` and `allenai/Olmo-Hybrid-7B` remain teacher/reference candidates, not direct seeds for the OLMoE carrier shape.
+
+**Next:** Build the first controlled donor/teacher initialization experiment while preserving the stock-loadable OLMoE layout.
+
+---
+
+## 2026-05-31 (night) - Full OLMoE stock runtime gate passed
+
+**What landed:**
+- Added `scripts/export_olmoe_structural_checkpoint.py` to export random-weight OLMoE structural checkpoints from the pyrrho YAML config.
+- Exported the full OLMoE carrier checkpoint at `outputs/moe/g4_real_stock_runtime_carrier/olmoe_g4_real_full_random_hf/`.
+- Converted the full checkpoint with the clean upstream llama.cpp converter to `outputs/moe/g4_real_stock_runtime_carrier/pyrrho_g4_real_olmoe_full_random_stock_converter_f16.gguf`.
+- Proved the full GGUF loads/generates through clean upstream `llama-cli` and loads through LM Studio CLI after hard-link import.
+- Wrote `outputs/moe/g4_real_stock_runtime_carrier/olmoe_full_stock_runtime_probe_report.json`.
+
+**What was learned:**
+- The full OLMoE carrier shape is stock-runtime viable before training: **3.969692721B total / 0.402437169B active inclusive** under the pyrrho counter.
+- The random HF checkpoint is **16** files / **7,941,833,825** bytes; the full F16 GGUF is **7,942,296,864** bytes with SHA256 `5bc7c7e6a9f6ec4095477279937e34c95167af454148d489cfc3d242046d62da`.
+- Clean upstream `llama-cli` loaded the full GGUF and generated one token with **7,623 MiB** host memory reported.
+- LM Studio CLI imported the GGUF by hard link and loaded it as `pyrrho-moe-g4-real-olmoe-structural` CPU/local, reporting **5.68s** load time and **7.40 GiB**.
+
+**Next:** Choose the training/upcycling path for this exact OLMoE carrier shape, and do not change the stock-loadable layout without rerunning the gate.
+
+---
+
+## 2026-05-31 (night) - OLMoE carrier proof and re-budget
+
+**What landed:**
+- Selected `OlmoeForCausalLM` as the current non-Mixtral/non-Qwen public-carrier candidate for `pyrrho-MoE-g4-real`.
+- Wrote the tiny OLMoE proof report at `outputs/moe/g4_real_stock_runtime_carrier/olmoe_stock_runtime_carrier_probe_report.json`.
+- Added `configs/moe/pyrrho_moe_g4_real_olmoe_stock_runtime.yaml`, a full candidate shape that matches the observed stock OLMoE constraints.
+- Wrote `outputs/moe/g4_real_olmoe_param_count.json` and `outputs/moe/g4_real_olmoe_runtime_shape_gate.json`.
+
+**What was learned:**
+- A tiny random OLMoE checkpoint converts through clean upstream llama.cpp and loads/generates one token through clean upstream `llama-cli.exe` at commit `568aec82d2fc48341c54cae565768ac75072a31d`.
+- The tiny OLMoE GGUF is **15,013,248 bytes** with SHA256 `c20b55ef7818573c4d7b49153bea20a1b7a4e736b9ecc3483d53ca98c7c1a3dc`.
+- Stock OLMoE requires untied output embeddings and full KV heads for this path; the earlier GQA tiny probe failed on the q/k norm tensor shape.
+- The re-budgeted OLMoE-compatible shape passes: **3.969692721B total / 0.402437169B active inclusive / 0.299414577B active excluding embeddings**.
+
+**Next:** Export the full random-weight OLMoE-shaped checkpoint, convert it with the unpatched GGUF converter, and prove the full structural shape loads before any training/upcycling.
+
+---
+
+## 2026-05-31 (night) - Stock Mixtral carrier proof
+
+**What landed:**
+- Tested `MixtralForCausalLM` as the first internal stock runtime carrier for `pyrrho-MoE-g4-real`.
+- Generated a tiny random Mixtral structural checkpoint at `outputs/moe/g4_real_stock_runtime_carrier/mixtral_tiny_hf/`.
+- Converted it with the clean upstream llama.cpp converter from `outputs/moe/g4_real_stock_runtime_carrier/llama_cpp_stock_568aec82/` at commit `568aec82d2fc48341c54cae565768ac75072a31d`.
+- Loaded and generated one token through the clean upstream `llama-cli.exe` with exit code **0**.
+- Wrote the machine-readable proof report at `outputs/moe/g4_real_stock_runtime_carrier/stock_runtime_carrier_probe_report.json`.
+
+**What was learned:**
+- The stock Mixtral MoE layout converts to GGUF and loads without the Qwen3MoE patch path.
+- The proof GGUF is tiny (**5,163,232 bytes**) and random; it proves carrier compatibility only, not the full 4B model and not quality.
+- The user does not want public Mixtral association, so this proof is internal evidence only and must not become the public `g4-real` carrier by inertia.
+- `sentencepiece` was missing from the local Python converter environment and was installed before the stock conversion passed.
+- Running native `llama-cli.exe` inline can destabilize Codex after interrupts or disk pressure; isolated `ProcessStartInfo` with redirected stdout/stderr and `--single-turn --simple-io` is the safer local smoke pattern.
+
+**Next:** Audit non-Mixtral, non-Qwen stock MoE carriers and repeat the tiny random convert/load proof with a public-metadata-acceptable carrier.
+
+---
+
+## 2026-05-31 (night) — g4-real goal reset and first clean shape gate
+
+**What landed:**
+- Rewrote `docs/GOAL.md` so the active target is now `pyrrho-MoE-g4-real`, not more `g3-mvp` polish.
+- Added `configs/moe/pyrrho_moe_g4_real_stock_runtime.yaml`, the first clean runtime-shape candidate: 24 all-MoE layers, 14 physical experts/layer, top-1 routing, no dense-only FFN layers, no Qwen3MoE `mlp_only_layers`.
+- Extended `PyrrhoMoEConfig` to support explicit uneven semantic expert shard maps, because 14 experts/layer cannot divide evenly across 8 semantic groups.
+- Added `scripts/audit_moe_runtime_shape.py`, a gate-zero audit for configs that would repeat the patched-runtime failure mode.
+- Wrote `outputs/moe/g4_real_stock_runtime_param_count.json` and `outputs/moe/g4_real_runtime_shape_gate.json`.
+
+**What was learned:**
+- A naive all-MoE 16-expert shape fails the total-parameter gate at **4.659B** total, even though active params pass.
+- The 14-expert all-MoE shape passes the local budget gate: **4.092512305B total**, **0.412010545B active inclusive**, **0.346474545B active excluding embeddings**.
+- This is only a local shape/budget pass. It is not yet a GGUF or LM Studio load proof.
+
+**Next:** Choose the exact stock MoE runtime carrier, export a tiny/random-weight structural checkpoint, convert it with an unpatched GGUF converter, and prove it loads before training scale-up.
+
+---
+
+## 2026-05-31 (night) — LM Studio limitation documented
+
+**What landed:**
+- Added an explicit LM Studio warning to `docs/PYRRHO_MOE_MVP_RUN_GUIDE.md`.
+- Added the same runtime limitation to the `pyrrho-MoE-g3-mvp` model card caveats.
+- Updated `docs/HANDOFF.md` so fresh sessions know a generic LM Studio load failure is expected.
+- Reran the package verifier and pushed HF commit `f637325ba5a49429952c122b14913dd4cf355411`.
+
+**What was learned:**
+- The current Q4_K_M GGUF depends on the bundled patched llama.cpp runtime. LM Studio's bundled runtime does not include that patch, so "Failed to load the model" is a runtime-compatibility failure, not evidence that the GGUF is corrupt.
+- The package still verifies after the caveat refresh: **34** files / **3,349,873,300** bytes, 4-row adapter smoke passing.
+
+**Next:** Continue to support the patched `llama-server` path; revisit LM Studio only if its bundled llama.cpp gains equivalent Qwen3MoE dense `mlp_only_layers` support.
+
+---
+
+## 2026-05-31 (night) — MoE MVP public run guide added
+
+**What landed:**
+- Added `docs/PYRRHO_MOE_MVP_RUN_GUIDE.md`, the short operator path for the published `pyrrho-MoE-g3-mvp` package.
+- Linked the run guide from `docs/INDEX.md` and the top-level `README.md`.
+- Added a public quick-start section to `models/pyrrho-MoE-g3-mvp/README.md` covering HF download, patched llama.cpp build, minimal JSONL input, and GGUF `sequence-label-score`.
+- Reran `scripts/verify_moe_qwen_sft_package.py` after the model-card change and pushed HF commit `022825604abedec31d78f91f6706bbfd70000507`.
+
+**What was learned:**
+- The package still verifies after the docs/card refresh: **34** files / **3,349,872,800** bytes, 4-row adapter smoke passing.
+- The public page now has enough instruction to run the low-memory Q4 path without reading the full project handoff.
+
+**Next:** Keep nano as the production default and document any downstream `pyrrho-MoE-g3-mvp` use as experimental/offline before choosing the next quality iteration.
+
+---
+
+## 2026-05-31 (night) — Model card architecture naming clarified
+
+**What landed:**
+- Updated `models/pyrrho-MoE-g3-mvp/README.md` with an `Architecture Name` section.
+- Added manifest architecture metadata distinguishing `Project architecture: Pyrrho MoE MVP` from `Runtime / loader architecture: Qwen3MoE-compatible sparse MoE`.
+- Regenerated the package verifier report and pushed metadata-only Hugging Face commit `ff26a761ec6adf37cb99be8eaffe58142a0843ec`.
+
+**What was learned:**
+- Hugging Face/GGUF auto metadata will continue to show `qwen3moe`; that is correct loader metadata, not the project architecture name.
+- Honest public phrasing is: Pyrrho MoE MVP, Qwen3MoE-compatible and Qwen-seeded; not a from-scratch Pyrrho pretrain and not the old alpha quorum.
+
+**Next:** Keep this distinction in downstream docs and consumer instructions.
+
+---
+
+## 2026-05-30 (night) — pyrrho-MoE-g3-mvp published
+
+**What landed:**
+- Created and published the Hugging Face model repo [`yafitzdev/pyrrho-MoE-g3-mvp`](https://huggingface.co/yafitzdev/pyrrho-MoE-g3-mvp).
+- Uploaded the full `models/pyrrho-MoE-g3-mvp/` package with HF LFS, including the LoRA adapter, bundled Q4_K_M GGUF, llama.cpp patch, reports, manifest, README, and verifier report.
+- Refreshed the model card/manifest from local-only wording to `published_mvp_candidate` and pushed the final metadata commit.
+- Downloaded a fresh final Hub snapshot to `outputs/moe/hf_download_pyrrho_moe_g3_mvp_final/` and verified it locally.
+
+**What was learned:**
+- Final checked Hub commit is `6b44a30c531c286fcfc0d5b9b618c25c5c86441e`; Hub reports **34** sibling files and **3,348,978,530** bytes used storage.
+- Local source package verifier passes with **34** files / **3,349,869,861** bytes. The final downloaded snapshot verifier passes with **34** files / **3,349,869,920** bytes; the small size delta is Hugging Face `.gitattributes` normalization.
+- The downloaded Q4 GGUF runtime smoke passed on a seeded random 32-row sample: **93.75%** accuracy / **0.00%** false-TRUSTWORTHY, **100%** label parse, and **4.220 GiB** peak RSS using full-sequence label scoring at tau **0.50**.
+
+**Next:** Treat `pyrrho-MoE-g3-mvp` as the published MVP baseline; next work is post-publish integration/docs cleanup and the next quality iteration, not more release-blocking packaging.
+
+---
+
+## 2026-05-30 (night) — Q4 GGUF runtime packaged
+
+**What landed:**
+- Bundled the release Q4 GGUF into `models/pyrrho-MoE-g3-mvp/gguf/pyrrho-MoE-g3-mvp-merged-Q4_K_M.gguf` and copied the required llama.cpp patch into `models/pyrrho-MoE-g3-mvp/patches/`.
+- Added package `.gitattributes` LFS hints for `*.gguf` and `*.safetensors`.
+- Updated `models/pyrrho-MoE-g3-mvp/README.md` and `manifest.json` so full-sequence GGUF label scoring is the documented low-memory CPU decision path and raw generation remains audit/debug only.
+- Hardened `scripts/verify_moe_qwen_sft_package.py` to parse GGUF evidence reports, metric-check the Q4 full-test result, and size/SHA256-check the bundled GGUF and patch.
+
+**What was learned:**
+- The package verifier now passes with the bundled low-memory runtime included: **34** files / **3,349,869,715** bytes, 4-row adapter smoke passing, Q4 GGUF hash `738556cfb5f686fea238bce575cf4cedfca39658a2a04e820068c39f5087a02d`, and patch hash `c53517db65c78ba8009c2cdfceaa932bbe996abd5d91802734817fe0b0bea441`.
+- The local MVP package is now mechanically publishable; the remaining decision is public naming plus external Hub upload/download validation.
+
+**Next:** Decide `pyrrho-MoE-g3-mvp` vs `pyrrho-MoE-g3`, upload with HF LFS, then verify a fresh downloaded snapshot with both the package verifier and Q4 sequence-label GGUF smoke.
+
+---
+
+## 2026-05-30 (night) — Q4 GGUF selected-output full-test pass
+
+**What landed:**
+- Extended `scripts/smoke_moe_gguf_server.py` with `--decision-mode sequence-label-score`, which scores every token of each candidate label through llama-server using mixed string/token prompts.
+- Ran Q4_K_M sequence-label smokes on an 8-row regression slice, the 32-row random package slice, the first 512 ordered test rows, a seeded random 512-row test sample, and the full 2,459-row held-out test split.
+- Wrote full-test Q4 artifacts at `outputs/moe/gguf/smoke_q4_sequence_label_score_full_test_tau050/report.json` and `outputs/moe/gguf/smoke_q4_sequence_label_score_full_test_tau050/threshold_sweep_and_hf_agreement.json`.
+
+**What was learned:**
+- The pyrrho labels are multi-token in Qwen tokenization: `ABSTAIN` is 3 tokens, `DISPUTED` is 3, and `TRUSTWORTHY` is 5. This explains why first-token scoring was not a valid approximation.
+- The first 512 test rows are an ordered hard slice, not representative full-test evidence: HF selected-output itself scores only **56.64%** accuracy / **13.33%** false-TRUSTWORTHY on that prefix while scoring **82.39% / 4.44% FT** on the full test.
+- Q4_K_M full-sequence GGUF label scoring now clears the held-out gates at tau **0.50**: **82.15%** accuracy / **5.27%** false-TRUSTWORTHY on **2,459** rows, **100%** label parse, **4.224 GiB** peak RSS, and **96.38%** agreement with the HF selected-output decisions.
+- On the full-test sweep, tau **0.50** is the best gate-passing threshold. Tau **0.48** is slightly more accurate (**82.31%**) but misses the FT gate (**6.99%**).
+
+**Next:** Package/document full-sequence Q4 GGUF selected-label scoring as the authoritative low-memory CPU decision path, keep raw generation as audit/debug text, rerun package verification, then make the `pyrrho-MoE-g3-mvp` vs `pyrrho-MoE-g3` publish decision.
+
+---
+
+## 2026-05-30 (evening) — GGUF first-token bridge rejected
+
+**What landed:**
+- Extended `scripts/smoke_moe_gguf_server.py` with `--decision-mode first-token-label-score`, label-token probability extraction from llama.cpp server responses, TRUSTWORTHY demotion by threshold, and `--cache-ram-mib 0` as the default to avoid prompt-cache growth during memory smokes.
+- Ran Q4_K_M GGUF first-token label-score smokes at `outputs/moe/gguf/smoke_q4_first_token_label_score/` and `outputs/moe/gguf/smoke_q4_first_token_label_score_test512/`.
+- Wrote a held-out threshold sweep at `outputs/moe/gguf/smoke_q4_first_token_label_score_test512/threshold_sweep.json`.
+- Ran a cache-disabled 8-row regression smoke at `outputs/moe/gguf/smoke_q4_first_token_label_score_8_cache0/`.
+
+**What was learned:**
+- First-token scoring can look good on a tiny slice: the 32-row random smoke reached **93.75%** accuracy / **4.17%** false-TRUSTWORTHY at tau **0.58**.
+- It does not scale to held-out evidence: the first **512** test rows scored **60.94%** accuracy / **33.33%** false-TRUSTWORTHY at tau **0.58**.
+- Sweeping the TRUSTWORTHY threshold did not rescue it: the best gate-passing threshold was tau **0.97**, but accuracy fell to **49.61%**.
+- The earlier **8.36 GiB** peak RSS on the 512-row run was inflated by llama-server prompt-cache accumulation; `--cache-ram-mib 0` starts cleanly and held the 8-row regression smoke to **4.209 GiB** peak RSS.
+
+**Next:** Implement full-sequence GGUF label scoring, constrained decoding, or another safety-equivalent runtime path; do not spend more time tuning first-token thresholds.
+
+---
+
+## 2026-05-30 (evening) — Qwen MoE GGUF CPU runtime
+
+**What landed:**
+- Added `scripts/materialize_moe_qwen_sft_merged.py` to merge the Qwen seed pack plus PEFT adapter into a plain HF checkpoint at `outputs/moe/pyrrho_moe_g3_mvp_merged_hf/`.
+- Added `scripts/convert_qwen3moe_hf_to_gguf.py`, a llama.cpp converter wrapper that enables dense Qwen3MoE `mlp_only_layers` tensors.
+- Converted the merged checkpoint to BF16 GGUF (`outputs/moe/gguf/pyrrho-MoE-g3-mvp-merged-bf16.gguf`, **8,174,622,880 bytes**) and Q4_K_M GGUF (`outputs/moe/gguf/pyrrho-MoE-g3-mvp-merged-Q4_K_M.gguf`, **2,703,385,760 bytes**).
+- Patched the local llama.cpp checkout at `C:/Users/yanfi/.unsloth/llama.cpp` so Qwen3MoE can load/execute dense `mlp_only_layers` and honor `norm_topk_prob=false`.
+- Captured that llama.cpp delta as `patches/llama_cpp_qwen3moe_mlp_only_layers.patch` for reproducibility.
+- Added `scripts/smoke_moe_gguf_server.py` and ran a 32-row Q4 CPU server smoke at `outputs/moe/gguf/smoke_q4_eval/report.json`.
+
+**What was learned:**
+- The GGUF path is now mechanically viable: Q4 CPU generation loads under the memory target, with **4.206 GiB** peak RSS for a single prompt and **4.56 GiB** peak RSS on the 32-row random smoke.
+- The first llama.cpp failure was missing dense-layer support (`blk.0.ffn_gate_inp.weight`); the second was missing dense FFN tensor names; the generation-quality failure was caused by hardcoded expert-weight normalization, which contradicted the model config's `norm_topk_prob: false`.
+- Merged HF generation is correct, so the adapter merge is not the problem. After the llama.cpp patches, Q4 GGUF raw generation is parseable (**100%** JSON+label parse) and reasonably accurate on the 32-row random smoke (**84.38%**), but raw FT is still unsafe at **20.83%**.
+
+**Next:** Implement GGUF-side selected-label scoring or constrained decoding to match the tau-0.50 Transformers selected-output contract before publishing a production-safe `pyrrho-MoE-g3`.
+
+---
+
+## 2026-05-30 (afternoon) — Qwen MoE bnb4 CPU runtime probe
+
+**What landed:**
+- Added optional bitsandbytes quantized-load flags to `scripts/train_moe_qwen_sft.py` and `scripts/infer_moe_qwen_sft.py`.
+- Ran a direct CPU bnb4 base-model load probe and wrote `outputs/moe/package_hardening/bnb4_cpu_load_probe.json`.
+- Ran a packaged-adapter CPU bnb4 selected-output smoke attempt and recorded the timeout at `outputs/moe/package_hardening/bnb4_cpu_adapter_skipgen_timeout.json`.
+
+**What was learned:**
+- Transformers can load the Qwen-seeded base model with bitsandbytes 4-bit weights on CPU in this environment.
+- That does not translate to a viable release runtime: the packaged adapter plus selected-output label scoring produced no prediction file before the **900s** timeout.
+- Local Transformers+bitsandbytes 4-bit should not be used to claim Q4 CPU readiness for `pyrrho-MoE-g3-mvp`.
+
+**Next:** Use a different quantization/export backend for a low-memory runtime, or publish the current local artifact only as a caveated BF16 `-mvp` package.
+
+---
+
+## 2026-05-30 (afternoon) — Qwen MoE MVP release hardening
+
+**What landed:**
+- Added `scripts/verify_moe_qwen_sft_package.py`, a package verifier for `models/pyrrho-MoE-g3-mvp/`.
+- Updated package `manifest.json` and `README.md` with verifier evidence, packaged full-generation smoke evidence, and CPU runtime/memory caveats.
+- Ran package verification, a seeded random 32-row packaged full-generation smoke, and BF16 CPU skip-generation/full-generation smokes from the packaged adapter.
+
+**What was learned:**
+- The verifier passes and writes `models/pyrrho-MoE-g3-mvp/release_verify_report.json`; final package footprint is **28 files / 646,386,940 bytes**.
+- The 32-row packaged full-generation smoke reached **100%** JSON parse and selected-output **87.50%** accuracy / **0.00%** false-TRUSTWORTHY. Raw generation on the same rows was still unsafe at **16.67%** false-TRUSTWORTHY.
+- CPU execution works in BF16, but it is not yet the target low-memory runtime: 1-row skip-generation smoke took **18.06s** with **9.84 GiB** peak RSS, and 1-row full generation took **323.56s** with **10.16 GiB** peak RSS.
+
+**Next:** Decide whether to publish this explicitly as a caveated `pyrrho-MoE-g3-mvp` artifact or first build a Q4/low-memory CPU runtime before using the cleaner `pyrrho-MoE-g3` release name.
+
+---
+
+## 2026-05-30 (afternoon) — Qwen MoE MVP local package
+
+**What landed:**
+- Built local package directory `models/pyrrho-MoE-g3-mvp/`.
+- Copied the 4k adapter/tokenizer into `adapter/`, copied metadata and key reports into `metadata/` and `reports/`, and added `manifest.json` plus `README.md`.
+- Package references the seed pack at `outputs/moe/upcycling/qwen_alpha_seed_pack/` instead of duplicating the 8 GB base tensors.
+- Validated `manifest.json` and ran packaged-adapter inference smoke at `models/pyrrho-MoE-g3-mvp/reports/package_inference_skipgen_smoke.jsonl`.
+
+**What was learned:**
+- The local MVP package is about **646 MB**, dominated by the **634 MB** LoRA adapter.
+- The packaged adapter path works with `scripts/infer_moe_qwen_sft.py --adapter-path models\pyrrho-MoE-g3-mvp\adapter`.
+- This is now a concrete local MVP candidate, but not yet publish-hardened: no package integrity script, no CPU/RSS profile, and no 32-row packaged full-generation smoke yet.
+
+**Next:** Run release-hardening checks: package integrity, CPU memory/runtime smoke, 32-row full-generation packaged smoke, then decide whether to publish as the MVP artifact.
+
+---
+
+## 2026-05-30 (afternoon) — Qwen selected-output MVP inference harness
+
+**What landed:**
+- Added `scripts/infer_moe_qwen_sft.py`, a minimal inference harness for the 4k Qwen generative adapter.
+- The harness loads `outputs/moe/upcycling/qwen_alpha_seed_pack/` plus the saved LoRA adapter, scores ABSTAIN/DISPUTED/TRUSTWORTHY with label-score thresholding, emits `selected_output` as authoritative governance JSON, and optionally includes raw generation for audit/debug.
+- Ran full-generation smoke at `outputs/moe/qwen_generative_mvp_inference_smoke.jsonl` and skip-generation smoke at `outputs/moe/qwen_generative_mvp_inference_skipgen_smoke.jsonl`.
+
+**What was learned:**
+- Runtime smoke confirms selected-output inference works from the saved adapter with **tau 0.50**.
+- Override cases need label-consistent rationales. `selected_governance_output` now replaces the rationale with a default for the selected label when label-score overrides raw generation, instead of leaving raw "trustworthy" rationale text under a DISPUTED/ABSTAIN selected classification.
+- Raw generation remains useful audit text, but it is not the release decision source.
+
+**Next:** Package the local MVP artifact with threshold metadata, selected-output runtime instructions, full eval/test selected-label reports, and explicit model-card caveats about free-generation safety.
+
+---
+
+## 2026-05-30 (afternoon) — Qwen 4k full-split selected-label validation
+
+**What landed:**
+- Added `--eval-skip-generation` to `scripts/train_moe_qwen_sft.py` so full-split selected-label validation can score label candidates without free-text generation.
+- Ran full eval selected-label scoring at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_4096_full_eval_tau047_skipgen/` and swept thresholds at `outputs/moe/qwen_label_score_threshold_sweep_4096_full_eval/`.
+- Ran full held-out test selected-label scoring at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_4096_full_test_tau050_skipgen/` and swept thresholds at `outputs/moe/qwen_label_score_threshold_sweep_4096_full_test/`.
+
+**What was learned:**
+- The bounded-slice **tau 0.47** threshold was too aggressive on the full eval split: **83.94%** accuracy / **6.53%** FT.
+- Full eval selected **tau 0.50** as the best gate-passing operating point: **83.69%** accuracy / **4.29%** FT / **73.48%** TRUSTWORTHY recall.
+- Held-out full test at eval-selected **tau 0.50** also passed: **82.39%** accuracy / **4.44%** FT / **71.34%** TRUSTWORTHY recall. Test sweep also picked **tau 0.50** as the best gate-passing and ft-penalized threshold.
+- The 4k Qwen adapter now clears the headline accuracy/FT gates for selected label-score classification on full eval and full held-out test. This is not yet a full generative release claim because full-generation parse/route/taxonomy evidence remains bounded to the 512-row sample.
+
+**Next:** Build minimal MVP runtime/package support around `selected_output` as the authoritative emitted governance JSON, with raw generation retained as audit/debug text.
+
+---
+
+## 2026-05-30 (afternoon) — Qwen 4k generative MoE scale probe
+
+**What landed:**
+- Ran the 4k-train/512-eval label-first JSON scale probe at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_4096x512_tau047/`.
+- Saved the LoRA adapter under `final_adapter/`, swept saved label-score probabilities at `outputs/moe/qwen_label_score_threshold_sweep_4096x512/`, and ran a reload smoke at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_4096x512_tau047_reload_smoke/`.
+
+**What was learned:**
+- This is the first Qwen-seeded generative MoE checkpoint that looks MVP-positive on a bounded eval slice: **100.0%** JSON parse / **100.0%** label parse / **85.35%** selected accuracy / **5.26%** FT / **81.64%** route / **62.30%** taxonomy on **512** eval rows.
+- Free generation is still unsafe as the deployed decision source: **85.55%** raw accuracy but **13.45%** FT. Label-score selected output at **tau 0.47** is required to pass the safety gate.
+- Threshold sweep confirms **tau 0.47** is the best gate-passing and ft-penalized point on this slice. **Tau 0.48** is safer (**4.68%** FT) but lower accuracy (**84.57%**); **tau 0.45** is unsafe (**7.89%** FT).
+- The saved adapter reloads cleanly with **0** trainable params. The 16-row reload smoke is mechanically useful only; its FT estimate is too small to interpret.
+
+**Next:** Run full validation/test eval for the 4k adapter with selected-output label-score classification at **tau 0.47**, and keep **tau 0.48** as a fallback if full-split FT rises above the gate.
+
+---
+
+## 2026-05-30 (morning) — Qwen 512-row label-score calibration
+
+**What landed:**
+- Ran a 512-row eval-only calibration pass from the saved 1k adapter at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_1024x512_tau047_calibration/`.
+- Swept the saved 512-row label-score probabilities and wrote `outputs/moe/qwen_label_score_threshold_sweep_1024x512/summary.json` plus `report.md`.
+
+**What was learned:**
+- The 256-row **tau 0.47** setting held up on the larger slice: **69.5%** accuracy / **3.22%** FT / **64.7%** TRUSTWORTHY recall.
+- The best gate-passing threshold on 512 rows is **tau 0.45**, at **69.7%** accuracy / **5.26%** FT / **68.2%** TRUSTWORTHY recall. That is only **+0.2 pp** accuracy over tau 0.47 and much closer to the **5.7%** FT gate.
+- The no/low-demotion accuracy optimum is still unsafe: **71.3%** accuracy at **15.5%** FT.
+
+**Next:** Use **tau 0.47** as the safer default for the 4k-train scale run; move to teacher-guided decision supervision if the scaled run remains in the high 60s.
+
+---
+
+## 2026-05-30 (morning) — Qwen label-score threshold sweep
+
+**What landed:**
+- Swept label-score TRUSTWORTHY demotion thresholds offline from the saved 256-row predictions in `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_1024x256/eval_generations.jsonl`.
+- Wrote the sweep artifact to `outputs/moe/qwen_label_score_threshold_sweep_1024x256/summary.json` and `outputs/moe/qwen_label_score_threshold_sweep_1024x256/report.md`.
+
+**What was learned:**
+- The original **0.50** threshold is too conservative on this slice: **63.7%** accuracy / **0.0%** FT / **49.4%** TRUSTWORTHY recall.
+- The best gate-passing threshold is **0.47**, scoring **67.6%** accuracy / **2.34%** FT / **62.4%** TRUSTWORTHY recall, with predictions **37 ABSTAIN / 162 DISPUTED / 57 TRUSTWORTHY**.
+- Pure accuracy still prefers no demotion (**69.5%** accuracy) but is unsafe (**15.8%** FT), so calibrated demotion remains necessary.
+
+**Next:** Confirm **tau 0.47** on a larger eval slice before using it as the default for the 4k-train scale run.
+
+---
+
+## 2026-05-30 (morning) — Qwen MoE label-score scaling and selected output
+
+**What landed:**
+- Fixed saved LoRA adapter reload for the local Qwen-MoE seed-pack path in `scripts/train_moe_qwen_sft.py` by bypassing PEFT's Transformers-v5 MoE weight-conversion hook before `PeftModel.from_pretrained`.
+- Added `--eval-label-source label-score`, candidate label logprob scoring, optional TRUSTWORTHY probability demotion, and per-row `selected_output` JSON that exposes the calibrated decision separately from raw generation.
+- Ran the bounded label-first JSON scale probe at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_1024x256/` and reload/schema smokes at `outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_1024x256_reload_selected_output_{smoke,schema_smoke}/`.
+
+**What was learned:**
+- Saved adapter reload is no longer blocked for this local architecture: the 1k adapter reload smoke loaded **4,241,620,992** total params with **0** trainable params and completed eval.
+- Scaling the current best recipe is genuinely positive but not enough. With `target-mode label-json`, class weights **2/2/1**, classification-token multiplier **4**, smoothing **0.05**, and label-score TRUSTWORTHY threshold **0.5**, selected classification reached **63.7%** accuracy / **0.0%** FT on **256** eval rows. Free generation was higher accuracy but unsafe (**68.4%** / **12.9%** FT).
+- Label-score thresholding trades safety for TRUSTWORTHY recall: selected predictions were **177 DISPUTED / 42 TRUSTWORTHY / 37 ABSTAIN** against a balanced 86/85/85 gold distribution. Route and taxonomy are still weak (**17.2%** / **14.1%**), so the next classification work should not be judged by route/taxonomy yet.
+- The raw generated JSON can disagree with the safe selected label, so downstream MVP testing must consume `selected_output` or an equivalent constrained decode path, not raw free-generation `classification`.
+
+**Next:** Sweep the label-score TRUSTWORTHY threshold on a larger validation slice, then scale to at least 4k train / 512 eval if the safety/recall tradeoff holds; if accuracy stays in the 60s, add teacher-guided decision supervision from the published alpha/quorum policy.
+
+---
+
+## 2026-05-30 (morning) — Qwen MoE label-first JSON decision probes
+
+**What landed:**
+- Extended `scripts/train_moe_qwen_sft.py` with optional auxiliary prompt-state classification (`--aux-classifier-weight`, `--aux-detach`, `--eval-label-source`) and separate gradient clipping for model and aux parameters.
+- Added decision-focused target modes: `--target-mode label-only` and `--target-mode label-json`, alongside the existing compact JSON target.
+- Ran bounded 256-train/64-heldout probes for detached/non-detached aux classification, 512-context weighted JSON SFT, label-only SFT, and label-first JSON SFT.
+
+**What was learned:**
+- Auxiliary prompt-state classification is not the current path: trunk-coupled aux damaged JSON generation, and detached aux with fixed clipping restored generation but collapsed selected labels to **64/64 DISPUTED** (**32.8%** accuracy / **0.0%** FT).
+- More context alone does not fix JSON decision collapse. `outputs/moe/qwen_generative_sft_weighted_512ctx_256x64/` kept **100.0%** JSON+label parse and **0.0%** FT, but predicted **64/64 ABSTAIN** for only **34.4%** accuracy.
+- Label-only SFT proves the model can leave single-class collapse, but it is unsafe without a JSON/runtime bridge: unweighted label-only reached **45.3%** accuracy / **23.3%** FT, and heavier label-only weights reached **53.1%** / **37.2%** FT.
+- Label-first JSON is the best bounded generative shape so far. Unweighted `label-json` reached **46.9%** accuracy / **9.3%** FT / **34.4%** route with **100.0%** JSON+label parse. Mild safety weighting (`outputs/moe/qwen_generative_sft_label_json_mild_weighted_512ctx_256x64/`, class weights **2/2/1**, classification-token multiplier **4**, smoothing **0.05**) improved to **51.6%** accuracy / **0.0%** FT / **28.1%** route / **7.8%** taxonomy with predictions **52 ABSTAIN / 7 DISPUTED / 5 TRUSTWORTHY**.
+
+**Next:** Scale `target-mode label-json` cautiously with saved adapter reload, larger bounded data, and calibrated/constrained decision scoring; if it remains near 50% accuracy, move to teacher-guided decision supervision from the published alpha/quorum policy rather than more token-loss tweaking.
+
+---
+
+## 2026-05-30 (morning) — Qwen MoE generative SFT format probe
+
+**What landed:**
+- Extended `scripts/train_moe_qwen_sft.py` beyond the tiny smoke: eval batches now left-pad prompt-only decoder inputs, and the trainer supports optional class weights, classification-token loss weighting, and token-level label smoothing.
+- Ran the broad-LoRA 4-row format overfit at `outputs/moe/qwen_generative_sft_overfit4_format_probe_256/` and the 64-train/16-heldout probe at `outputs/moe/qwen_generative_sft_format_probe_64x16/`.
+- Reran the balanced 256-train/64-heldout probe after the left-padding fix at `outputs/moe/qwen_generative_sft_balanced_256x64_leftpad/`, then ran asymmetric-loss comparisons at `outputs/moe/qwen_generative_sft_balanced_256x64_weighted_loss/` and `outputs/moe/qwen_generative_sft_balanced_256x64_weighted_loss_512/`.
+- Required verification passed after the trainer edits: `python -m py_compile scripts/train_moe_qwen_sft.py`, `pytest tests/test_smoke.py -q` = **11 passed**, and `git diff --check` reported only existing CRLF warnings.
+
+**What was learned:**
+- Format acquisition is real under broad LoRA (`q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj`): the 4-row overfit reached **1.00** JSON parse / **1.00** label parse / **1.00** classification / **1.00** route / **1.00** taxonomy, with last loss about **9.28e-05**.
+- The 64-train/16-heldout probe generalized the JSON shape (**1.00** JSON parse / **1.00** label parse) but was not quality-useful yet: **50.0%** accuracy / **0.0%** false-TRUSTWORTHY / **18.75%** route / **6.25%** taxonomy.
+- The trusted balanced 256-train/64-heldout left-padded run learned format but collapsed decision behavior: **96.9%** JSON parse / **100.0%** label parse, but **64/64** eval generations predicted `TRUSTWORTHY`, giving **32.8%** accuracy and **100.0%** false-TRUSTWORTHY.
+- The one-epoch asymmetric-token-loss rerun, with class weights **3/3/1**, classification-token multiplier **12**, and label smoothing **0.05**, still predicted `TRUSTWORTHY` for **64/64** eval rows and regressed JSON parse to **85.9%**.
+- Running the same weighted recipe for **512** steps fixed parseability and safety but over-corrected: **100.0%** JSON parse / **100.0%** label parse / **35.9%** accuracy / **0.0%** false-TRUSTWORTHY, with predictions **63 ABSTAIN / 1 DISPUTED / 0 TRUSTWORTHY** and route/taxonomy still weak (**15.6%** / **3.1%**).
+- Broad PEFT adapter reload remains suspect: the earlier saved broad-target adapter failed reload with `WeightConverter.__init__() got an unexpected keyword argument 'distributed_operation'`, so packaging cannot rely on that adapter shape until the PEFT path is fixed or avoided.
+
+**Next:** Do not scale the current token-loss recipe as the MoE MVP path. Keep the script as the generative format/runtime harness, but add/tune explicit decision supervision next: an auxiliary governance head, constrained label decode from supervised logits, or teacher-guided preference/RL using the Stage 0.7/quorum policy.
+
+---
+
+## 2026-05-30 (morning) — Qwen MoE generative SFT smoke
+
+**What landed:**
+- Added `scripts/train_moe_qwen_sft.py`, a minimal generative SFT loop for the Qwen-seeded 4B/A0.4B sparse seed pack.
+- The script loads `outputs/moe/upcycling/qwen_alpha_seed_pack/` with `AutoModelForCausalLM`, disables Qwen3-MoE router aux output for generation/training, trains PEFT LoRA on compact pyrrho JSON targets, and scores generated JSON parseability plus governance/route/taxonomy fields.
+- Ran the tiny end-to-end smoke at `outputs/moe/qwen_generative_sft_tiny_smoke/`: **2** train rows, **2** eval rows, **1** optimizer step, max length **128**, max new tokens **32**.
+- Required smoke test passed: `pytest tests/test_smoke.py -q` = **11 passed**.
+
+**What was learned:**
+- The seed pack is loadable as a causal LM and the manual SFT path trains end to end: loaded parameter count in the PEFT model is **4,085,383,168**, with **2,293,760** trainable LoRA parameters for attention-only targets (`q_proj,k_proj,v_proj,o_proj`).
+- Default generation with the raw seed pack needs `output_router_logits` disabled; otherwise Transformers' Qwen3-MoE aux router-loss path can fail during generation on this custom pack.
+- The one-step smoke is mechanically positive but quality-negative: generated text is still unparseable garbage, with **0.00** JSON parse rate and **0.00** label parse rate. Fallback ABSTAIN can make tiny classification accuracy look good, so the new report explicitly marks fallback-scored classification metrics and reports `fallback_label_count`.
+
+**Next:** Run a bounded format-acquisition overfit/probe with more steps, longer context/output, and possibly broader LoRA targets; if JSON/label parseability stays at zero, inspect the upcycled seed pack's causal-LM competence and FFN compression before scaling full V8 generative SFT.
+
+---
+
+## 2026-05-30 (morning) — MoE MVP goal reset
+
+**What landed:**
+- Added `docs/GOAL.md` as the active north-star document for the real `pyrrho-MoE` MVP.
+- Updated `docs/HANDOFF.md` to reference `GOAL.md`, add `pyrrho-MoE-g3-mvp` / `pyrrho-MoE-g3` as the active target, and mark alpha-quorum beta hardening as superseded.
+- Updated `docs/ROADMAP.md`, `docs/PYRRHO_MOE_ARCHITECTURE.md`, `docs/INDEX.md`, and `AGENTS.md` so fresh sessions prioritize the real ~4B/A0.4B CPU-executable generative sparse MoE target.
+
+**What was learned:**
+- The user clarified the project goal: publish an honest MoE MVP first, then optimize. The desired artifact is not another Stage 0.7 quorum package; it is a real sparse MoE around the 4B total / 0.4B active target that can generate compact pyrrho-style governance output and broader RAG-runtime signals.
+- `pyrrho-MoE-g3-alpha` remains useful as a published research package and metric reference, but it is not the beta/MVP target.
+- First-MVP quality can be rough if the model card is candid. The blocking priority is now trainability, CPU execution, packaging, and publication of the real architecture.
+
+**Next:** Audit the existing 4B-A0.4B path (`configs/moe/pyrrho_moe_g3_alpha_qwen.yaml`, `outputs/moe/upcycling/qwen_alpha_seed_pack/`, `src/pyrrho/moe/qwen_governance.py`, `scripts/train_moe_qwen_heads.py`) and produce the shortest train/eval/package plan for `pyrrho-MoE-g3-mvp`.
+
+---
+
+## 2026-05-30 (morning) — MoE alpha CPU batch profile
+
+**What landed:**
+- Extended `scripts/benchmark_moe_release.py` with `--batch-sizes`, a one-load batch-size profile mode for packaged MoE releases.
+- Added unit coverage for batch-size normalization and fastest-profile selection in `tests/test_moe_release_benchmark.py`.
+- Ran local CPU batch profiles for `models/pyrrho-MoE-g3-alpha/` on the same 32 held-out test rows for the default quorum policy and seed-42 single-seed path.
+- Updated the local `models/pyrrho-MoE-g3-alpha/README.md` and `docs/HANDOFF.md` with the new runtime evidence.
+
+**What was learned:**
+- Default `trustworthy_quorum_2_of_3` batch profile: `models/pyrrho-MoE-g3-alpha/cpu_batch_profile_32.json`. Best observed batch size is **4** at **70.11 ms/row** and **14.26 rows/s**. Batch size 16 is slower at **100.76 ms/row**, matching the earlier single-batch benchmark.
+- Seed-42 single-seed batch profile: `models/pyrrho-MoE-g3-alpha/cpu_batch_profile_32_seed42.json`. Best observed batch size is **1** at **21.92 ms/row** and **45.62 rows/s**; batch size 16 is **32.38 ms/row**.
+- The best observed default quorum path still costs about **3.20x** seed-42 latency on this local CPU sample, but the beta documentation should recommend smaller CPU batches rather than the earlier batch-16 example.
+- Focused release/runtime tests pass: `pytest tests\test_moe_release_benchmark.py tests\test_moe_release_verifier.py tests\test_moe_inference_runtime.py tests\test_moe_posthoc_verifier_runtime.py -q` (**12 passed**).
+- Required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Make the beta runtime-shape decision: accept the documented 3-forward ensemble runtime with small CPU batches, or reopen modeling for a native/single-forward guard that preserves the quorum metrics.
+
+---
+
+## 2026-05-30 (morning) — MoE alpha CPU benchmark baseline
+
+**What landed:**
+- Added `scripts/benchmark_moe_release.py`, an offline runtime/RSS benchmark for packaged MoE releases. It loads the package/runtimes once, runs warmup and measured repeats, and reports load time, ms/row, rows/s, prediction counts, seed-level verifier rejections, and RSS memory via `psutil` when available.
+- Added `tests/test_moe_release_benchmark.py` for benchmark metric and prediction-summary helpers.
+- Added local README usage notes for `snapshot_download`, `verify_moe_release.py`, and `benchmark_moe_release.py`.
+- Ran the benchmark on `models/pyrrho-MoE-g3-alpha/` with 32 held-out test rows, batch size 16, 1 warmup, 3 measured repeats.
+
+**What was learned:**
+- Default `trustworthy_quorum_2_of_3` benchmark: `models/pyrrho-MoE-g3-alpha/cpu_benchmark_32.json`; **100.51 ± 0.44 ms/row**, **9.95 rows/s**, load **2.31s**, peak RSS **1.70 GiB**, predictions **22 ABSTAIN / 5 TRUSTWORTHY / 5 DISPUTED**, **13** seed-level verifier rejections.
+- Seed-42 single-seed benchmark: `models/pyrrho-MoE-g3-alpha/cpu_benchmark_32_seed42.json`; **32.72 ± 0.19 ms/row**, **30.56 rows/s**, load **0.57s**, peak RSS **1.30 GiB**, predictions **23 ABSTAIN / 5 TRUSTWORTHY / 4 DISPUTED**, **4** verifier rejections.
+- The alpha quorum costs about **3.07x** seed-42 latency on this local CPU sample. That is now the concrete beta runtime tradeoff: either document/accept the ensemble runtime for beta, or reopen modeling for a native/single-forward guard that preserves the quorum quality point.
+- Focused release/runtime tests pass: `pytest tests\test_moe_release_benchmark.py tests\test_moe_release_verifier.py tests\test_moe_inference_runtime.py tests\test_moe_posthoc_verifier_runtime.py -q` (**10 passed**).
+- Required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Make the beta runtime decision: ship beta as a documented ensemble runtime, or start a native/single-forward guard path with the alpha quorum metrics as the target.
+
+---
+
+## 2026-05-30 (morning) — MoE beta release verifier
+
+**What landed:**
+- Added `scripts/verify_moe_release.py`, an offline verifier for packaged MoE releases that validates manifest-relative paths, checkpoint/config/verifier/report sizes, SHA-256 hashes, packaged verifier loadability, feature width, and optional CPU quorum inference smoke with timing.
+- Added `tests/test_moe_release_verifier.py` covering checkpoint/config hash validation and hash-mismatch failure.
+- Ran the verifier against `models/pyrrho-MoE-g3-alpha/` and wrote `models/pyrrho-MoE-g3-alpha/release_verify_report.json` plus `release_verify_smoke.jsonl`.
+- Updated `docs/HANDOFF.md` so the active next step is beta hardening rather than alpha tuning.
+
+**What was learned:**
+- The local alpha release mirror verifies cleanly: `ok=true`, seeds `[7, 42, 1337]`, feature schema width **120**, and all recorded checkpoint/config/verifier/report size + SHA-256 checks pass.
+- The timed CPU quorum smoke over 4 held-out test rows predicts **4 ABSTAIN**, has **0** seed-level verifier rejections, and takes ~**2.77s** end-to-end on this machine. This is a smoke-path measurement, not a full benchmark.
+- Focused release/runtime tests pass: `pytest tests\test_moe_release_verifier.py tests\test_moe_inference_runtime.py tests\test_moe_posthoc_verifier_runtime.py -q` (**8 passed**).
+- Required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Continue beta hardening with a proper CPU latency/RAM benchmark and snapshot-download usage path, then decide whether beta can keep the 3-forward quorum or needs a native/single-forward guard.
+
+---
+
+## 2026-05-29 (afternoon) — MoE alpha published
+
+**What landed:**
+- Created the public Hugging Face model repo [`yafitzdev/pyrrho-MoE-g3-alpha`](https://huggingface.co/yafitzdev/pyrrho-MoE-g3-alpha).
+- Uploaded the local release mirror from `models/pyrrho-MoE-g3-alpha/`: README/model card, portable manifest, config, metadata, policy reports, smoke outputs, three Stage 0.7 `model.pt` checkpoints, and three per-seed `verifier.joblib` packages.
+- Removed the hosted `pipeline_tag` from the alpha card after upload because this is a custom PyTorch package, not a `transformers.AutoModel` artifact.
+- Updated `docs/HANDOFF.md` and `docs/ROADMAP.md` from local-ready to published state.
+
+**What was learned:**
+- Final checked Hub commit is `a1d672201bedc83a5ca66a759f5e521420185bd1`; the repo is public, ungated, CC BY-NC 4.0, and has **24** expected files with **691,739,877** bytes used storage.
+- Remote dry-run listing confirmed all expected files: `manifest.json`, `metadata/metadata.json`, config, reports, smoke outputs, and seed dirs for **42/1337/7** with `model.pt`, `verifier.joblib`, and verifier reports.
+- Downloaded-snapshot CPU smoke passed from `outputs/moe/hf_download_pyrrho_moe_g3_alpha_verify/`: `trustworthy_quorum_2_of_3` over 2 held-out test rows wrote `downloaded_snapshot_smoke.jsonl` with **2** ABSTAIN predictions and **0** seed-level verifier rejections.
+- The release remains an alpha research MoE governance prototype with held-out policy metrics **90.65% accuracy / 1.90% false-TRUSTWORTHY / 81.71% TRUSTWORTHY recall**, not the final custom 4B-A0.4B sparse model.
+
+**Next:** Choose the next track. If following the roadmap, resume with `pyrrho-small-g2` base-model search and V8 SLM tooling refresh; only reopen MoE Stage 0.7/0.10/Qwen tuning if explicitly requested.
+
+---
+
+## 2026-05-29 (afternoon) — MoE alpha local release package
+
+**What landed:**
+- Built the local `pyrrho-MoE-g3-alpha` release mirror at `models/pyrrho-MoE-g3-alpha/` with copied Stage 0.7 seed checkpoints, per-seed packaged HGB verifiers, config, metadata, policy reports, model card, `.gitattributes`, and `PUBLISH_COMMANDS.md`.
+- Extended `scripts/package_moe_posthoc_verifier.py` with release-mode copying for checkpoints/config/metadata/policy summaries, portable manifest provenance, checkpoint hashing, and explicit `--device` selection for reload evaluation.
+- Extended `scripts/infer_moe_posthoc.py` so portable release manifests resolve relative to the package dir and CPU smokes can be forced with `--device cpu`.
+- Updated `docs/HANDOFF.md` and `docs/ROADMAP.md` to mark release hardening complete and publication as the only remaining alpha action.
+
+**What was learned:**
+- The release manifest now resolves entirely inside `models/pyrrho-MoE-g3-alpha/` for inference: `seeds/seed_{42,1337,7}/model.pt`, `config/pyrrho_moe_stage0_7_support_aggregation.yaml`, and `metadata/metadata.json`.
+- CPU quorum inference from the release dir passed on 8 held-out test rows and wrote `models/pyrrho-MoE-g3-alpha/inference_quorum2_smoke.jsonl` (`rows=8`, policy `trustworthy_quorum_2_of_3`, **4** seed-level verifier rejections).
+- CPU package eval smoke from the release dir wrote `models/pyrrho-MoE-g3-alpha/package_eval_report_smoke.json`: eval **70.83% / 8.33% FT** and test **95.83% / 0.00% FT** on 8 rows per seed. This is a smoke only; release metrics remain the full held-out policy result **90.65% accuracy / 1.90% FT / 81.71% T recall**.
+- Focused verifier/inference tests pass (`pytest tests\test_moe_posthoc_verifier_package.py tests\test_moe_inference_runtime.py -q`: **5 passed**), and the required post-change tests pass (`pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q`: **13 passed**).
+
+**Next:** Publish `models/pyrrho-MoE-g3-alpha/` to Hugging Face only if the user asks; otherwise stop alpha work here and do not resume Stage 0.10/verifier/Qwen/modality tuning.
+
+---
+
+## 2026-05-29 (afternoon) — MoE alpha release hardening decision
+
+**What landed:**
+- Updated `docs/HANDOFF.md` to make `pyrrho-MoE-g3-alpha` release hardening the active next step, not more verifier/architecture tuning.
+- Updated `docs/ROADMAP.md` with a near-term release override for a working Stage 0.7 + packaged verifier quorum alpha.
+- Added an explicit "do not keep optimizing before alpha packaging" note to HANDOFF's already-decided list.
+
+**What was learned:**
+- The user priority is now a slightly unoptimized but working MoE alpha ASAP. The existing `trustworthy_quorum_2_of_3` result (**90.65%** accuracy / **1.90%** false-TRUSTWORTHY / **81.71%** TRUSTWORTHY recall) is good enough for the first alpha.
+- This alpha must be framed honestly as a CPU-runnable research MoE governance prototype based on Stage 0.7 + 3-seed quorum, **not** as the final custom 4B-A0.4B sparse model.
+- True 4B-A0.4B work remains a later track because the current Qwen/upcycled-style path is still far below release quality (**54.66%** calibrated accuracy / **5.35%** FT).
+
+**Next:** Package, smoke-test, document, and prepare publication for `pyrrho-MoE-g3-alpha`; defer Stage 0.10, more verifier tuning, one-seed approximations, modality work, and Qwen 4B-A0.4B scaling until after the alpha ships.
+
+---
+
+## 2026-05-29 (afternoon) — MoE quorum gap analysis
+
+**What landed:**
+- Added `scripts/analyze_moe_posthoc_quorum_gaps.py`, a local diagnostic comparing the packaged 3-forward quorum against packaged per-seed predictions, stricter single-seed verifier thresholds, and one-seed quorum distillers.
+- Added `tests/test_moe_posthoc_quorum_gap_analysis.py` for the row-outcome comparison helper.
+- Ran the held-out test analysis and wrote `outputs/moe/stage0_7_posthoc_quorum_gap_analysis_ft028/summary.json` / `report.md`.
+
+**What was learned:**
+- The quorum's wins over single-pass approximations are larger than approximation wins: packaged seeds **69.3 vs 36.0**, single-seed thresholds **88.3 vs 36.7**, and quorum distillers **84.3 vs 29.7** average target/candidate wins.
+- The lost rows are mainly support-preservation failures, not just safety misses: one-forward approximations often turn quorum-correct TRUSTWORTHY rows into ABSTAIN or DISPUTED.
+- Top target-win taxonomies are the Stage 0.7 support patterns and direct support rows: `consistent_chain`, `multi_source_corroboration`, `quantitative_consensus`, `expert_consensus`, and `single_authoritative`.
+- Focused verifier/inference tests pass (**16 passed**), and the required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** If moving beyond the 3-forward local guard, the next one-forward probe should learn a support-preservation guard inside the trunk/head path; a stricter threshold or one-seed post-hoc classifier is the wrong direction.
+
+---
+
+## 2026-05-29 (afternoon) — MoE quorum distillation probe
+
+**What landed:**
+- Added `scripts/distill_moe_posthoc_quorum.py`, a local-only diagnostic that trains a small HGB classifier from one seed's frozen Stage 0.7 features to the packaged 3-seed verifier policy target, then selects a TRUSTWORTHY threshold on eval and applies it to held-out test.
+- Extended `scripts/compare_moe_posthoc_policies.py`'s frozen-output collector to expose the packaged verifier feature matrix for downstream diagnostics.
+- Ran the distillation probe against `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/` and wrote `outputs/moe/stage0_7_posthoc_quorum_distill_ft028/summary.json` / `report.md`, plus per-seed local HGB distillers under `outputs/moe/stage0_7_posthoc_quorum_distill_ft028/seeds/`.
+
+**What was learned:**
+- One-seed HGB quorum distillation gets high agreement with the 3-forward target (**94.66 ± 0.06%** on held-out test), but the disagreements are quality-important.
+- Held-out calibrated mean is **88.42 ± 0.48%** accuracy / **1.80 ± 0.33%** FT / **76.01 ± 0.85%** T recall, versus the actual `trustworthy_quorum_2_of_3` policy at **90.65%** accuracy / **1.90%** FT / **81.71%** T recall.
+- This preserves safety but loses about **2.23 pp** accuracy and **5.70 pp** T recall, so one-seed post-hoc distillation does not replace the 3-forward quorum.
+- Focused verifier/inference tests pass (**15 passed**), and the required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Close cheap single-pass verifier approximations as negative; either accept the 3-forward quorum as the local guard for now or move to a real trunk/guard architecture probe that learns the quorum-style signal inside one forward.
+
+---
+
+## 2026-05-29 (afternoon) — MoE single-seed verifier threshold sweep
+
+**What landed:**
+- Added `src/pyrrho/moe/posthoc_thresholds.py`, reusable helpers for verifier accept-score threshold sweeps, non-TRUSTWORTHY fallback selection, and eval constraint selection.
+- Added `scripts/sweep_moe_posthoc_single_seed_thresholds.py`, a local-only diagnostic that selects one verifier threshold per seed on eval against an ensemble-policy FT target, then applies those thresholds to held-out test.
+- Ran the sweep against `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/` and wrote `outputs/moe/stage0_7_posthoc_single_seed_threshold_sweep_ft028/summary.json` / `report.md`.
+
+**What was learned:**
+- Targeting the 2-of-3 quorum's eval FT (**1.88%**) selects very strict single-seed verifier thresholds: seed 42 **0.945**, seed 1337 **0.900**, seed 7 **0.950**.
+- Held-out mean for those eval-selected thresholds is **88.55 ± 0.65%** accuracy / **1.38 ± 0.18%** FT / **76.26 ± 1.94%** T recall. That is safer than quorum but loses about **2.10 pp** accuracy and **5.45 pp** T recall versus `trustworthy_quorum_2_of_3` (**90.65% / 1.90% FT / 81.71% T recall**).
+- Focused verifier/inference tests pass (**15 passed**). The required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Treat threshold-only single-pass approximation as closed negative; either accept the 3-forward quorum as the local guard for now or move to a real single-pass architecture/training probe that preserves its safety-support tradeoff.
+
+---
+
+## 2026-05-29 (afternoon) — MoE verifier policy compare
+
+**What landed:**
+- Added `src/pyrrho/moe/posthoc_policies.py` and `scripts/compare_moe_posthoc_policies.py` to compare packaged Stage 0.7 post-hoc verifier seed/ensemble policies without retraining, API calls, or dataset generation.
+- Extended `src/pyrrho/moe/inference.py` and `scripts/infer_moe_posthoc.py` with packaged ensemble policies (`majority_guarded_safety_tie`, `trustworthy_quorum_2_of_3`, `trustworthy_unanimous`) and exported the policy helpers from `pyrrho.moe`.
+- Regenerated `outputs/moe/stage0_7_posthoc_policy_compare_ft028/summary.json` / `report.md` with explicit support-retaining and safety-first policy recommendations.
+
+**What was learned:**
+- The support-retaining recommendation is `trustworthy_quorum_2_of_3`: eval **90.81%** accuracy / **1.88%** FT / **83.77%** T recall, held-out test **90.65%** accuracy / **1.90%** FT / **81.71%** T recall.
+- `trustworthy_unanimous` is the safety-first extreme (held-out **1.07%** FT) but is too conservative for the quality baseline because held-out TRUSTWORTHY recall drops to **68.61%**.
+- Focused verifier/inference tests pass (**12 passed**), and the required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Decide whether the 3-forward quorum is acceptable as the local guard or design a single-pass approximation / next MoE architecture probe that preserves its safety-support tradeoff.
+
+---
+
+## 2026-05-29 (afternoon) — MoE verifier inference harness
+
+**What landed:**
+- Added `src/pyrrho/moe/inference.py`, an end-to-end Stage 0 MoE inference runtime for raw `query` + `contexts` JSONL. It loads local checkpoints, normalizes prepared or raw RAG rows, runs the Stage 0 model without gold routes, and emits base/guarded labels, route/taxonomy names, scalar signals, verifier accept scores, and demotion flags.
+- Added `scripts/infer_moe_posthoc.py`, a CLI wrapper that can resolve checkpoint/config/data paths from the packaged Stage 0.7 verifier manifest and score local JSONL with a selected verifier seed.
+- Added `tests/test_moe_inference_runtime.py` with tiny-checkpoint coverage for raw row normalization and packaged verifier demotion.
+
+**What was learned:**
+- The new inference CLI runs against the preferred Stage 0.7 verifier package without retraining or label fields. Smoke command over `data/moe_v8/test.jsonl` with seed 42 and 8 rows wrote `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/inference_smoke.jsonl`; the run produced **8** predictions and **2** verifier demotions.
+- Targeted inference/verifier tests pass (**7 passed**), and the required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Compare packaged verifier seed/ensemble policies, or move to the next MoE architecture question; do not resume modality work unless explicitly reopened.
+
+---
+
+## 2026-05-29 (afternoon) — MoE verifier runtime API
+
+**What landed:**
+- Added `src/pyrrho/moe/posthoc_verifier.py`, an inference-facing runtime API for Stage 0.7 post-hoc verifier packages: feature construction, manifest/schema/checksum validation, per-seed verifier loading, accept scoring, and TRUSTWORTHY demotion policy.
+- Refactored `scripts/package_moe_posthoc_verifier.py evaluate` to use the runtime API instead of carrying its own verifier-loading/policy path.
+- Added `tests/test_moe_posthoc_verifier_runtime.py` covering package loading, hash validation, feature width, and demotion behavior.
+
+**What was learned:**
+- The preferred 2.8% Stage 0.7 verifier package remains structurally reloadable through the new runtime path. A max-sample smoke wrote `outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package/package_eval_report_smoke.json` and scored **95.83%** guarded accuracy / **0.00%** FT on 8 test rows per seed.
+- Verifier-specific tests pass (**5 passed**), and the required post-change tests pass: `pytest tests\test_smoke.py tests\test_prepare_data_candidates.py -q` (**13 passed**).
+
+**Next:** Compare verifier package policies or wire `PosthocVerifierPackage` into an end-to-end MoE inference harness; keep Stage 0.7 as the quality baseline and do not resume modality work unless explicitly reopened.
+
+---
+
+## 2026-05-29 (afternoon) — Freeze modality branch and resume MoE
+
+**What landed:**
+- Decided to stop structured/code modality digging for now and treat the retry-patch branch as the local label-trusted baseline.
+- Deferred blind-label scoring by user choice for speed; candidate modality rows still cannot be merged or published until full blind-label QA passes.
+- Updated `docs/HANDOFF.md` so fresh sessions resume from pyrrho-MoE instead of continuing simple modality specialist/threshold diagnostics.
+
+**What was learned:**
+- The modality branch already exceeds the original "good enough" bar for continuing pyrrho-MoE: retry-patch is **98.62 ± 0.15% / 1.06 ± 0.05% FT**, code OOD **99.07 ± 1.60% / 1.39 ± 2.41% FT**, and tabular OOD **93.52 ± 8.93% / 1.39 ± 2.41% FT**.
+- Simple replacement/augmentation paths are negative or neutral: old specialists, patch-aware code specialist, patch-aware structured specialist, and per-modality thresholds do not justify replacing the joint generalist.
+
+**Next:** Resume pyrrho-MoE from the Stage 0.7 support-aggregation / post-hoc verifier baseline; do not generate more modality rows or run more simple specialist/threshold diagnostics unless explicitly reopened.
+
+---
+
+## 2026-05-29 (afternoon) — Patch-aware structured specialist diagnostic
+
+**What landed:**
+- Deferred blind-label scoring by user decision to keep rapid local progress; patch labels remain trusted only for local controls, and merge/publish remains blocked.
+- Prepared `data/processed_v8_plus_structured_retry_patch_candidate` from the retry-patch processed set by keeping only `unstructured` and `structured` rows. Split sizes are **train=27,665**, **eval=3,477**, and **test=3,450**.
+- Trained a patch-aware seed-42 structured specialist at `outputs/modality_retraining/structured_retry_patch_seed42/`, evaluated it with `scripts/eval_report.py` and `scripts/tabular_ood_probe.py`, then routed it through `outputs/modality_specialist_compare/retry_patch_seed42_patch_aware_structured_router/`.
+
+**What was learned:**
+- The specialist is clean on held-out candidate structured rows (**100.00%** accuracy / **0.00%** FT), but its structured+unstructured held-out test is only **98.32%** accuracy / **1.02%** FT and its unstructured slice is **97.64%** / **1.42%** FT.
+- Routing structured rows to this specialist ties the retry-patch seed-42 joint generalist on the mixed held-out test (**98.74%** / **1.07%** FT), because both models are already **100.00%** / **0.00%** FT on candidate structured rows.
+- The specialist is unsafe on hand-authored tabular OOD: **88.89%** accuracy / **16.67%** FT, with four ABSTAIN rows false-trusted across metric mismatch and missing-result scenarios. This is worse than the retry-patch joint generalist and does not justify a separate structured encoder.
+
+**Next:** Keep retry-patch as the local baseline. With blind QA intentionally deferred, further rapid-progress work should be local-only architecture diagnostics rather than more rows, simple routing, or simple threshold policies.
+
+---
+
+## 2026-05-29 (morning) — Later modality patch QA shard preparation
+
+**What landed:**
+- In fitz-gov, built blind-label QA queues/manifests for the two later modality patches without scoring labels, starting LM Studio, making API calls, or generating new dataset rows.
+- Prepared `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_code_retry_conflict_patch_v1_20260529/` from the existing 360-row retry-conflict candidate pack. It now has **360** blind queue rows, **360** manifest rows, and **12** Codex blind shards of **30** rows each.
+- Prepared `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_missing_evidence_patch_v1_20260529/` from the existing 360-row missing-evidence candidate pack. It now has **360** blind queue rows, **360** manifest rows, and **12** Codex blind shards of **30** rows each.
+
+**What was learned:**
+- The retry-conflict QA pack is label-balanced (**120/120/120**) and code-only, with mechanisms `retry_limit_code_config_agreement`, `retry_limit_code_config_conflict`, and `retry_limit_wrong_service` at **120** rows each.
+- The missing-evidence QA pack is label-balanced (**120/120/120**) and modality-balanced (**180 code / 180 structured**), with six mechanisms at **60** rows each.
+- All three patch packs now have blind-label queue/shard setup available, but none of the patch labels should be treated as release-clean until full blind-label scoring passes.
+
+**Next:** Run full blind-label QA for all three patch packs only when the no-LM-Studio/no-API constraint is lifted or an approved local/manual labeler is available; do not merge or publish before clean scores.
+
+---
+
+## 2026-05-29 (morning) — Modality patch QA readiness audit
+
+**What landed:**
+- Audited local fitz-gov QA artifacts for the three label-trusted modality patches without starting LM Studio, making API calls, generating dataset rows, or scoring labels.
+- Confirmed `modality_code_patch_v1_20260528` has a QA directory at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_code_patch_v1_20260528/`, including a **720-row** blind queue/manifest and **12** Codex blind shards under `codex_subagent_blind/`.
+
+**What was learned:**
+- The retry-conflict patch and missing-evidence patch do **not** yet have QA directories: `data/_workspaces/qa/modality_code_retry_conflict_patch_v1_20260529/` and `data/_workspaces/qa/modality_missing_evidence_patch_v1_20260529/` are absent.
+- The first code patch still is not full-QA-clean: existing local scores are partial/targeted, not a completed full blind-label pass over all **720** rows.
+- Before any blind scoring can run, the two later **360-row** patches need blind-label queues/manifests and Codex blind shards prepared from their existing candidate packs.
+
+**Next:** Prepare QA queues/shards for the retry-conflict and missing-evidence patches, then run full blind-label QA when the no-LM-Studio/no-API constraint is lifted or an approved local/manual labeler is available.
+
+---
+
+## 2026-05-29 (morning) — Modality threshold policy diagnostic
+
+**What landed:**
+- Added `scripts/modality_threshold_sweep.py`, a local-only policy harness that selects per-modality TRUSTWORTHY thresholds on eval and applies them to held-out test without training, row generation, schema changes, LM Studio, or API calls.
+- Ran the harness on the retry-patch 3-seed joint-generalist branch; artifacts are at `outputs/modality_threshold_sweep/retry_patch_3seed/summary.json` and `report.md`.
+
+**What was learned:**
+- The global retry-patch thresholds remain the best simple policy baseline: held-out test **98.62 ± 0.12%** accuracy / **1.06 ± 0.04%** FT.
+- Per-modality thresholds selected to avoid eval FT regression did not improve test quality: **98.61 ± 0.11%** accuracy / **1.04 ± 0.05%** FT, a **-0.01 pp** accuracy trade for **-0.02 pp** FT.
+- The only policy movement was seed 42 raising the unstructured threshold from **0.34** to **0.53**, which reduced test FT by **0.07 pp** but also reduced accuracy by **0.04 pp**. Seeds 1337 and 7 kept their global thresholds for all modalities.
+- This closes the simple modality-specific-threshold augmentation path; it is not evidence to replace or augment the retry-patch joint generalist.
+
+**Next:** Do not generate more rows or retest simple routing/threshold policies; the gating next step remains full blind-label QA before any merge or publish decision.
+
+---
+
+## 2026-05-29 (morning) — Patch-aware code specialist diagnostic
+
+**What landed:**
+- Added `scripts/filter_processed_modalities.py`, a local helper that filters an existing processed DatasetDict by `modality` while preserving split membership and writing JSONL, `hf_dataset/`, `prep_summary.json`, and a manifest.
+- Prepared `data/processed_v8_plus_code_retry_patch_candidate` from `data/processed_v8_plus_structured_code_retry_patch_candidate`, keeping only `unstructured` and `code` rows. Split sizes are **train=28,564**, **eval=3,566**, and **test=3,542**.
+- Trained a patch-aware seed-42 code specialist at `outputs/modality_retraining/code_retry_patch_seed42/`, then evaluated it with `scripts/eval_report.py`, `scripts/code_ood_probe.py`, and the routing harness at `outputs/modality_specialist_compare/retry_patch_seed42_patch_aware_code_router/`.
+
+**What was learned:**
+- The patch-aware code specialist is clean on the in-distribution code slice (**100.00%** accuracy / **0.00%** FT), but its held-out code+unstructured test result is **98.25%** accuracy / **1.49%** FT and its unstructured slice is **97.48%** / **2.13%** FT, so it is not a better general model than the retry-patch joint branch.
+- On the 36-row code OOD probe it ties the retry-patch seed-42 generalist at **97.22%** accuracy / **4.17%** FT. It fixes the earlier missing-field seed-42 miss, but reintroduces a retry-limit `constant_config_conflict` false-TRUSTWORTHY on the `code_excerpt` serialization.
+- Routing code rows to this patch-aware specialist ties the retry-patch seed-42 generalist on the mixed held-out test (**98.74%** / **1.07%** FT) because both are already **100.00%** / **0.00%** FT on the candidate code slice. It provides no evidence to replace or augment the joint-generalist baseline.
+- No rows were generated, no schema changes were made, no LM Studio process was started, and no API calls were made. Labels remain trusted only for local controls.
+
+**Next:** Stop specialist work unless a specific new architecture question is worth testing; the gating next step remains full blind-label QA before any merge or publish decision.
+
+---
+
+## 2026-05-29 (morning) — Modality specialist routing diagnostic
+
+**What landed:**
+- Added `scripts/modality_specialist_compare.py`, a local-only routing harness that evaluates fixed checkpoints by the existing `modality` column without training, row generation, schema changes, LM Studio, or API calls.
+- Compared the retry-patch seed-42 generalist against the existing seed-42 code-only and structured-only specialist encoders on `data/processed_v8_plus_structured_code_retry_patch_candidate`; artifacts are at `outputs/modality_specialist_compare/retry_patch_seed42_router/summary.json` and `report.md`.
+- Scored the one-seed specialists on the hand-authored OOD probes at `outputs/code_ood_probe/code_specialist_seed42/` and `outputs/tabular_ood_probe/structured_specialist_seed42/`.
+
+**What was learned:**
+- The seed-matched retry-patch generalist remains stronger on the mixed held-out test: **98.74%** accuracy / **1.07%** FT. Routing code rows to the existing code-only specialist regressed to **98.26%** / **1.46%** FT because code-slice accuracy fell to **97.97%** / **1.66%** FT. Routing structured rows to the existing structured-only specialist tied the generalist on the in-distribution structured candidate slice.
+- On OOD, the code-only specialist was safer but too conservative: **86.11%** accuracy / **0.00%** FT, with TRUSTWORTHY recall only **58.33%** and failures on decorator/exact-symbol support. The retry-patch seed-42 generalist was **97.22%** / **4.17%** FT on the same code OOD probe.
+- The structured-only specialist was not safe enough on tabular OOD: **91.67%** accuracy / **8.33%** FT, worse than the retry-patch seed-42 generalist's **97.22%** / **4.17%** FT.
+- The smallest useful specialist comparison does not justify replacing or augmenting the retry-patch joint generalist with the existing separate specialist encoders. A future specialist would need to be patch-aware and evaluated as a new local control, not inferred from the older one-seed specialists.
+
+**Next:** Keep retry-patch as the local modality baseline; complete full blind-label QA before merge/publish, and only train a patch-aware specialist head/encoder if more local modeling is worth doing before QA.
+
+---
+
 ## 2026-05-29 (morning) — Retry vs missing-evidence policy sweep
 
 **What landed:**

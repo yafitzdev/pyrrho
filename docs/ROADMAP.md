@@ -1,6 +1,7 @@
 # Pyrrho Training Roadmap
 
 > Comprehensive specification for finetuning, training, and reinforcement learning path toward pyrrho-MoE — a CPU-native sparse Mixture-of-Experts RAG runtime engine.
+> Active north-star goal: [GOAL.md](GOAL.md).
 
 ---
 
@@ -36,6 +37,7 @@ Generations are suffixed by dataset version trained on:
 | `-g1.x` | Trained on fitz-gov V6 (V5.1 + LLM-enriched schema overlay; same case IDs) |
 | `-g2` | Trained on fitz-gov V7 |
 | `-g3` | Trained on fitz-gov V8 |
+| `-g3.1` | Same V8 row set, upgraded to multitask encoder outputs for query contract, route/domain, taxonomy, and governance scalars |
 | etc. | Increments with each major dataset version |
 
 ### Examples
@@ -43,6 +45,7 @@ Generations are suffixed by dataset version trained on:
 - `pyrrho-nano-g1` — ModernBERT encoder fine-tuned on fitz-gov V5.1 (live on HF as `yafitzdev/pyrrho-nano-g1`)
 - `pyrrho-nano-g1.1` — same architecture, retrained on fitz-gov V6 for apples-to-apples comparison on the enriched schema
 - `pyrrho-nano-g2` — retrained on fitz-gov V7.0.1 (SDGP-scaled, schema-clean; 10,500 rows published on Hugging Face)
+- `pyrrho-nano-g3.1` — published ModernBERT multitask encoder package on V8.1-style targets, including pre-retrieval query-contract classification
 - `pyrrho-small-g2` — generative SLM fine-tuned on fitz-gov V7
 - `pyrrho-MoE-g3` — custom sparse MoE post-trained/distilled on fitz-gov V8
 
@@ -71,7 +74,7 @@ fitz-gov is the benchmark that gives pyrrho credibility. It must scale ahead of 
 | 15,000–30,000 | Generalization kicks in. Governance signals become calibrated, not just directional |
 | 30,000+ | False-trustworthy approaches floor. Routing stable enough to expose as signal. Infrastructure-grade |
 
-Current status as of 2026-05-29: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current active rows carry `meta.modality: "unstructured"`. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050). Candidate-only structured/code packs now exist locally in fitz-gov: **10,000 structured** + **10,000 code**, full blind-QA clean, not merged into the active vault. Three additional candidate-only patches exist for local controls: a **720-row** targeted hard-negative/coverage code patch, a **360-row** retry-limit conflict code patch, and a **360-row** missing-evidence mixed code/structured patch. Those patch labels are trusted only for local controls until full blind-label QA is completed.
+Current status as of 2026-06-02: fitz-gov V8.0.1 is published on Hugging Face as the default contract for new work. It has **24,592 rows** with default `v8` query-grouped splits (train=19,674 / validation=2,459 / test=2,459), public rows in the current SDGP shape, target-50 coverage complete across **483/483** canonical cells, stricter all-Claude/Codex full V8 second-pass QA clean at **14,092/14,092 agreement** with **0 triage**, and all current active rows carry `meta.modality: "unstructured"`. `pyrrho-nano-g3.1` is now a published multitask encoder package on a V8.1-style target surface with mandatory `routing.query_contract`; downloaded-snapshot verification passed. V7.0.1 remains the published `pyrrho-nano-g2` contract and has **10,500 rows** with default `v7` splits (train=8,400 / validation=1,050 / test=1,050). Candidate-only structured/code packs now exist locally in fitz-gov: **10,000 structured** + **10,000 code**, full blind-QA clean, not merged into the active vault. Three additional candidate-only patches exist for local controls: a **720-row** targeted hard-negative/coverage code patch, a **360-row** retry-limit conflict code patch, and a **360-row** missing-evidence mixed code/structured patch. Those patch labels are trusted only for local controls until full blind-label QA is completed.
 
 ### Modality Expansion: Unstructured, Structured, Code
 
@@ -694,6 +697,10 @@ The complete output of a pyrrho-MoE inference pass:
 
 **Goal:** Train the terminal custom sparse architecture on fitz-gov V8 while preserving enough pretrained language competence through initialization/distillation.
 
+**MVP reset (2026-05-30):** The active goal is no longer to beta-harden the Stage 0.7 quorum alpha. The active goal is to ship the real custom sparse `pyrrho-MoE` MVP: about 4B total / 0.4B active, CPU-executable, and generative enough to produce compact pyrrho-style governance output and the v1 signal suite. `pyrrho-MoE-g3-alpha` remains published as a research package and comparison point, but it is not the beta/MVP target. See [GOAL.md](GOAL.md).
+
+MVP quality can be rough. The first real 4B-A0.4B artifact should be trained, runnable, evaluated, packaged, and published before extended optimization loops. The release card must be candid if it misses the historical gates, but the architecture milestone is now the priority.
+
 #### Architecture decisions
 - 4B total / 0.4B active parameters
 - 7–8 domain experts + conflict detection meta-expert
@@ -702,6 +709,23 @@ The complete output of a pyrrho-MoE inference pass:
 - 4-bit quantization target for deployment (GGUF compatible)
 
 #### Training stages
+
+**MVP Stage A — Reopen the 4B-A0.4B skeleton**
+- Audit the Qwen-seeded 4.083B / 0.424B path: `configs/moe/pyrrho_moe_g3_alpha_qwen.yaml`, `outputs/moe/upcycling/qwen_alpha_seed_pack/`, `src/pyrrho/moe/qwen_governance.py`, and `scripts/train_moe_qwen_heads.py`.
+- Decide the shortest training path that preserves a real sparse MoE artifact, not a quorum wrapper.
+- Keep the deployed artifact inside the 4B total / 0.4B active CPU target or document any deliberate small deviation.
+
+**MVP Stage B — Minimal generative governance training**
+- Train the real sparse model to emit compact pyrrho-style governance output: classification, short rationale, route, taxonomy pattern, and scalar signals.
+- Use fitz-gov V8.0.1 labels as authoritative; teacher traces/logits can be auxiliary.
+- Favor a working train/eval loop over another long architecture optimization cycle.
+
+**MVP Stage C — CPU execution and packaging**
+- Quantize to a CPU path where feasible, preferably GGUF / llama.cpp.
+- If GGUF blocks the architecture, document and ship a custom CPU runtime for MVP.
+- Package one real model artifact with parameter counts, eval metrics, CPU smoke, and known limitations.
+
+**Optimization stages after MVP**
 
 **Stage 0 — Teacher initialization / distillation**
 - Select one or more 2026-vintage permissive small-language-model teachers with strong CPU-runnable general knowledge

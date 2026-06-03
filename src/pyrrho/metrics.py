@@ -75,6 +75,36 @@ def compute_classification_metrics(
     }
 
 
+def compute_multiclass_metrics(
+    predictions: np.ndarray,
+    labels: np.ndarray,
+    *,
+    label_ids: Sequence[int],
+    label_names: dict[int, str],
+    prefix: str = "",
+) -> dict[str, float]:
+    """Accuracy, macro F1, and per-label recall for an arbitrary class space."""
+    preds = _as_preds(predictions)
+    labels = np.asarray(labels)
+    accuracy = accuracy_score(labels, preds)
+    macro_f1 = f1_score(labels, preds, labels=list(label_ids), average="macro", zero_division=0)
+    _, recall, _, _ = precision_recall_fscore_support(
+        labels,
+        preds,
+        labels=list(label_ids),
+        zero_division=0,
+    )
+    key = f"{prefix}_" if prefix else ""
+    metrics = {
+        f"{key}accuracy": float(accuracy),
+        f"{key}macro_f1": float(macro_f1),
+    }
+    for idx, value in zip(label_ids, recall, strict=True):
+        safe_name = label_names[int(idx)].replace("-", "_").replace(" ", "_")
+        metrics[f"{key}recall_{safe_name}"] = float(value)
+    return metrics
+
+
 def compute_metrics(eval_pred) -> dict[str, float]:
     """`transformers.Trainer`-compatible callback. `eval_pred` is `(logits, labels)`.
 
