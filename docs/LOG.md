@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-03 (evening) - g3.2 3-seed training finished
+
+**What landed:**
+- Completed the remaining `pyrrho-nano-g3.2` seeds **1337** and **7** on `data/multitask_v8_2_retrieval_control`.
+- Wrote the 3-seed aggregate summary to `outputs/pyrrho-nano-g3_2_retrieval_control/summary.json`.
+- Updated `docs/HANDOFF.md` with the current V8.2/g3.2 state, metrics, limitations, tooling notes, and next action.
+
+**What was learned:**
+- All three seeds passed held-out governance gates. 3-seed held-out test result is **97.29 ± 0.22%** calibrated governance accuracy / **1.11 ± 0.17%** false-trustworthy.
+- Existing heads remain close to g3.1: query-contract macro F1 **93.92 ± 0.22%**, route accuracy **92.59 ± 0.54%**, taxonomy accuracy **88.80 ± 0.19%**, scalar MAE **0.0640 ± 0.0005**.
+- New retrieval-control heads are useful but uneven: retrieval-action macro F1 **86.69 ± 0.23%**, gap-type macro F1 **76.75 ± 1.56%**, answerability-shape macro F1 **75.53 ± 0.54%**, retrieval-modality macro F1 **55.75 ± 1.75%**.
+- Seed **1337** has the best held-out governance result (**97.56%** accuracy / **0.89%** false-trustworthy at tau **0.34**) and the strongest retrieval-modality held-out macro F1; seed **42** still has the highest eval composite and strongest gap-type held-out macro F1.
+
+**Next:** Package `pyrrho-nano-g3.2`, run CPU package verification, choose the release seed deliberately, then decide whether to publish despite the missing independent retrieval-control blind-label QA pass.
+
+---
+
 ## 2026-06-03 (evening) - g3.2 seed 42 finished
 
 **What landed:**
