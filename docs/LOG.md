@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-03 (morning) - g3.1 card refresh and fitz-sage live smoke
+
+**What landed:**
+- Uploaded the regenerated `pyrrho-nano-g3.1` model card to Hugging Face using the g3-style public template.
+- Verified the refreshed Hub README and Hub metadata at commit `811bc4940d356ddf7b5bcf9102f211622d326cf1`.
+- Confirmed the local fitz-sage branch already integrates `yafitzdev/pyrrho-nano-g3.1` via a package-local custom multitask ModernBERT loader.
+
+**What was learned:**
+- The Hub update is README-only over the already verified full-package commit `211d3131b2b1b0e74302b4213b16eb242b5b1e31`; package storage remains **596,210,628 bytes** for `model.safetensors`.
+- fitz-sage targeted tests passed: `.venv\\Scripts\\python.exe -m pytest tests\\unit\\test_pyrrho.py tests\\unit\\test_krag_engine.py -q` returned **37 passed**.
+- A live CPU smoke in fitz-sage loaded the Hub checkpoint, classified `Where is the Eiffel Tower located?`, and returned query contract `evidence_sufficiency`, route `history_geography`, taxonomy `direct_answer`, mode `trustworthy`, and governance probabilities `(0.0820, 0.1196, 0.7984)`.
+
+**Next:** Run the broader fitz-sage release suite and make a clean release/PR decision for the g3.1 governance upgrade; ONNX remains future work until a dedicated multi-head export is built and verified.
+
+---
+
 ## 2026-06-02 (evening) - pyrrho-nano-g3.1 published and snapshot-verified
 
 **What landed:**
