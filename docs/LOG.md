@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-03 (evening) - g3.2 seed 42 finished
+
+**What landed:**
+- Completed the first `pyrrho-nano-g3.2` seed-42 training run on `data/multitask_v8_2_retrieval_control`.
+- Wrote final artifacts under `outputs/pyrrho-nano-g3_2_retrieval_control/seed_42/`, including `final_metrics.json`, `manifest.json`, and `best_model/`.
+
+**What was learned:**
+- Seed 42 is healthy and passes held-out governance gates: **97.03%** calibrated governance accuracy / **1.30%** false-trustworthy at tau **0.46** on the 2,459-row held-out test.
+- Existing multitask heads remain strong: query-contract macro F1 **94.20%**, route accuracy **93.29%**, taxonomy accuracy **88.61%**, scalar MAE **0.0643**.
+- New retrieval-control heads are usable but uneven: retrieval-action macro F1 **86.90%**, gap-type macro F1 **78.94%**, answerability-shape macro F1 **75.37%**, retrieval-modality macro F1 **55.22%**.
+
+**Next:** Launch seeds **1337** and **7** to produce a real 3-seed g3.2 release summary before any packaging or publication decision.
+
+---
+
 ## 2026-06-03 (evening) - fitz-gov v8.2 live and g3.2 training started
 
 **What landed:**
