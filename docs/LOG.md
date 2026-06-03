@@ -13,6 +13,20 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-03 (morning) - fitz-sage unit suite passed for g3.1
+
+**What landed:**
+- Ran the broader fitz-sage unit suite after the targeted pyrrho/KRAG tests and live CPU smoke.
+- Stopped the timed-out all-tests run so no leftover pytest/python process kept running.
+
+**What was learned:**
+- `.venv\\Scripts\\python.exe -m pytest tests\\unit -q` collected **1112** tests and returned **1112 passed**, **14 warnings**, in **54.95s**.
+- The broad `.venv\\Scripts\\python.exe -m pytest -q` command timed out after **304s** with no useful progress output because it includes non-unit e2e/load/security/performance shards; split those separately for release validation.
+
+**Next:** For a fitz-sage release candidate, run the non-unit shards explicitly, then update release docs/versioning and decide whether to ship the g3.1 governance upgrade.
+
+---
+
 ## 2026-06-03 (morning) - g3.1 card refresh and fitz-sage live smoke
 
 **What landed:**
