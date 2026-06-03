@@ -88,6 +88,10 @@ class MultiTaskJsonlDataset(Dataset):
             "query_contract_id": int(row["query_contract_id"]),
             "route_id": int(row["route_id"]),
             "taxonomy_pattern_id": int(row["taxonomy_pattern_id"]),
+            "retrieval_action_id": int(row.get("retrieval_action_id", -1)),
+            "gap_type_id": int(row.get("gap_type_id", -1)),
+            "answerability_shape_id": int(row.get("answerability_shape_id", -1)),
+            "retrieval_modality_id": int(row.get("retrieval_modality_id", -1)),
             "scalar_targets": scalar_values,
             "scalar_mask": scalar_mask,
         }
@@ -159,6 +163,19 @@ def collate_builder(
                 [row["taxonomy_pattern_id"] for row in rows],
                 dtype=torch.long,
             ),
+            "retrieval_action_ids": torch.tensor(
+                [row["retrieval_action_id"] for row in rows],
+                dtype=torch.long,
+            ),
+            "gap_type_ids": torch.tensor([row["gap_type_id"] for row in rows], dtype=torch.long),
+            "answerability_shape_ids": torch.tensor(
+                [row["answerability_shape_id"] for row in rows],
+                dtype=torch.long,
+            ),
+            "retrieval_modality_ids": torch.tensor(
+                [row["retrieval_modality_id"] for row in rows],
+                dtype=torch.long,
+            ),
             "scalar_targets": torch.tensor(
                 [row["scalar_targets"] for row in rows],
                 dtype=torch.float32,
@@ -207,6 +224,16 @@ def compute_loss(
     query_contract_class_weights: torch.Tensor | None,
     label_smoothing: float,
 ) -> tuple[torch.Tensor, dict[str, float]]:
+    def optional_cross_entropy(output_key: str, target_key: str) -> torch.Tensor:
+        logits = outputs.get(output_key)
+        labels = batch.get(target_key)
+        if logits is None or labels is None:
+            return outputs["governance_logits"].sum() * 0.0
+        valid = labels >= 0
+        if not bool(valid.any().item()):
+            return logits.sum() * 0.0
+        return F.cross_entropy(logits[valid], labels[valid])
+
     gov_loss = F.cross_entropy(
         outputs["governance_logits"],
         batch["labels"],
@@ -223,12 +250,26 @@ def compute_loss(
     scalar_diff = (outputs["scalar_preds"] - batch["scalar_targets"]) ** 2
     scalar_mask = batch["scalar_mask"]
     scalar_loss = (scalar_diff * scalar_mask).sum() / scalar_mask.sum().clamp_min(1.0)
+    retrieval_action_loss = optional_cross_entropy(
+        "retrieval_action_logits", "retrieval_action_ids"
+    )
+    gap_type_loss = optional_cross_entropy("gap_type_logits", "gap_type_ids")
+    answerability_shape_loss = optional_cross_entropy(
+        "answerability_shape_logits", "answerability_shape_ids"
+    )
+    retrieval_modality_loss = optional_cross_entropy(
+        "retrieval_modality_logits", "retrieval_modality_ids"
+    )
     total = (
         weights["governance"] * gov_loss
         + weights["query_contract"] * query_contract_loss
         + weights["route"] * route_loss
         + weights["taxonomy"] * taxonomy_loss
         + weights["scalars"] * scalar_loss
+        + weights.get("retrieval_action", 0.0) * retrieval_action_loss
+        + weights.get("gap_type", 0.0) * gap_type_loss
+        + weights.get("answerability_shape", 0.0) * answerability_shape_loss
+        + weights.get("retrieval_modality", 0.0) * retrieval_modality_loss
     )
     return total, {
         "governance": float(gov_loss.detach().cpu()),
@@ -236,8 +277,35 @@ def compute_loss(
         "route": float(route_loss.detach().cpu()),
         "taxonomy": float(taxonomy_loss.detach().cpu()),
         "scalars": float(scalar_loss.detach().cpu()),
+        "retrieval_action": float(retrieval_action_loss.detach().cpu()),
+        "gap_type": float(gap_type_loss.detach().cpu()),
+        "answerability_shape": float(answerability_shape_loss.detach().cpu()),
+        "retrieval_modality": float(retrieval_modality_loss.detach().cpu()),
         "total": float(total.detach().cpu()),
     }
+
+
+def optional_multiclass_metrics(
+    logits_chunks: list[np.ndarray],
+    label_chunks: list[np.ndarray],
+    *,
+    id2label: dict[int, str],
+    prefix: str,
+) -> dict[str, float] | None:
+    if not logits_chunks or not label_chunks or not id2label:
+        return None
+    logits = np.concatenate(logits_chunks, axis=0)
+    labels = np.concatenate(label_chunks, axis=0)
+    valid = labels >= 0
+    if not valid.any():
+        return None
+    return compute_multiclass_metrics(
+        logits[valid],
+        labels[valid],
+        label_ids=sorted(id2label),
+        label_names=id2label,
+        prefix=prefix,
+    )
 
 
 @torch.no_grad()
@@ -250,6 +318,10 @@ def evaluate(
     query_contract_id2label: dict[int, str],
     route_id2label: dict[int, str],
     taxonomy_id2label: dict[int, str],
+    retrieval_action_id2label: dict[int, str],
+    gap_type_id2label: dict[int, str],
+    answerability_shape_id2label: dict[int, str],
+    retrieval_modality_id2label: dict[int, str],
     scalar_fields: tuple[str, ...],
     threshold: float | None = None,
 ) -> dict[str, Any]:
@@ -258,11 +330,19 @@ def evaluate(
     qc_logits: list[np.ndarray] = []
     route_logits: list[np.ndarray] = []
     taxonomy_logits: list[np.ndarray] = []
+    retrieval_action_logits: list[np.ndarray] = []
+    gap_type_logits: list[np.ndarray] = []
+    answerability_shape_logits: list[np.ndarray] = []
+    retrieval_modality_logits: list[np.ndarray] = []
     scalar_preds: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     qc_labels: list[np.ndarray] = []
     route_labels: list[np.ndarray] = []
     taxonomy_labels: list[np.ndarray] = []
+    retrieval_action_labels: list[np.ndarray] = []
+    gap_type_labels: list[np.ndarray] = []
+    answerability_shape_labels: list[np.ndarray] = []
+    retrieval_modality_labels: list[np.ndarray] = []
     scalar_targets: list[np.ndarray] = []
     scalar_masks: list[np.ndarray] = []
 
@@ -283,6 +363,18 @@ def evaluate(
         qc_logits.append(outputs["query_contract_logits"].float().cpu().numpy())
         route_logits.append(outputs["route_logits"].float().cpu().numpy())
         taxonomy_logits.append(outputs["taxonomy_logits"].float().cpu().numpy())
+        if "retrieval_action_logits" in outputs:
+            retrieval_action_logits.append(outputs["retrieval_action_logits"].float().cpu().numpy())
+            retrieval_action_labels.append(batch["retrieval_action_ids"].cpu().numpy())
+        if "gap_type_logits" in outputs:
+            gap_type_logits.append(outputs["gap_type_logits"].float().cpu().numpy())
+            gap_type_labels.append(batch["gap_type_ids"].cpu().numpy())
+        if "answerability_shape_logits" in outputs:
+            answerability_shape_logits.append(outputs["answerability_shape_logits"].float().cpu().numpy())
+            answerability_shape_labels.append(batch["answerability_shape_ids"].cpu().numpy())
+        if "retrieval_modality_logits" in outputs:
+            retrieval_modality_logits.append(outputs["retrieval_modality_logits"].float().cpu().numpy())
+            retrieval_modality_labels.append(batch["retrieval_modality_ids"].cpu().numpy())
         scalar_preds.append(outputs["scalar_preds"].float().cpu().numpy())
         labels.append(batch["labels"].cpu().numpy())
         qc_labels.append(batch["query_contract_ids"].cpu().numpy())
@@ -315,7 +407,7 @@ def evaluate(
             gov_calibrated["false_trustworthy_rate"] <= BASELINE_FALSE_TRUSTWORTHY
         )
 
-    return {
+    metrics = {
         "governance_uncalibrated": compute_classification_metrics(gov, y),
         "governance_calibrated": gov_calibrated,
         "threshold": tau,
@@ -342,6 +434,34 @@ def evaluate(
         ),
         "scalars": scalar_metrics(scalar, scalar_y, scalar_mask, scalar_fields),
     }
+    optional_heads = {
+        "retrieval_action": optional_multiclass_metrics(
+            retrieval_action_logits,
+            retrieval_action_labels,
+            id2label=retrieval_action_id2label,
+            prefix="retrieval_action",
+        ),
+        "gap_type": optional_multiclass_metrics(
+            gap_type_logits,
+            gap_type_labels,
+            id2label=gap_type_id2label,
+            prefix="gap_type",
+        ),
+        "answerability_shape": optional_multiclass_metrics(
+            answerability_shape_logits,
+            answerability_shape_labels,
+            id2label=answerability_shape_id2label,
+            prefix="answerability_shape",
+        ),
+        "retrieval_modality": optional_multiclass_metrics(
+            retrieval_modality_logits,
+            retrieval_modality_labels,
+            id2label=retrieval_modality_id2label,
+            prefix="retrieval_modality",
+        ),
+    }
+    metrics.update({key: value for key, value in optional_heads.items() if value is not None})
+    return metrics
 
 
 def composite_score(metrics: dict[str, Any]) -> float:
@@ -350,7 +470,17 @@ def composite_score(metrics: dict[str, Any]) -> float:
     route = metrics["route"]["route_accuracy"]
     taxonomy = metrics["taxonomy"]["taxonomy_accuracy"]
     scalar = 1.0 - metrics["scalars"]["scalar_mae"]
-    return float(gov + 0.35 * qc + 0.10 * route + 0.10 * taxonomy + 0.05 * scalar)
+    score = gov + 0.35 * qc + 0.10 * route + 0.10 * taxonomy + 0.05 * scalar
+    optional_heads = (
+        ("retrieval_action", "retrieval_action_macro_f1", 0.08),
+        ("gap_type", "gap_type_macro_f1", 0.08),
+        ("answerability_shape", "answerability_shape_macro_f1", 0.04),
+        ("retrieval_modality", "retrieval_modality_macro_f1", 0.04),
+    )
+    for section, key, weight in optional_heads:
+        if section in metrics:
+            score += weight * metrics[section][key]
+    return float(score)
 
 
 def print_report(name: str, metrics: dict[str, Any]) -> None:
@@ -359,11 +489,25 @@ def print_report(name: str, metrics: dict[str, Any]) -> None:
     route = metrics["route"]
     taxonomy = metrics["taxonomy"]
     scalars = metrics["scalars"]
+    optional = []
+    if "retrieval_action" in metrics:
+        optional.append(f"retrieval_action_f1={metrics['retrieval_action']['retrieval_action_macro_f1']:.4f}")
+    if "gap_type" in metrics:
+        optional.append(f"gap_type_f1={metrics['gap_type']['gap_type_macro_f1']:.4f}")
+    if "answerability_shape" in metrics:
+        optional.append(
+            f"answerability_shape_f1={metrics['answerability_shape']['answerability_shape_macro_f1']:.4f}"
+        )
+    if "retrieval_modality" in metrics:
+        optional.append(
+            f"retrieval_modality_f1={metrics['retrieval_modality']['retrieval_modality_macro_f1']:.4f}"
+        )
     print(
         f"{name}: gov_acc={gov['accuracy']:.4f} gov_FT={gov['false_trustworthy_rate']:.4f} "
         f"tau={metrics['threshold']:.2f} query_contract_f1={qc['query_contract_macro_f1']:.4f} "
         f"route_acc={route['route_accuracy']:.4f} taxonomy_acc={taxonomy['taxonomy_accuracy']:.4f} "
         f"scalar_mae={scalars['scalar_mae']:.4f}"
+        + (" " + " ".join(optional) if optional else "")
     )
 
 
@@ -386,6 +530,19 @@ def main() -> int:
     query_contract_id2label = invert_mapping(metadata["query_contract2id"])
     route_id2label = invert_mapping(metadata["route2id"])
     taxonomy_id2label = invert_mapping(metadata["taxonomy_pattern2id"])
+    has_retrieval_control = bool(metadata.get("require_retrieval_control", False))
+    retrieval_action_id2label = (
+        invert_mapping(metadata.get("retrieval_action2id", {})) if has_retrieval_control else {}
+    )
+    gap_type_id2label = (
+        invert_mapping(metadata.get("gap_type2id", {})) if has_retrieval_control else {}
+    )
+    answerability_shape_id2label = (
+        invert_mapping(metadata.get("answerability_shape2id", {})) if has_retrieval_control else {}
+    )
+    retrieval_modality_id2label = (
+        invert_mapping(metadata.get("retrieval_modality2id", {})) if has_retrieval_control else {}
+    )
 
     train_ds = MultiTaskJsonlDataset(data_dir / "train.jsonl", scalar_fields=scalar_fields)
     eval_ds = MultiTaskJsonlDataset(data_dir / "eval.jsonl", scalar_fields=scalar_fields)
@@ -441,6 +598,10 @@ def main() -> int:
         query_contract_id2label=query_contract_id2label,
         route_id2label=route_id2label,
         taxonomy_id2label=taxonomy_id2label,
+        retrieval_action_id2label=retrieval_action_id2label or None,
+        gap_type_id2label=gap_type_id2label or None,
+        answerability_shape_id2label=answerability_shape_id2label or None,
+        retrieval_modality_id2label=retrieval_modality_id2label or None,
         dropout=float(model_cfg.get("dropout", 0.0)),
     )
     model = PyrrhoMultiTaskModernBert(mt_config)
@@ -460,7 +621,17 @@ def main() -> int:
     print(f"Device        : {device}")
     print(f"Seed          : {seed}")
     print(f"Splits        : train={len(train_ds)} eval={len(eval_ds)} test={len(test_ds) if test_ds else 0}")
-    print(f"Heads         : query_contract={len(query_contract_id2label)} route={len(route_id2label)} taxonomy={len(taxonomy_id2label)} scalars={len(scalar_fields)}")
+    print(
+        "Heads         : "
+        f"query_contract={len(query_contract_id2label)} "
+        f"route={len(route_id2label)} "
+        f"taxonomy={len(taxonomy_id2label)} "
+        f"retrieval_action={len(retrieval_action_id2label)} "
+        f"gap_type={len(gap_type_id2label)} "
+        f"answerability_shape={len(answerability_shape_id2label)} "
+        f"retrieval_modality={len(retrieval_modality_id2label)} "
+        f"scalars={len(scalar_fields)}"
+    )
 
     if args.dry_run:
         print("DRY RUN: built dataset/model/loaders; exiting before training.")
@@ -485,6 +656,10 @@ def main() -> int:
         "route": float(loss_cfg.get("route", 0.2)),
         "taxonomy": float(loss_cfg.get("taxonomy", 0.2)),
         "scalars": float(loss_cfg.get("scalars", 0.2)),
+        "retrieval_action": float(loss_cfg.get("retrieval_action", 0.0)),
+        "gap_type": float(loss_cfg.get("gap_type", 0.0)),
+        "answerability_shape": float(loss_cfg.get("answerability_shape", 0.0)),
+        "retrieval_modality": float(loss_cfg.get("retrieval_modality", 0.0)),
     }
     label_smoothing = float(train_cfg.get("label_smoothing", 0.0))
 
@@ -557,6 +732,10 @@ def main() -> int:
             query_contract_id2label=query_contract_id2label,
             route_id2label=route_id2label,
             taxonomy_id2label=taxonomy_id2label,
+            retrieval_action_id2label=retrieval_action_id2label,
+            gap_type_id2label=gap_type_id2label,
+            answerability_shape_id2label=answerability_shape_id2label,
+            retrieval_modality_id2label=retrieval_modality_id2label,
             scalar_fields=scalar_fields,
         )
         score = composite_score(eval_metrics)
@@ -589,6 +768,10 @@ def main() -> int:
             query_contract_id2label=query_contract_id2label,
             route_id2label=route_id2label,
             taxonomy_id2label=taxonomy_id2label,
+            retrieval_action_id2label=retrieval_action_id2label,
+            gap_type_id2label=gap_type_id2label,
+            answerability_shape_id2label=answerability_shape_id2label,
+            retrieval_modality_id2label=retrieval_modality_id2label,
             scalar_fields=scalar_fields,
             threshold=float(best_eval["threshold"]),
         )
@@ -635,6 +818,10 @@ def main() -> int:
                 "query_contract": len(query_contract_id2label),
                 "route": len(route_id2label),
                 "taxonomy": len(taxonomy_id2label),
+                "retrieval_action": len(retrieval_action_id2label),
+                "gap_type": len(gap_type_id2label),
+                "answerability_shape": len(answerability_shape_id2label),
+                "retrieval_modality": len(retrieval_modality_id2label),
                 "scalars": list(scalar_fields),
             },
         },

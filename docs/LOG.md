@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-03 (evening) - fitz-gov v8.2 live and g3.2 training started
+
+**What landed:**
+- Published `yafitzdev/fitz-gov` **v8.2.0** with `routing.retrieval_control` on all **24,592** rows; HF commit/tag commit is `8a754bc97167bc928e6e950f4c4ec0ed71df4fa3`.
+- Added pyrrho g3.2 support for retrieval-control labels: enum constants, V8.2 data prep, optional multitask model heads, trainer losses/metrics, inference output fields, and `configs/encoder/modernbert_base_g3_2_retrieval_control.yaml`.
+- Prepared `data/multitask_v8_2_retrieval_control` from live `yafitzdev/fitz-gov@v8.2.0` with train **19,674** / eval **2,459** / test **2,459** and **0** strict audit misses.
+- Started seed-42 training for `pyrrho-nano-g3.2` in `outputs/pyrrho-nano-g3_2_retrieval_control/seed_42/` as PID `26300`.
+
+**What was learned:**
+- V8.2 label validation passed before merge/upload: **24,592/24,592** labels, **0** missing rows, **0** duplicate active row indexes, **0** read errors, and **0** enum/range/shape errors.
+- Upload dry-run and live upload both passed the existing V8 release gates plus the new retrieval-control coverage gate.
+- The g3.2 trainer dry-run builds all heads on CUDA: query contract **6**, route **7**, taxonomy **23**, retrieval action **6**, gap type **12**, answerability shape **11**, retrieval modality **7**, scalars **7**.
+- Retrieval-control labels did not receive a separate independent blind-label QA pass; this is a known limitation of V8.2 and should be treated as a later hardening step.
+
+**Next:** Let seed 42 finish, inspect held-out governance and retrieval-control head metrics, then launch seeds 1337 and 7 only if the first seed is healthy.
+
+---
+
 ## 2026-06-03 (morning) - fitz-sage unit suite passed for g3.1
 
 **What landed:**

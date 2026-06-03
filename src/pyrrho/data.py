@@ -39,6 +39,74 @@ QUERY_CONTRACT_ID2LABEL: dict[int, str] = {
     idx: label for label, idx in QUERY_CONTRACT_LABEL2ID.items()
 }
 
+RETRIEVAL_ACTION_LABELS: tuple[str, ...] = (
+    "answer_now",
+    "retrieve_more",
+    "broaden_search",
+    "resolve_conflict",
+    "ask_clarifying_question",
+    "structured_lookup",
+)
+RETRIEVAL_ACTION_LABEL2ID: dict[str, int] = {
+    label: idx for idx, label in enumerate(RETRIEVAL_ACTION_LABELS)
+}
+RETRIEVAL_ACTION_ID2LABEL: dict[int, str] = {
+    idx: label for label, idx in RETRIEVAL_ACTION_LABEL2ID.items()
+}
+
+GAP_TYPE_LABELS: tuple[str, ...] = (
+    "none",
+    "missing_specific_fact",
+    "missing_timeframe",
+    "missing_comparison_side",
+    "missing_source_authority",
+    "conflicting_values",
+    "wrong_entity",
+    "wrong_version_or_scope",
+    "too_broad",
+    "incomplete_enumeration",
+    "unsupported_inference",
+    "ambiguous_query",
+)
+GAP_TYPE_LABEL2ID: dict[str, int] = {label: idx for idx, label in enumerate(GAP_TYPE_LABELS)}
+GAP_TYPE_ID2LABEL: dict[int, str] = {idx: label for label, idx in GAP_TYPE_LABEL2ID.items()}
+
+ANSWERABILITY_SHAPE_LABELS: tuple[str, ...] = (
+    "single_fact",
+    "explanation",
+    "list",
+    "exhaustive_list",
+    "comparison",
+    "timeline",
+    "calculation",
+    "yes_no",
+    "summary",
+    "citation_required",
+    "exact_lookup",
+)
+ANSWERABILITY_SHAPE_LABEL2ID: dict[str, int] = {
+    label: idx for idx, label in enumerate(ANSWERABILITY_SHAPE_LABELS)
+}
+ANSWERABILITY_SHAPE_ID2LABEL: dict[int, str] = {
+    idx: label for label, idx in ANSWERABILITY_SHAPE_LABEL2ID.items()
+}
+
+RETRIEVAL_MODALITY_LABELS: tuple[str, ...] = (
+    "unstructured_text",
+    "structured_table",
+    "code",
+    "configuration",
+    "log_trace",
+    "pdf_layout",
+    "mixed",
+)
+RETRIEVAL_MODALITY_LABEL2ID: dict[str, int] = {
+    label: idx for idx, label in enumerate(RETRIEVAL_MODALITY_LABELS)
+}
+RETRIEVAL_MODALITY_ID2LABEL: dict[int, str] = {
+    idx: label for label, idx in RETRIEVAL_MODALITY_LABEL2ID.items()
+}
+
 PYRRHO_G3_1_SCALAR_FIELDS: tuple[str, ...] = (
     "evidence_sufficiency",
     "query_evidence_alignment",

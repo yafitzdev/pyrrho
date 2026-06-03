@@ -6,7 +6,14 @@ from pathlib import Path
 
 import torch
 
-from pyrrho.data import QUERY_CONTRACT_LABEL2ID, build_query_contract_text
+from pyrrho.data import (
+    ANSWERABILITY_SHAPE_LABEL2ID,
+    GAP_TYPE_LABEL2ID,
+    QUERY_CONTRACT_LABEL2ID,
+    RETRIEVAL_ACTION_LABEL2ID,
+    RETRIEVAL_MODALITY_LABEL2ID,
+    build_query_contract_text,
+)
 from pyrrho.multitask import PyrrhoMultiTaskConfig
 from pyrrho.multitask_inference import class_prediction
 
@@ -41,6 +48,15 @@ def make_case() -> dict:
         "routing": {
             "expert_fired": "economics_finance",
             "query_contract": {"kind": "structured_lookup"},
+            "retrieval_control": {
+                "retrieval_action": {"kind": "answer_now"},
+                "gap_type": {"kind": "none"},
+                "answerability_shape": {"kind": "exact_lookup"},
+                "preferred_retrieval_modality": {"kind": "structured_table"},
+                "evidence_failure_severity": {"score": 0.07},
+                "labeler": "codex_subagent_v8_2",
+                "row_index": 1,
+            },
         },
         "taxonomy": {
             "pattern": "direct_answer",
@@ -57,17 +73,31 @@ def test_prepare_moe_flatten_preserves_query_contract_and_query_text():
         split="train",
         route2id={"economics_finance": 0},
         taxonomy2id={"direct_answer": 0},
-        scalar_fields=("evidence_sufficiency", "retrieval_retry_value"),
+        scalar_fields=(
+            "evidence_sufficiency",
+            "retrieval_retry_value",
+            "evidence_failure_severity",
+        ),
         require_query_contract=True,
+        require_retrieval_control=True,
     )
     assert row["query_text"] == build_query_contract_text(
         "Which quarterly report is most relevant?"
     )
     assert row["query_contract"] == "structured_lookup"
     assert row["query_contract_id"] == QUERY_CONTRACT_LABEL2ID["structured_lookup"]
+    assert row["retrieval_action"] == "answer_now"
+    assert row["retrieval_action_id"] == RETRIEVAL_ACTION_LABEL2ID["answer_now"]
+    assert row["gap_type"] == "none"
+    assert row["gap_type_id"] == GAP_TYPE_LABEL2ID["none"]
+    assert row["answerability_shape"] == "exact_lookup"
+    assert row["answerability_shape_id"] == ANSWERABILITY_SHAPE_LABEL2ID["exact_lookup"]
+    assert row["retrieval_modality"] == "structured_table"
+    assert row["retrieval_modality_id"] == RETRIEVAL_MODALITY_LABEL2ID["structured_table"]
     assert row["scalar_targets"] == {
         "evidence_sufficiency": 0.91,
         "retrieval_retry_value": 0.12,
+        "evidence_failure_severity": 0.07,
     }
 
 
@@ -83,6 +113,10 @@ def test_multitask_config_roundtrip(tmp_path):
         query_contract_id2label={0: "evidence_sufficiency"},
         route_id2label={0: "economics_finance"},
         taxonomy_id2label={0: "direct_answer"},
+        retrieval_action_id2label={0: "answer_now"},
+        gap_type_id2label={0: "none"},
+        answerability_shape_id2label={0: "exact_lookup"},
+        retrieval_modality_id2label={0: "structured_table"},
     )
     path = tmp_path / "cfg.json"
     path.write_text(json.dumps(cfg.to_mapping()), encoding="utf-8")

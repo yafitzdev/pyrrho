@@ -1,0 +1,64 @@
+# pyrrho-nano-g3.2 V8.2 retrieval-control multi-head ModernBERT encoder.
+# Data: yafitzdev/fitz-gov config v8, revision v8.2.0.
+# Adds retrieval-control supervision to the g3.1 multitask surface.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  dropout: 0.0
+
+architecture:
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.2.0
+  moe_output_dir: data/multitask_v8_2_retrieval_control
+  input_dir: data/multitask_v8_2_retrieval_control
+  require_query_contract: true
+  require_retrieval_control: true
+  max_seq_length: 4096
+  max_query_length: 256
+  scalar_fields:
+    - evidence_sufficiency
+    - query_evidence_alignment
+    - answer_coverage
+    - conflict_density
+    - retrieval_retry_value
+    - false_trustworthy_risk
+    - evidence_failure_severity
+
+training:
+  output_dir: outputs/pyrrho-nano-g3_2_retrieval_control/seed_42
+  num_train_epochs: 5
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_workers: 0
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  bf16: true
+  label_smoothing: 0.15
+  governance_class_weights: [2.3, 2.3, 1.0]
+  balance_query_contract: true
+  seed: 42
+
+loss:
+  governance: 1.0
+  query_contract: 0.55
+  route: 0.20
+  taxonomy: 0.25
+  scalars: 0.25
+  retrieval_action: 0.20
+  gap_type: 0.20
+  answerability_shape: 0.12
+  retrieval_modality: 0.12

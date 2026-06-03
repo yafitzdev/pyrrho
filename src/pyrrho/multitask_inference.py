@@ -153,7 +153,7 @@ class PyrrhoMultiTaskPredictor:
         )
         cfg = self.model.pyrrho_config
         scalars = outputs["scalar_preds"][0].detach().cpu().tolist()
-        return {
+        result = {
             "schema_version": "pyrrho_multitask_prediction_v1",
             "num_contexts": len(context_list),
             "governance": class_prediction(
@@ -178,3 +178,24 @@ class PyrrhoMultiTaskPredictor:
             },
             "timing_ms": float((time.perf_counter() - started) * 1000.0),
         }
+        if cfg.retrieval_action_id2label and "retrieval_action_logits" in outputs:
+            result["retrieval_action"] = class_prediction(
+                outputs["retrieval_action_logits"][0].detach().cpu().tolist(),
+                cfg.retrieval_action_id2label,
+            )
+        if cfg.gap_type_id2label and "gap_type_logits" in outputs:
+            result["gap_type"] = class_prediction(
+                outputs["gap_type_logits"][0].detach().cpu().tolist(),
+                cfg.gap_type_id2label,
+            )
+        if cfg.answerability_shape_id2label and "answerability_shape_logits" in outputs:
+            result["answerability_shape"] = class_prediction(
+                outputs["answerability_shape_logits"][0].detach().cpu().tolist(),
+                cfg.answerability_shape_id2label,
+            )
+        if cfg.retrieval_modality_id2label and "retrieval_modality_logits" in outputs:
+            result["retrieval_modality"] = class_prediction(
+                outputs["retrieval_modality_logits"][0].detach().cpu().tolist(),
+                cfg.retrieval_modality_id2label,
+            )
+        return result

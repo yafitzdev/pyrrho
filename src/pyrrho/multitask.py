@@ -25,6 +25,10 @@ class PyrrhoMultiTaskConfig:
     query_contract_id2label: dict[int, str]
     route_id2label: dict[int, str]
     taxonomy_id2label: dict[int, str]
+    retrieval_action_id2label: dict[int, str] | None = None
+    gap_type_id2label: dict[int, str] | None = None
+    answerability_shape_id2label: dict[int, str] | None = None
+    retrieval_modality_id2label: dict[int, str] | None = None
     dropout: float = 0.0
 
     @classmethod
@@ -42,6 +46,14 @@ class PyrrhoMultiTaskConfig:
             },
             route_id2label={int(k): str(v) for k, v in dict(raw["route_id2label"]).items()},
             taxonomy_id2label={int(k): str(v) for k, v in dict(raw["taxonomy_id2label"]).items()},
+            retrieval_action_id2label=_optional_id2label(raw.get("retrieval_action_id2label")),
+            gap_type_id2label=_optional_id2label(raw.get("gap_type_id2label")),
+            answerability_shape_id2label=_optional_id2label(
+                raw.get("answerability_shape_id2label")
+            ),
+            retrieval_modality_id2label=_optional_id2label(
+                raw.get("retrieval_modality_id2label")
+            ),
             dropout=float(raw.get("dropout", 0.0)),
         )
 
@@ -54,7 +66,38 @@ class PyrrhoMultiTaskConfig:
         }
         data["route_id2label"] = {str(k): v for k, v in self.route_id2label.items()}
         data["taxonomy_id2label"] = {str(k): v for k, v in self.taxonomy_id2label.items()}
+        for key in (
+            "retrieval_action_id2label",
+            "gap_type_id2label",
+            "answerability_shape_id2label",
+            "retrieval_modality_id2label",
+        ):
+            mapping = getattr(self, key)
+            data[key] = {str(k): v for k, v in mapping.items()} if mapping else None
         return data
+
+    @property
+    def num_retrieval_action_labels(self) -> int:
+        return len(self.retrieval_action_id2label or {})
+
+    @property
+    def num_gap_type_labels(self) -> int:
+        return len(self.gap_type_id2label or {})
+
+    @property
+    def num_answerability_shape_labels(self) -> int:
+        return len(self.answerability_shape_id2label or {})
+
+    @property
+    def num_retrieval_modality_labels(self) -> int:
+        return len(self.retrieval_modality_id2label or {})
+
+
+def _optional_id2label(raw: Any) -> dict[int, str] | None:
+    if raw is None:
+        return None
+    mapping = {int(k): str(v) for k, v in dict(raw).items()}
+    return mapping or None
 
 
 class PyrrhoMultiTaskModernBert(nn.Module):
@@ -82,6 +125,26 @@ class PyrrhoMultiTaskModernBert(nn.Module):
         self.route_head = nn.Linear(hidden_size, config.num_routes)
         self.taxonomy_head = nn.Linear(hidden_size, config.num_taxonomy_patterns)
         self.scalar_head = nn.Linear(hidden_size, len(config.scalar_fields))
+        self.retrieval_action_head = (
+            nn.Linear(hidden_size, config.num_retrieval_action_labels)
+            if config.num_retrieval_action_labels
+            else None
+        )
+        self.gap_type_head = (
+            nn.Linear(hidden_size, config.num_gap_type_labels)
+            if config.num_gap_type_labels
+            else None
+        )
+        self.answerability_shape_head = (
+            nn.Linear(hidden_size, config.num_answerability_shape_labels)
+            if config.num_answerability_shape_labels
+            else None
+        )
+        self.retrieval_modality_head = (
+            nn.Linear(hidden_size, config.num_retrieval_modality_labels)
+            if config.num_retrieval_modality_labels
+            else None
+        )
 
     @staticmethod
     def _mean_pool(last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
@@ -102,13 +165,22 @@ class PyrrhoMultiTaskModernBert(nn.Module):
     ) -> dict[str, torch.Tensor]:
         evidence_state = self._encode(input_ids, attention_mask)
         query_state = self._encode(query_input_ids, query_attention_mask)
-        return {
+        outputs = {
             "governance_logits": self.governance_head(evidence_state),
             "query_contract_logits": self.query_contract_head(query_state),
             "route_logits": self.route_head(query_state),
             "taxonomy_logits": self.taxonomy_head(evidence_state),
             "scalar_preds": torch.sigmoid(self.scalar_head(evidence_state)),
         }
+        if self.retrieval_action_head is not None:
+            outputs["retrieval_action_logits"] = self.retrieval_action_head(evidence_state)
+        if self.gap_type_head is not None:
+            outputs["gap_type_logits"] = self.gap_type_head(evidence_state)
+        if self.answerability_shape_head is not None:
+            outputs["answerability_shape_logits"] = self.answerability_shape_head(query_state)
+        if self.retrieval_modality_head is not None:
+            outputs["retrieval_modality_logits"] = self.retrieval_modality_head(query_state)
+        return outputs
 
     def save_pretrained(self, output_dir: str | Path) -> None:
         output = Path(output_dir)

@@ -27,8 +27,12 @@ import yaml
 from datasets import load_dataset
 
 from pyrrho.data import (
+    ANSWERABILITY_SHAPE_LABEL2ID,
+    GAP_TYPE_LABEL2ID,
     LABEL2ID,
     QUERY_CONTRACT_LABEL2ID,
+    RETRIEVAL_ACTION_LABEL2ID,
+    RETRIEVAL_MODALITY_LABEL2ID,
     build_encoder_text,
     build_query_contract_text,
 )
@@ -51,6 +55,7 @@ DEFAULT_SCALAR_FIELDS: tuple[str, ...] = (
     "query_evidence_alignment",
     "answer_coverage",
     "evidence_bias_score",
+    "evidence_failure_severity",
 )
 
 REQUIRED_PATHS: tuple[tuple[str, ...], ...] = (
@@ -108,6 +113,36 @@ def normalize_query_contract(row: dict[str, Any], *, required: bool) -> str:
     return ""
 
 
+def normalize_retrieval_control_label(
+    row: dict[str, Any],
+    field: str,
+    label2id: dict[str, int],
+    *,
+    required: bool,
+) -> str:
+    routing = row.get("routing") or {}
+    retrieval_control = routing.get("retrieval_control") if isinstance(routing, dict) else None
+    block = retrieval_control.get(field) if isinstance(retrieval_control, dict) else None
+    kind = str(block.get("kind") or "") if isinstance(block, dict) else ""
+    if kind in label2id:
+        return kind
+    if required:
+        raise ValueError(f"case {row.get('id')!r} has invalid retrieval_control.{field} kind {kind!r}")
+    return ""
+
+
+def retrieval_control_severity(row: dict[str, Any]) -> float | None:
+    routing = row.get("routing") or {}
+    retrieval_control = routing.get("retrieval_control") if isinstance(routing, dict) else None
+    severity = (
+        retrieval_control.get("evidence_failure_severity")
+        if isinstance(retrieval_control, dict)
+        else None
+    )
+    score = severity.get("score") if isinstance(severity, dict) else None
+    return float(score) if isinstance(score, int | float) else None
+
+
 def context_features(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for ctx in contexts:
@@ -135,6 +170,7 @@ def flatten_case(
     taxonomy2id: dict[str, int],
     scalar_fields: tuple[str, ...],
     require_query_contract: bool,
+    require_retrieval_control: bool,
 ) -> dict[str, Any]:
     label = normalize_label(row)
     input_block = row.get("input") or {}
@@ -146,14 +182,42 @@ def flatten_case(
     taxonomy = row.get("taxonomy") or {}
     meta = row.get("meta") or {}
     query_contract = normalize_query_contract(row, required=require_query_contract)
+    retrieval_action = normalize_retrieval_control_label(
+        row,
+        "retrieval_action",
+        RETRIEVAL_ACTION_LABEL2ID,
+        required=require_retrieval_control,
+    )
+    gap_type = normalize_retrieval_control_label(
+        row,
+        "gap_type",
+        GAP_TYPE_LABEL2ID,
+        required=require_retrieval_control,
+    )
+    answerability_shape = normalize_retrieval_control_label(
+        row,
+        "answerability_shape",
+        ANSWERABILITY_SHAPE_LABEL2ID,
+        required=require_retrieval_control,
+    )
+    retrieval_modality = normalize_retrieval_control_label(
+        row,
+        "preferred_retrieval_modality",
+        RETRIEVAL_MODALITY_LABEL2ID,
+        required=require_retrieval_control,
+    )
 
     route = str(routing.get("expert_fired") or "")
     pattern = str(taxonomy.get("pattern") or "")
-    scalar_targets = {
-        field: governance[field]
-        for field in scalar_fields
-        if isinstance(governance.get(field), int | float)
-    }
+    scalar_targets = {}
+    for field in scalar_fields:
+        value = (
+            retrieval_control_severity(row)
+            if field == "evidence_failure_severity"
+            else governance.get(field)
+        )
+        if isinstance(value, int | float):
+            scalar_targets[field] = value
     boundary = governance.get("boundary_proximity") or {}
 
     return {
@@ -173,6 +237,14 @@ def flatten_case(
         "route_id": route2id[route],
         "query_contract": query_contract,
         "query_contract_id": QUERY_CONTRACT_LABEL2ID.get(query_contract, -1),
+        "retrieval_action": retrieval_action,
+        "retrieval_action_id": RETRIEVAL_ACTION_LABEL2ID.get(retrieval_action, -1),
+        "gap_type": gap_type,
+        "gap_type_id": GAP_TYPE_LABEL2ID.get(gap_type, -1),
+        "answerability_shape": answerability_shape,
+        "answerability_shape_id": ANSWERABILITY_SHAPE_LABEL2ID.get(answerability_shape, -1),
+        "retrieval_modality": retrieval_modality,
+        "retrieval_modality_id": RETRIEVAL_MODALITY_LABEL2ID.get(retrieval_modality, -1),
         "secondary_expert": routing.get("secondary_expert"),
         "routing_confidence": routing.get("routing_confidence"),
         "taxonomy_pattern": pattern,
@@ -228,6 +300,7 @@ def main() -> int:
     route2id = {name: i for i, name in enumerate(semantic_groups)}
     scalar_fields = tuple(data_cfg.get("scalar_fields") or DEFAULT_SCALAR_FIELDS)
     require_query_contract = bool(data_cfg.get("require_query_contract", False))
+    require_retrieval_control = bool(data_cfg.get("require_retrieval_control", False))
 
     print(f"source          : HuggingFace {repo_id}")
     print(f"hf config       : {hf_config}")
@@ -268,13 +341,36 @@ def main() -> int:
             audit_missing["routing.query_contract.invalid"] += 1
             if len(audit_examples["routing.query_contract.invalid"]) < 5:
                 audit_examples["routing.query_contract.invalid"].append(case_id)
+        for field, label2id in (
+            ("retrieval_action", RETRIEVAL_ACTION_LABEL2ID),
+            ("gap_type", GAP_TYPE_LABEL2ID),
+            ("answerability_shape", ANSWERABILITY_SHAPE_LABEL2ID),
+            ("preferred_retrieval_modality", RETRIEVAL_MODALITY_LABEL2ID),
+        ):
+            try:
+                normalize_retrieval_control_label(
+                    row,
+                    field,
+                    label2id,
+                    required=require_retrieval_control,
+                )
+            except ValueError:
+                key = f"routing.retrieval_control.{field}.invalid"
+                audit_missing[key] += 1
+                if len(audit_examples[key]) < 5:
+                    audit_examples[key].append(case_id)
         route = str(get_path(row, ("routing", "expert_fired")) or "")
         pattern = str(get_path(row, ("taxonomy", "pattern")) or "")
         route_counts[route] += 1
         taxonomy_counts[pattern] += 1
         governance = row.get("governance") or {}
         for field in scalar_fields:
-            if not isinstance(governance.get(field), int | float):
+            value = (
+                retrieval_control_severity(row)
+                if field == "evidence_failure_severity"
+                else governance.get(field)
+            )
+            if not isinstance(value, int | float):
                 scalar_missing[field] += 1
 
     unknown_routes = sorted(r for r in route_counts if r and r not in route2id)
@@ -301,6 +397,7 @@ def main() -> int:
                 taxonomy2id=taxonomy2id,
                 scalar_fields=scalar_fields,
                 require_query_contract=require_query_contract,
+                require_retrieval_control=require_retrieval_control,
             )
             for row in rows
             if not missing_required(row)
@@ -328,6 +425,11 @@ def main() -> int:
         "taxonomy_pattern_counts": dict(taxonomy_counts),
         "query_contract2id": QUERY_CONTRACT_LABEL2ID,
         "require_query_contract": require_query_contract,
+        "retrieval_action2id": RETRIEVAL_ACTION_LABEL2ID,
+        "gap_type2id": GAP_TYPE_LABEL2ID,
+        "answerability_shape2id": ANSWERABILITY_SHAPE_LABEL2ID,
+        "retrieval_modality2id": RETRIEVAL_MODALITY_LABEL2ID,
+        "require_retrieval_control": require_retrieval_control,
         "scalar_fields": list(scalar_fields),
     }
     (output_dir / "metadata.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
