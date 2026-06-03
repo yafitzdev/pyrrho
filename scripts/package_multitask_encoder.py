@@ -1,8 +1,9 @@
-"""Package and verify the pyrrho-nano-g3.1 multitask encoder.
+"""Package and verify pyrrho multitask encoder releases.
 
 This release shape is intentionally separate from the single-head encoder
-release scripts. g3.1 is a custom multitask model with governance,
-query-contract, route/domain, taxonomy, and scalar heads.
+release scripts. The multitask encoder is a custom model with governance,
+query-contract, route/domain, taxonomy, scalar, and optional retrieval-control
+heads.
 """
 
 from __future__ import annotations
@@ -79,6 +80,7 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--seed", type=int, default=DEFAULT_SEED)
     create.add_argument("--device", type=str, default="cpu")
     create.add_argument("--overwrite", action="store_true")
+    create.add_argument("--selection-reason", type=str, default=None)
 
     verify = sub.add_parser("verify", help="Verify an existing local package")
     verify.add_argument("--package-dir", type=Path, default=DEFAULT_OUTPUT)
@@ -143,14 +145,230 @@ def seed_report(summary: dict[str, Any], seed: int) -> dict[str, Any]:
     return reports[key]
 
 
+def default_selection_reason(model_name: str, seed: int) -> str:
+    if model_name.endswith("g3.2"):
+        return (
+            f"Seed {seed} was selected after reviewing the completed 3-seed V8.2 "
+            "run; it has the strongest held-out governance accuracy / "
+            "false-trustworthy tradeoff and the strongest retrieval-modality "
+            "held-out macro F1 among the candidate seeds."
+        )
+    return (
+        f"Seed {seed} was selected from the completed local 3-seed summary for "
+        "the strongest overall release tradeoff across governance and auxiliary heads."
+    )
+
+
+def has_retrieval_control(report: dict[str, Any]) -> bool:
+    test = report.get("test", {})
+    return any(
+        key in test
+        for key in (
+            "retrieval_action_macro_f1",
+            "gap_type_macro_f1",
+            "answerability_shape_macro_f1",
+            "retrieval_modality_macro_f1",
+        )
+    )
+
+
+def metric_row(metrics: dict[str, Any], label: str, key: str) -> str:
+    if key not in metrics:
+        return ""
+    return f"| {label} | `{float(metrics[key]):.4f}` |"
+
+
+def aggregate_row(summary: dict[str, Any], label: str, key: str, *, percent: bool) -> str:
+    aggregate = summary.get("aggregate", {}).get("test", {})
+    if key not in aggregate:
+        return ""
+    row = aggregate[key]
+    mean = float(row["mean"])
+    std = float(row["std"])
+    if percent:
+        return f"| {label} | `{mean * 100:.2f} +/- {std * 100:.2f}%` |"
+    return f"| {label} | `{mean:.4f} +/- {std:.4f}` |"
+
+
+def compact_table(rows: list[str]) -> str:
+    return "\n".join(row for row in rows if row)
+
+
 def release_readme(
     *,
     model_name: str,
     seed: int,
     threshold: float,
     report: dict[str, Any],
+    summary: dict[str, Any],
+    scalar_fields: list[str],
+    selection_reason: str,
 ) -> str:
     test = report["test"]
+    retrieval_control = has_retrieval_control(report)
+    if retrieval_control:
+        comparison = (
+            "Compared with `pyrrho-nano-g3.1`, this package adds V8.2 "
+            "retrieval-control heads for retrieval action, gap type, "
+            "answerability shape, retrieval modality, and an additional "
+            "`evidence_failure_severity` scalar."
+        )
+        data_description = (
+            "Trained on fitz-gov V8.2.0 rows with mandatory "
+            "`routing.query_contract` and `routing.retrieval_control` fields."
+        )
+        limitation_extra = (
+            "- Retrieval modality is the weakest new head; sparse subclasses such as "
+            "`pdf_layout` should be treated as hints, not authoritative decisions.\n"
+            "- The V8.2 retrieval-control labels are mechanically validated, but did "
+            "not receive a separate independent blind-label QA pass before this "
+            "local candidate package.\n"
+        )
+    else:
+        comparison = (
+            "Compared with `pyrrho-nano-g3`, this package adds multitask heads "
+            "for pre-retrieval query-contract classification, semantic route/domain, "
+            "taxonomy pattern, and scalar governance signals."
+        )
+        data_description = (
+            "Trained on fitz-gov V8.1-style rows prepared from the V8.0.1 row set "
+            "plus the mandatory `routing.query_contract` field."
+        )
+        limitation_extra = ""
+
+    scalar_names = ", ".join(f"`{field}`" for field in scalar_fields)
+    scalar_count = len(scalar_fields)
+    head_rows = [
+        "| `governance` | `ABSTAIN`, `DISPUTED`, `TRUSTWORTHY` | Post-retrieval evidence sufficiency and conflict decision. |",
+        "| `query_contract` | `evidence_sufficiency`, `structured_lookup`, `temporal_grounding`, `exhaustive_coverage`, `comparison_coverage`, `representative_overview` | Pre-retrieval routing signal for what kind of evidence the query needs. |",
+        "| `route` | `science_medicine`, `law_policy`, `history_geography`, `technology_computing`, `economics_finance`, `culture_society`, `general_commonsense` | Semantic route/domain signal for retrieval policy and logging. |",
+        "| `taxonomy` | 23 fitz-gov taxonomy patterns | Failure/support pattern signal for audit and diagnostics. |",
+        f"| `scalars` | {scalar_names} | Continuous governance signals for retry, ranking, and monitoring. |",
+    ]
+    if retrieval_control:
+        head_rows.extend(
+            [
+                "| `retrieval_action` | `answer_now`, `retrieve_more`, `broaden_search`, `resolve_conflict`, `ask_clarifying_question`, `structured_lookup` | Retrieval policy hint for the next pipeline action. |",
+                "| `gap_type` | 12 evidence-gap labels | More specific reason why retrieval is insufficient or conflicting. |",
+                "| `answerability_shape` | 11 answer-shape labels | Query-only hint for the answer shape the evidence must support. |",
+                "| `retrieval_modality` | `unstructured_text`, `structured_table`, `code`, `configuration`, `log_trace`, `pdf_layout`, `mixed` | Query-only hint for the preferred retrieval substrate. |",
+            ]
+        )
+    output_rows = [
+        "| `governance.final_label` | Final calibrated label after the TRUSTWORTHY threshold rule. |",
+        "| `governance.raw_label` | Highest-probability governance label before threshold calibration. |",
+        "| `governance.probabilities` | Probability distribution over `ABSTAIN`, `DISPUTED`, `TRUSTWORTHY`. |",
+        "| `governance.threshold` | TRUSTWORTHY probability threshold used by the package. |",
+        "| `query_contract.final_label` | Query-only contract prediction. |",
+        "| `route.final_label` | Query-only semantic route/domain prediction. |",
+        "| `taxonomy.final_label` | Query+evidence taxonomy-pattern prediction. |",
+        f"| `scalars` | {scalar_count} bounded scalar governance signals. |",
+    ]
+    if retrieval_control:
+        output_rows.extend(
+            [
+                "| `retrieval_action.final_label` | Retrieval policy hint. |",
+                "| `gap_type.final_label` | Evidence-gap type prediction. |",
+                "| `answerability_shape.final_label` | Query-only answer-shape prediction. |",
+                "| `retrieval_modality.final_label` | Query-only retrieval-modality prediction. |",
+            ]
+        )
+    output_rows.append("| `timing_ms` | Local inference timing for the call. |")
+    single_seed_rows = compact_table(
+        [
+            metric_row(test, "Governance accuracy", "gov_accuracy"),
+            metric_row(test, "False-TRUSTWORTHY rate", "gov_false_trustworthy_rate"),
+            metric_row(test, "Query-contract accuracy", "query_contract_accuracy"),
+            metric_row(test, "Query-contract macro F1", "query_contract_macro_f1"),
+            metric_row(test, "Route accuracy", "route_accuracy"),
+            metric_row(test, "Route macro F1", "route_macro_f1"),
+            metric_row(test, "Taxonomy accuracy", "taxonomy_accuracy"),
+            metric_row(test, "Taxonomy macro F1", "taxonomy_macro_f1"),
+            metric_row(test, "Scalar MAE", "scalar_mae"),
+            metric_row(test, "Retrieval-action macro F1", "retrieval_action_macro_f1"),
+            metric_row(test, "Gap-type macro F1", "gap_type_macro_f1"),
+            metric_row(test, "Answerability-shape macro F1", "answerability_shape_macro_f1"),
+            metric_row(test, "Retrieval-modality macro F1", "retrieval_modality_macro_f1"),
+        ]
+    )
+    aggregate_rows = compact_table(
+        [
+            aggregate_row(summary, "Governance accuracy", "gov_accuracy", percent=True),
+            aggregate_row(
+                summary,
+                "False-TRUSTWORTHY rate",
+                "gov_false_trustworthy_rate",
+                percent=True,
+            ),
+            aggregate_row(
+                summary,
+                "Query-contract macro F1",
+                "query_contract_macro_f1",
+                percent=True,
+            ),
+            aggregate_row(summary, "Route accuracy", "route_accuracy", percent=True),
+            aggregate_row(summary, "Taxonomy accuracy", "taxonomy_accuracy", percent=True),
+            aggregate_row(summary, "Scalar MAE", "scalar_mae", percent=False),
+            aggregate_row(
+                summary,
+                "Retrieval-action macro F1",
+                "retrieval_action_macro_f1",
+                percent=True,
+            ),
+            aggregate_row(summary, "Gap-type macro F1", "gap_type_macro_f1", percent=True),
+            aggregate_row(
+                summary,
+                "Answerability-shape macro F1",
+                "answerability_shape_macro_f1",
+                percent=True,
+            ),
+            aggregate_row(
+                summary,
+                "Retrieval-modality macro F1",
+                "retrieval_modality_macro_f1",
+                percent=True,
+            ),
+        ]
+    )
+    example_retrieval_action = (
+        '  "retrieval_action": {\n    "final_label": "answer_now"\n  },\n'
+        if retrieval_control
+        else ""
+    )
+    example_scalar_rows = ",\n".join(
+        f'    "{field}": {value:.2f}'
+        for field, value in zip(
+            scalar_fields,
+            (0.91, 0.88, 0.86, 0.08, 0.12, 0.09, 0.07),
+            strict=False,
+        )
+    )
+    intended_use_rows = [
+        "- whether retrieved evidence is enough to answer,",
+        "- whether retrieved evidence conflicts,",
+        "- what kind of evidence the query needs before retrieval,",
+        "- which semantic/domain route the query belongs to,",
+        "- which fitz-gov support/failure pattern is active,",
+    ]
+    if retrieval_control:
+        intended_use_rows.append(
+            "- what retrieval action and gap type the evidence state suggests,"
+        )
+    intended_use_rows.append("- whether retrieval should retry, broaden, or escalate.")
+    quick_start_rows = [
+        'print(result["governance"]["final_label"])',
+        'print(result["query_contract"]["final_label"])',
+        'print(result["route"]["final_label"])',
+        'print(result["taxonomy"]["final_label"])',
+    ]
+    if retrieval_control:
+        quick_start_rows.extend(
+            [
+                'print(result["retrieval_action"]["final_label"])',
+                'print(result["gap_type"]["final_label"])',
+            ]
+        )
+    quick_start_rows.append('print(result["scalars"])')
     return f"""---
 license: cc-by-nc-4.0
 library_name: transformers
@@ -183,9 +401,7 @@ that fitz-sage can use before answer generation.
 
 It is not an answer generator and not an open-world fact checker. It sits between
 retrieval and generation, or beside a retrieval package as a fast evidence
-quality layer. Compared with `pyrrho-nano-g3`, this package adds multitask heads
-for pre-retrieval query-contract classification, semantic route/domain, taxonomy
-pattern, and six scalar governance signals.
+quality layer. {comparison}
 
 ## Governance Labels
 
@@ -199,11 +415,7 @@ pattern, and six scalar governance signals.
 
 | Head | Labels / values | Intended use |
 |---|---|---|
-| `governance` | `ABSTAIN`, `DISPUTED`, `TRUSTWORTHY` | Post-retrieval evidence sufficiency and conflict decision. |
-| `query_contract` | `evidence_sufficiency`, `structured_lookup`, `temporal_grounding`, `exhaustive_coverage`, `comparison_coverage`, `representative_overview` | Pre-retrieval routing signal for what kind of evidence the query needs. |
-| `route` | `science_medicine`, `law_policy`, `history_geography`, `technology_computing`, `economics_finance`, `culture_society`, `general_commonsense` | Semantic route/domain signal for retrieval policy and logging. |
-| `taxonomy` | 23 fitz-gov taxonomy patterns | Failure/support pattern signal for audit and diagnostics. |
-| `scalars` | `evidence_sufficiency`, `query_evidence_alignment`, `answer_coverage`, `conflict_density`, `retrieval_retry_value`, `false_trustworthy_risk` | Continuous governance signals for retry, ranking, and monitoring. |
+{chr(10).join(head_rows)}
 
 ## Outputs
 
@@ -215,15 +427,7 @@ The predictor returns a structured object:
 
 | Field | Meaning |
 |---|---|
-| `governance.final_label` | Final calibrated label after the TRUSTWORTHY threshold rule. |
-| `governance.raw_label` | Highest-probability governance label before threshold calibration. |
-| `governance.probabilities` | Probability distribution over `ABSTAIN`, `DISPUTED`, `TRUSTWORTHY`. |
-| `governance.threshold` | TRUSTWORTHY probability threshold used by the package. |
-| `query_contract.final_label` | Query-only contract prediction. |
-| `route.final_label` | Query-only semantic route/domain prediction. |
-| `taxonomy.final_label` | Query+evidence taxonomy-pattern prediction. |
-| `scalars` | Six bounded scalar governance signals. |
-| `timing_ms` | Local inference timing for the call. |
+{chr(10).join(output_rows)}
 
 Example normalized output shape:
 
@@ -251,13 +455,8 @@ Example normalized output shape:
   "taxonomy": {{
     "final_label": "direct_answer"
   }},
-  "scalars": {{
-    "evidence_sufficiency": 0.91,
-    "query_evidence_alignment": 0.88,
-    "answer_coverage": 0.86,
-    "conflict_density": 0.08,
-    "retrieval_retry_value": 0.12,
-    "false_trustworthy_risk": 0.09
+{example_retrieval_action}  "scalars": {{
+{example_scalar_rows}
   }}
 }}
 ```
@@ -270,12 +469,7 @@ retrieved_contexts)` evidence state.
 
 Use this model when a RAG or retrieval package needs fast local signals about:
 
-- whether retrieved evidence is enough to answer,
-- whether retrieved evidence conflicts,
-- what kind of evidence the query needs before retrieval,
-- which semantic/domain route the query belongs to,
-- which fitz-gov support/failure pattern is active,
-- whether retrieval should retry, broaden, or escalate.
+{chr(10).join(intended_use_rows)}
 
 This model is not intended to write answers, verify facts outside the provided
 sources, replace a retriever, or replace human review in high-stakes settings.
@@ -301,11 +495,7 @@ contexts = [
 predictor = PyrrhoMultiTaskPredictor.from_pretrained(PACKAGE_DIR, device="cpu")
 result = predictor.predict(query, contexts)
 
-print(result["governance"]["final_label"])
-print(result["query_contract"]["final_label"])
-print(result["route"]["final_label"])
-print(result["taxonomy"]["final_label"])
-print(result["scalars"])
+{chr(10).join(quick_start_rows)}
 ```
 
 For local package testing:
@@ -318,40 +508,24 @@ python scripts/package_multitask_encoder.py verify --package-dir models/{model_n
 
 - Seed: `{seed}`
 - TRUSTWORTHY threshold: `{threshold:.2f}`
-- Selection reason: seed `{seed}` had the strongest composite release score while
-  retaining strong governance, query-contract, route, taxonomy, and scalar metrics.
+- Selection reason: {selection_reason}
 
 ## Held-Out Test Metrics
 
 | Metric | Result |
 |---|---:|
-| Governance accuracy | `{test["gov_accuracy"]:.4f}` |
-| False-TRUSTWORTHY rate | `{test["gov_false_trustworthy_rate"]:.4f}` |
-| Query-contract accuracy | `{test["query_contract_accuracy"]:.4f}` |
-| Query-contract macro F1 | `{test["query_contract_macro_f1"]:.4f}` |
-| Route accuracy | `{test["route_accuracy"]:.4f}` |
-| Route macro F1 | `{test["route_macro_f1"]:.4f}` |
-| Taxonomy accuracy | `{test["taxonomy_accuracy"]:.4f}` |
-| Taxonomy macro F1 | `{test["taxonomy_macro_f1"]:.4f}` |
-| Scalar MAE | `{test["scalar_mae"]:.4f}` |
+{single_seed_rows}
 
 Three-seed headline from the local release summary:
 
 | Metric | Mean +/- std |
 |---|---:|
-| Governance accuracy | `97.84 +/- 0.15%` |
-| False-TRUSTWORTHY rate | `0.85 +/- 0.07%` |
-| Query-contract macro F1 | `94.24 +/- 0.28%` |
-| Route accuracy | `93.41 +/- 0.32%` |
-| Taxonomy accuracy | `89.26 +/- 0.23%` |
-| Scalar MAE | `0.0592 +/- 0.0005` |
+{aggregate_rows}
 
 ## Training Data
 
-Trained on fitz-gov V8.1-style rows prepared from the V8.0.1 row set plus the
-mandatory `routing.query_contract` field. The release package records the local
-training config in `training_config.yaml` and detailed metrics in
-`reports/summary.json`.
+{data_description} The release package records the local training config in
+`training_config.yaml` and detailed metrics in `reports/summary.json`.
 
 ## Limitations
 
@@ -361,7 +535,7 @@ training config in `training_config.yaml` and detailed metrics in
   user query is underspecified.
 - Taxonomy and scalar outputs are trained on fitz-gov labels/signals and should
   be treated as decision-support metadata, not universal factual judgments.
-- The license is CC BY-NC 4.0. Commercial use requires a separate license.
+{limitation_extra}- The license is CC BY-NC 4.0. Commercial use requires a separate license.
 """
 
 
@@ -383,19 +557,26 @@ def run_smoke(
         governance = prediction["governance"]["final_label"]
         case_ok = governance == case["expected_governance"]
         ok = ok and case_ok
-        rows.append(
-            {
-                "id": case["id"],
-                "expected_governance": case["expected_governance"],
-                "governance": prediction["governance"],
-                "query_contract": prediction["query_contract"],
-                "route": prediction["route"],
-                "taxonomy": prediction["taxonomy"],
-                "scalars": prediction["scalars"],
-                "timing_ms": prediction["timing_ms"],
-                "ok": case_ok,
-            }
-        )
+        row = {
+            "id": case["id"],
+            "expected_governance": case["expected_governance"],
+            "governance": prediction["governance"],
+            "query_contract": prediction["query_contract"],
+            "route": prediction["route"],
+            "taxonomy": prediction["taxonomy"],
+            "scalars": prediction["scalars"],
+            "timing_ms": prediction["timing_ms"],
+            "ok": case_ok,
+        }
+        for key in (
+            "retrieval_action",
+            "gap_type",
+            "answerability_shape",
+            "retrieval_modality",
+        ):
+            if key in prediction:
+                row[key] = prediction[key]
+        rows.append(row)
     return {
         "schema_version": "pyrrho_multitask_package_smoke_v1",
         "package_dir": str(package_dir.resolve()),
@@ -435,16 +616,40 @@ def create_package(args: argparse.Namespace) -> dict[str, Any]:
     shutil.copy2(final_metrics_src, reports_dir / f"final_metrics_seed_{args.seed}.json")
     shutil.copy2(args.config, output_dir / "training_config.yaml")
 
+    selection_reason = args.selection_reason or default_selection_reason(
+        args.model_name,
+        args.seed,
+    )
     readme = release_readme(
         model_name=args.model_name,
         seed=args.seed,
         threshold=threshold,
         report=report,
+        summary=summary,
+        scalar_fields=list(model.pyrrho_config.scalar_fields),
+        selection_reason=selection_reason,
     )
     (output_dir / "README.md").write_text(readme, encoding="utf-8")
 
     smoke = run_smoke(output_dir, device=args.device, trustworthy_threshold=threshold)
     write_json(reports_dir / "package_smoke.json", smoke)
+
+    heads = {
+        "governance_id2label": model.pyrrho_config.id2label,
+        "query_contract_id2label": model.pyrrho_config.query_contract_id2label,
+        "route_id2label": model.pyrrho_config.route_id2label,
+        "taxonomy_id2label": model.pyrrho_config.taxonomy_id2label,
+        "scalar_fields": list(model.pyrrho_config.scalar_fields),
+    }
+    for key in (
+        "retrieval_action_id2label",
+        "gap_type_id2label",
+        "answerability_shape_id2label",
+        "retrieval_modality_id2label",
+    ):
+        mapping = getattr(model.pyrrho_config, key)
+        if mapping:
+            heads[key] = mapping
 
     manifest = {
         "schema_version": "pyrrho_multitask_package_v1",
@@ -457,18 +662,9 @@ def create_package(args: argparse.Namespace) -> dict[str, Any]:
         "release": {
             "seed": int(args.seed),
             "trustworthy_threshold": threshold,
-            "selection_reason": (
-                "Seed 7 had the strongest composite and governance accuracy while "
-                "retaining strong query-contract, route, taxonomy, and scalar metrics."
-            ),
+            "selection_reason": selection_reason,
         },
-        "heads": {
-            "governance_id2label": model.pyrrho_config.id2label,
-            "query_contract_id2label": model.pyrrho_config.query_contract_id2label,
-            "route_id2label": model.pyrrho_config.route_id2label,
-            "taxonomy_id2label": model.pyrrho_config.taxonomy_id2label,
-            "scalar_fields": list(model.pyrrho_config.scalar_fields),
-        },
+        "heads": heads,
         "metrics": report,
         "reports": {
             "summary": "reports/summary.json",

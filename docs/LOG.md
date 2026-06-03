@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-03 (night) - g3.2 package published and verified
+
+**What landed:**
+- Generalized `scripts/package_multitask_encoder.py` so the custom package README, manifest, and smoke report correctly handle optional g3.2 retrieval-control heads.
+- Built `models/pyrrho-nano-g3.2/` from seed **1337** with TRUSTWORTHY threshold **0.34**.
+- Published the package to Hugging Face at `yafitzdev/pyrrho-nano-g3.2`, commit `36a5940eb04bbfa0638948ee41953088bafdb0a3`.
+- Downloaded a fresh Hub snapshot to `outputs/hf_download_pyrrho_nano_g3_2_verify/` and verified it on CPU.
+
+**What was learned:**
+- Local package verification passed: `python scripts/package_multitask_encoder.py verify --package-dir models\pyrrho-nano-g3.2 --device cpu` returned `ok=True`.
+- Downloaded-snapshot verification also passed: `python scripts/package_multitask_encoder.py verify --package-dir outputs\hf_download_pyrrho_nano_g3_2_verify --device cpu` returned `ok=True`.
+- Hub reports **13** sibling files, `architectures=["PyrrhoMultiTaskModernBert"]`, and safetensors parameter count **149,077,330**.
+- Targeted tests still pass after package-tooling changes: `pytest tests\test_multitask_encoder.py -q` returned **4 passed**, and `pytest tests\test_smoke.py -v` returned **11 passed**.
+
+**Next:** Update fitz-sage from g3.1 to g3.2, surface retrieval-control metadata, and rerun fitz-sage targeted/unit suites.
+
+---
+
 ## 2026-06-03 (evening) - g3.2 3-seed training finished
 
 **What landed:**
