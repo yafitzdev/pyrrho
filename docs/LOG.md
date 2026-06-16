@@ -13,6 +13,72 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-16 (night) — pyrrho-sage-nano-g1 downstream benchmark negative
+
+**What landed:**
+- Ran the strict-owner fitz-sage benchmark against local package `models/pyrrho-sage-nano-g1/`.
+- Reports written in fitz-sage:
+  - `benchmarks/results/core_sage_g1_strict_owner.{json,md}`
+  - `benchmarks/results/holdout_sage_g1_strict_owner.{json,md}`
+  - `benchmarks/results/holdout2_sage_g1_strict_owner.{json,md}`
+- Score: core **13/20**, holdout **34/50**, holdout2 **31/50**, total **78/120**, forbidden evidence **5**.
+
+**What was learned:**
+- This is not a downstream upgrade. It is far below local g5.6 strict-owner (**97/120**) and below the rejected g5.8 controls.
+- Failure breakdown from the benchmark JSON: **29** mode failures, **11** required-evidence misses, **5** forbidden hits. All forbidden hits are temporal/final-fact style cases.
+- Holdout2 mixed retrieval is the clearest collapse: **1/10** passed. The stage-shaped data did not automatically teach the pre-retrieval heads well enough.
+
+**Next:** Compare sage-g1 traces to g5.6/g5.8 traces and audit the stage-aware training setup/loss balance before training more sage seeds.
+
+---
+
+## 2026-06-16 (night) — pyrrho-sage-nano-g1 local package verified
+
+**What landed:**
+- Created `models/pyrrho-sage-nano-g1/` from `outputs/pyrrho-sage-nano-g1_v10_packview/seed_1337/best_model`.
+- Added a single-seed local summary at `outputs/pyrrho-sage-nano-g1_v10_packview/summary.json` so the existing multitask packager can emit the normal package shape.
+- Ran explicit CPU package verification: `python scripts\package_multitask_encoder.py verify --package-dir models\pyrrho-sage-nano-g1 --device cpu`, which returned `ok=True`.
+
+**What was learned:**
+- The package shape works without new package-code changes.
+- Repo smoke still passes after the package build: `python -m pytest tests\test_smoke.py -q` produced **11 passed**, **2 warnings**.
+
+**Next:** Run the strict-owner fitz-sage benchmark against `models/pyrrho-sage-nano-g1/`.
+
+---
+
+## 2026-06-16 (night) — pyrrho-sage-nano-g1 first seed trained
+
+**What landed:**
+- Ran `python scripts\train_multitask_encoder.py --config configs\encoder\modernbert_base_sage_g1_v10_packview.yaml --dry-run`; it built data/model/loaders and copied **154/154** tensors from `models\pyrrho-nano-g5.1`.
+- Trained seed **1337** for `pyrrho-sage-nano-g1` from the completed `data\fitz_gov_sage_v1` dataset.
+- Wrote outputs to `outputs/pyrrho-sage-nano-g1_v10_packview/seed_1337/`, including `best_model/` and `final_metrics.json`.
+
+**What was learned:**
+- Held-out test governance is healthy: **96.29%** accuracy / **1.32%** false-TRUSTWORTHY at threshold **0.34**.
+- The most relevant planning head, retrieval obligation, is usable but not clearly better than the old line yet: **83.74%** macro F1.
+- Retrieval-action and gap-type heads are weak on this stage-shaped split: **58.69%** and **59.48%** macro F1. This candidate needs fitz-sage benchmarking before judging whether the new shape helped downstream.
+
+**Next:** Package locally as `models/pyrrho-sage-nano-g1`, CPU-verify it, then run the strict-owner fitz-sage benchmark.
+
+---
+
+## 2026-06-16 (night) — fitz-gov-sage v1 generation completed
+
+**What landed:**
+- Generated all **200** `fitz-gov-sage v1` workpacks with subagents: **10,000** source rows -> **20,000** stage rows.
+- Accepted rows only after `python scripts/audit_fitz_gov_sage_outputs.py` passed over the full output directory.
+- Materialized the completed dataset at `data/fitz_gov_sage_v1` with train **16,014**, eval **1,994**, test **1,992**.
+
+**What was learned:**
+- Final audit passed with **200** files / **20,000** rows / **10,000** source ids / **0** violations.
+- Stage balance is exact: **10,000** `query_planning` rows and **10,000** `evidence_governance` rows.
+- One later pack (`0067`) repeated the synthetic missing-evidence pattern once; regenerating the whole pack fixed it, and the hardened audit caught the issue before materialization.
+
+**Next:** Dry-run and train `pyrrho-sage-nano-g1` with `configs/encoder/modernbert_base_sage_g1_v10_packview.yaml`, initialized from `models/pyrrho-nano-g5.1`.
+
+---
+
 ## 2026-06-16 (night) — fitz-gov-sage pilot accepted after audit hardening
 
 **What landed:**
