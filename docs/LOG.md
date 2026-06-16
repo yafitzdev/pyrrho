@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-16 (night) — fitz-gov-sage pilot accepted after audit hardening
+
+**What landed:**
+- Generated the first six `fitz-gov-sage v1` workpacks (**0000-0005**) with subagents: **300** source rows -> **600** stage rows.
+- Rejected the first pilot pass after detecting placeholders like `[entity]`/`[date]` and synthetic "missing item" contexts.
+- Hardened `docs/prompts/FITZ_GOV_SAGE_TRANSFORM_SUBAGENT.md` to forbid anonymized placeholders, fake missing-evidence contexts, and `missing_placeholder` roles.
+- Added `scripts/audit_fitz_gov_sage_outputs.py`, which checks query preservation, two-stage completeness, placeholder tokens, fake missing-evidence text, and 1:1 `pack_metadata.items` to contexts.
+
+**What was learned:**
+- Schema validation alone was not enough. The first pilot was structurally valid but quality-bad in pack 0000.
+- After repair, `python scripts/audit_fitz_gov_sage_outputs.py` passed with **0** violations across **6** files / **600** rows / **300** source ids.
+- `python scripts/materialize_fitz_gov_sage_data.py --allow-partial` materialized **600** stage rows: train **478**, eval **52**, test **70**, with stage counts **300** query-planning and **300** evidence-governance.
+
+**Next:** Scale generation from pack **0006** onward, audit every batch before accepting it, then materialize full `data/fitz_gov_sage_v1` and run trainer dry-run.
+
+---
+
 ## 2026-06-16 (evening) — fitz-gov-sage v1 preparation started from clean V10
 
 **What landed:**

@@ -84,10 +84,12 @@ With 10,000 source rows and 50 source rows per workpack:
 Before training `pyrrho-sage-nano-g1`:
 
 - schema validation: every source id has exactly one `query_planning` row and one `evidence_governance` row
+- subagent quality audit passes: `python scripts/audit_fitz_gov_sage_outputs.py`
 - no V11/V12 source rows
 - no missing labels for trained heads
 - no governance labels on query-planning rows
+- no placeholder tokens like `[entity]` / `[date]`
+- no fake "missing item" contexts; missing evidence must be represented by absence
 - exact-query leakage check against fitz-sage benchmark cases
 - source-id dedupe clean
 - smoke train dry-run with `scripts/train_multitask_encoder.py --dry-run`
-

@@ -89,7 +89,7 @@ Required shape:
     "items": [
       {
         "rank": 1,
-        "role": "supporting | conflicting | stale | partial | distractor | missing_placeholder",
+        "role": "supporting | conflicting | stale | partial | distractor",
         "modality": "unstructured_text | structured_table | code | configuration | log_trace | pdf_layout",
         "anchor": "short source identifier",
         "why_present": "one short reason this item appears in the pack"
@@ -117,16 +117,20 @@ Required shape:
 Make the pack realistic:
 
 - Keep the original correct/supporting contexts.
+- Keep concrete names, dates, IDs, product names, function names, table keys, policy names, and source anchors from the source row whenever they are relevant.
 - Add plausible distractors only when they are label-consistent.
 - For `TRUSTWORTHY`, the final pack must contain enough evidence to answer.
 - For `DISPUTED`, the final pack must contain material contradiction, not just two wordings.
-- For `ABSTAIN`, the final pack must still lack the required answer.
+- For `ABSTAIN`, the final pack must still lack the required answer. Represent missing evidence by absence, not by adding a fake "missing item" context.
 - For temporal/final/latest questions, include stale or earlier evidence only if the correct final evidence is clearly present or clearly missing according to the source label.
 - For mixed obligations, include companion evidence types where possible: prose plus table, prose plus code, table plus config, code plus changelog, log plus config.
+- Every `pack_metadata.items[]` entry must correspond to a real context entry. Do not include a metadata item for evidence that is absent.
 
 Do not:
 
 - copy fitz-sage benchmark entity names or documents
+- anonymize source evidence with placeholders like `[entity]`, `[date]`, `[project]`, `[product]`, or `[system]`
+- add synthetic context strings such as "Missing item", "missing evidence", "the pack lacks", or "does not include the decisive evidence"
 - change the query
 - change the governance label
 - add facts that contradict the intended label
@@ -135,4 +139,3 @@ Do not:
 ## Quality Standard
 
 The output should look like a retrieval system's ranked evidence pack, not like a clean benchmark row. The model must learn how to judge imperfect evidence packs while Pyrrho remains the owner of pre-retrieval planning and post-retrieval governance.
-
