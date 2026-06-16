@@ -26,6 +26,13 @@ dist/
 # Claude Code internal state
 .claude/
 
+# Local Codex scratch/staging artifacts
+.codex_tmp/
+.qa_staging/
+.codex_tmp_*.py
+batch_*.jsonl
+zz_tmp_probe.txt
+
 # Project artifacts (gitignored — too large or derivable)
 # Anything under data/ is derived from fitz-gov via prepare_data.py,
 # *except* data/augmented/ which is hand-curated supplement data and

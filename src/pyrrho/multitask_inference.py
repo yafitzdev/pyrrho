@@ -198,4 +198,9 @@ class PyrrhoMultiTaskPredictor:
                 outputs["retrieval_modality_logits"][0].detach().cpu().tolist(),
                 cfg.retrieval_modality_id2label,
             )
+        if cfg.retrieval_obligation_id2label and "retrieval_obligation_logits" in outputs:
+            result["retrieval_obligation"] = class_prediction(
+                outputs["retrieval_obligation_logits"][0].detach().cpu().tolist(),
+                cfg.retrieval_obligation_id2label,
+            )
         return result

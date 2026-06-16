@@ -1,0 +1,112 @@
+diff --git a/src/llama-arch.cpp b/src/llama-arch.cpp
+--- a/src/llama-arch.cpp
++++ b/src/llama-arch.cpp
+@@ -989,6 +989,9 @@ static std::set<llm_tensor> llm_get_tensor_names(llm_arch arch) {
+                 LLM_TENSOR_ATTN_V,
+                 LLM_TENSOR_ATTN_OUT,
+                 LLM_TENSOR_FFN_NORM,
++                LLM_TENSOR_FFN_GATE,
++                LLM_TENSOR_FFN_DOWN,
++                LLM_TENSOR_FFN_UP,
+                 LLM_TENSOR_FFN_GATE_INP,
+                 LLM_TENSOR_FFN_GATE_EXPS,
+                 LLM_TENSOR_FFN_DOWN_EXPS,
+diff --git a/src/llama-model.cpp b/src/llama-model.cpp
+--- a/src/llama-model.cpp
++++ b/src/llama-model.cpp
+@@ -3694,21 +3694,27 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
+ 
+                         layer.ffn_norm = create_tensor(tn(LLM_TENSOR_FFN_NORM, "weight", i), {n_embd}, 0);
+ 
+-                        layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
++                        layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, TENSOR_NOT_REQUIRED);
+ 
+-                        if (n_expert == 0) {
+-                            throw std::runtime_error("n_expert must be > 0 for QWEN3MOE");
+-                        }
+-                        if (n_expert_used == 0) {
+-                            throw std::runtime_error("n_expert_used must be > 0 for QWEN3MOE");
+-                        }
++                        if (layer.ffn_gate_inp == nullptr) {
++                            layer.ffn_gate = create_tensor(tn(LLM_TENSOR_FFN_GATE, "weight", i), {n_embd,   n_ff}, 0);
++                            layer.ffn_down = create_tensor(tn(LLM_TENSOR_FFN_DOWN, "weight", i), {  n_ff, n_embd}, 0);
++                            layer.ffn_up   = create_tensor(tn(LLM_TENSOR_FFN_UP,   "weight", i), {n_embd,   n_ff}, 0);
++                        } else {
++                            if (n_expert == 0) {
++                                throw std::runtime_error("n_expert must be > 0 for QWEN3MOE");
++                            }
++                            if (n_expert_used == 0) {
++                                throw std::runtime_error("n_expert_used must be > 0 for QWEN3MOE");
++                            }
+ 
+-                        // MoE branch
+-                        const int64_t n_ff_exp = hparams.n_ff_exp ? hparams.n_ff_exp : n_ff / n_expert_used;
++                            // MoE branch
++                            const int64_t n_ff_exp = hparams.n_ff_exp ? hparams.n_ff_exp : n_ff / n_expert_used;
+ 
+-                        layer.ffn_gate_exps = create_tensor(tn(LLM_TENSOR_FFN_GATE_EXPS, "weight", i), {  n_embd, n_ff_exp, n_expert}, 0);
+-                        layer.ffn_down_exps = create_tensor(tn(LLM_TENSOR_FFN_DOWN_EXPS, "weight", i), {n_ff_exp,   n_embd, n_expert}, 0);
+-                        layer.ffn_up_exps   = create_tensor(tn(LLM_TENSOR_FFN_UP_EXPS,   "weight", i), {  n_embd, n_ff_exp, n_expert}, 0);
++                            layer.ffn_gate_exps = create_tensor(tn(LLM_TENSOR_FFN_GATE_EXPS, "weight", i), {  n_embd, n_ff_exp, n_expert}, 0);
++                            layer.ffn_down_exps = create_tensor(tn(LLM_TENSOR_FFN_DOWN_EXPS, "weight", i), {n_ff_exp,   n_embd, n_expert}, 0);
++                            layer.ffn_up_exps   = create_tensor(tn(LLM_TENSOR_FFN_UP_EXPS,   "weight", i), {  n_embd, n_ff_exp, n_expert}, 0);
++                        }
+                     }
+                 } break;
+             case LLM_ARCH_PHI2:
+diff --git a/src/models/qwen3moe.cpp b/src/models/qwen3moe.cpp
+--- a/src/models/qwen3moe.cpp
++++ b/src/models/qwen3moe.cpp
+@@ -85,24 +85,34 @@ llm_build_qwen3moe::llm_build_qwen3moe(const llama_model & model, const llm_grap
+                 LLM_NORM_RMS, il);
+         cb(cur, "ffn_norm", il);
+ 
+-        ggml_tensor * moe_out =
+-            build_moe_ffn(cur,
+-                    model.layers[il].ffn_gate_inp,
+-                    model.layers[il].ffn_up_exps,
+-                    model.layers[il].ffn_gate_exps,
+-                    model.layers[il].ffn_down_exps,
+-                    nullptr,
+-                    n_expert, n_expert_used,
+-                    LLM_FFN_SILU, true,
+-                    hparams.expert_weights_scale,
+-                    LLAMA_EXPERT_GATING_FUNC_TYPE_SOFTMAX,
+-                    il,
+-                    nullptr, nullptr,
+-                    model.layers[il].ffn_up_exps_s,
+-                    model.layers[il].ffn_gate_exps_s,
+-                    model.layers[il].ffn_down_exps_s);
+-        cb(moe_out, "ffn_moe_out", il);
+-        cur = moe_out;
++        if (model.layers[il].ffn_gate_inp == nullptr) {
++            cur = build_ffn(cur,
++                    model.layers[il].ffn_up,   NULL, NULL,
++                    model.layers[il].ffn_gate, NULL, NULL,
++                    model.layers[il].ffn_down, NULL, NULL,
++                    NULL,
++                    LLM_FFN_SILU, LLM_FFN_PAR, il);
++            cb(cur, "ffn_out", il);
++        } else {
++            ggml_tensor * moe_out =
++                build_moe_ffn(cur,
++                        model.layers[il].ffn_gate_inp,
++                        model.layers[il].ffn_up_exps,
++                        model.layers[il].ffn_gate_exps,
++                        model.layers[il].ffn_down_exps,
++                        nullptr,
++                        n_expert, n_expert_used,
++                        LLM_FFN_SILU, hparams.expert_weights_norm,
++                        hparams.expert_weights_scale,
++                        LLAMA_EXPERT_GATING_FUNC_TYPE_SOFTMAX,
++                        il,
++                        nullptr, nullptr,
++                        model.layers[il].ffn_up_exps_s,
++                        model.layers[il].ffn_gate_exps_s,
++                        model.layers[il].ffn_down_exps_s);
++            cb(moe_out, "ffn_moe_out", il);
++            cur = moe_out;
++        }
+ 
+         cur = ggml_add(ctx0, cur, ffn_inp);
+ 

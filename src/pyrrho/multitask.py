@@ -29,6 +29,7 @@ class PyrrhoMultiTaskConfig:
     gap_type_id2label: dict[int, str] | None = None
     answerability_shape_id2label: dict[int, str] | None = None
     retrieval_modality_id2label: dict[int, str] | None = None
+    retrieval_obligation_id2label: dict[int, str] | None = None
     dropout: float = 0.0
 
     @classmethod
@@ -54,6 +55,9 @@ class PyrrhoMultiTaskConfig:
             retrieval_modality_id2label=_optional_id2label(
                 raw.get("retrieval_modality_id2label")
             ),
+            retrieval_obligation_id2label=_optional_id2label(
+                raw.get("retrieval_obligation_id2label")
+            ),
             dropout=float(raw.get("dropout", 0.0)),
         )
 
@@ -71,6 +75,7 @@ class PyrrhoMultiTaskConfig:
             "gap_type_id2label",
             "answerability_shape_id2label",
             "retrieval_modality_id2label",
+            "retrieval_obligation_id2label",
         ):
             mapping = getattr(self, key)
             data[key] = {str(k): v for k, v in mapping.items()} if mapping else None
@@ -91,6 +96,10 @@ class PyrrhoMultiTaskConfig:
     @property
     def num_retrieval_modality_labels(self) -> int:
         return len(self.retrieval_modality_id2label or {})
+
+    @property
+    def num_retrieval_obligation_labels(self) -> int:
+        return len(self.retrieval_obligation_id2label or {})
 
 
 def _optional_id2label(raw: Any) -> dict[int, str] | None:
@@ -145,6 +154,11 @@ class PyrrhoMultiTaskModernBert(nn.Module):
             if config.num_retrieval_modality_labels
             else None
         )
+        self.retrieval_obligation_head = (
+            nn.Linear(hidden_size, config.num_retrieval_obligation_labels)
+            if config.num_retrieval_obligation_labels
+            else None
+        )
 
     @staticmethod
     def _mean_pool(last_hidden_state: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
@@ -180,6 +194,8 @@ class PyrrhoMultiTaskModernBert(nn.Module):
             outputs["answerability_shape_logits"] = self.answerability_shape_head(query_state)
         if self.retrieval_modality_head is not None:
             outputs["retrieval_modality_logits"] = self.retrieval_modality_head(query_state)
+        if self.retrieval_obligation_head is not None:
+            outputs["retrieval_obligation_logits"] = self.retrieval_obligation_head(query_state)
         return outputs
 
     def save_pretrained(self, output_dir: str | Path) -> None:

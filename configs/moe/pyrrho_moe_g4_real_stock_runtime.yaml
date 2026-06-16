@@ -1,0 +1,94 @@
+# pyrrho-MoE-g4-real - clean runtime-shape gate candidate.
+#
+# Purpose:
+# - First architecture candidate after freezing g3-mvp as patched-runtime
+#   experimental evidence.
+# - No Qwen3MoE mlp_only_layers.
+# - No dense-only FFN layers.
+# - All transformer FFN blocks are MoE blocks so the shape can target a stock
+#   MoE runtime carrier instead of a custom mixed dense/MoE loader patch.
+# - Uses 14 physical experts/layer. The old even 16-expert layout is too large
+#   when every FFN layer is sparse; 14 experts keeps both 4B total and A0.4B
+#   active budgets while avoiding dense-only layers.
+#
+# This config is only a parameter/runtime-shape gate candidate. It is not a
+# trained model recipe yet.
+
+architecture:
+  layers: 24
+  hidden_size: 1024
+  attention_heads: 16
+  kv_heads: 4
+  ffn_dim: 3840
+  dense_ffn_layers: 0
+  moe_ffn_layers: 24
+  experts_per_moe_layer: 14
+  top_k: 1
+  vocab_size: 64000
+  tied_embeddings: true
+  taxonomy_patterns: 23
+  scalar_heads: 15
+  governance_classes: 3
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+    - conflict_detection
+  semantic_expert_shards:
+    science_medicine: 2
+    law_policy: 2
+    history_geography: 1
+    technology_computing: 2
+    economics_finance: 2
+    culture_society: 1
+    general_commonsense: 2
+    conflict_detection: 2
+
+runtime_gate:
+  target: stock_llama_cpp_and_lm_studio_class_loadability
+  status: internal_mixtral_probe_passed_superseded_by_olmoe_public_candidate
+  internal_carrier_probe: MixtralForCausalLM
+  internal_carrier_probe_report: outputs/moe/g4_real_stock_runtime_carrier/stock_runtime_carrier_probe_report.json
+  current_public_carrier_candidate: OlmoeForCausalLM
+  current_public_carrier_config: configs/moe/pyrrho_moe_g4_real_olmoe_stock_runtime.yaml
+  current_public_carrier_probe_report: outputs/moe/g4_real_stock_runtime_carrier/olmoe_stock_runtime_carrier_probe_report.json
+  current_public_carrier_full_structural_probe_report: outputs/moe/g4_real_stock_runtime_carrier/olmoe_full_stock_runtime_probe_report.json
+  final_public_carrier: null
+  public_carrier_rule: do_not_ship_public_metadata_as_mixtral_or_qwen
+  disallowed:
+    - patched_llama_cpp
+    - qwen3moe_mlp_only_layers
+    - public_mixtral_model_type
+    - custom_gguf_loader_behavior
+    - label_scoring_only_release
+  required_next:
+    - choose_training_or_upcycling_path_for_olmoe_carrier_shape
+    - preserve_full_stock_runtime_shape_during_training
+    - rerun_full_gguf_and_lm_studio_load_after_trained_weights
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.0.1
+  moe_output_dir: data/moe_v8
+  max_seq_length: 4096
+  scalar_fields:
+    - trustworthy
+    - disputed
+    - abstain
+    - confidence
+    - grounding
+    - conflict_density
+    - evidence_sufficiency
+    - domain_familiarity
+    - false_trustworthy_risk
+    - hallucination_pressure
+    - retrieval_retry_value
+    - human_escalation_score
+    - query_evidence_alignment
+    - answer_coverage
+    - evidence_bias_score

@@ -266,24 +266,132 @@ Readout:
   its best fixed OOD threshold is tau **0.34**, combined **93.06%** accuracy /
   **1.04%** FT, and its exposed seeds need thresholds in opposite directions.
 
+## Specialist Routing Diagnostic
+
+The smallest local specialist comparison is complete and written to:
+
+- `outputs/modality_specialist_compare/retry_patch_seed42_router/summary.json`
+- `outputs/modality_specialist_compare/retry_patch_seed42_router/report.md`
+- `outputs/code_ood_probe/code_specialist_seed42/summary.json`
+- `outputs/tabular_ood_probe/structured_specialist_seed42/summary.json`
+- `outputs/modality_specialist_compare/retry_patch_seed42_patch_aware_code_router/summary.json`
+- `outputs/code_ood_probe/code_retry_patch_seed42/summary.json`
+- `outputs/modality_retraining/code_retry_patch_seed42/eval_report.json`
+
+It used fixed checkpoints only, routed by the existing `modality` column, and
+made no schema changes, row generation, LM Studio calls, or API calls.
+
+Readout:
+
+- Seed-42 retry-patch generalist remains stronger on the retry-patch mixed
+  held-out test: **98.74%** accuracy / **1.07%** FT.
+- Routing code rows to the existing seed-42 code-only specialist regressed the
+  mixed held-out test to **98.26%** / **1.46%** FT because the code slice fell
+  to **97.97%** / **1.66%** FT.
+- Routing structured rows to the existing seed-42 structured-only specialist
+  tied the retry-patch generalist on the in-distribution structured candidate
+  slice, so it does not add evidence for augmentation.
+- On the hand-authored OOD probes, the code-only specialist was safer but too
+  conservative (**86.11%** / **0.00%** FT, TRUSTWORTHY recall **58.33%**), while
+  the structured-only specialist was unsafe (**91.67%** / **8.33%** FT).
+
+Patch-aware code-specialist follow-up:
+
+- `scripts/filter_processed_modalities.py` prepared
+  `data/processed_v8_plus_code_retry_patch_candidate` from the retry-patch
+  processed set by keeping only `unstructured` and `code` rows. Splits are
+  **train=28,564**, **eval=3,566**, and **test=3,542**.
+- Seed 42 trained at `outputs/modality_retraining/code_retry_patch_seed42/`.
+  Held-out code+unstructured test is **98.25%** accuracy / **1.49%** FT;
+  candidate code is **100.00%** / **0.00%** FT, but unstructured is
+  **97.48%** / **2.13%** FT.
+- Code OOD is **97.22%** / **4.17%** FT, tying the retry-patch seed-42
+  generalist. It fixes the earlier missing-field miss but reintroduces a
+  retry-limit `constant_config_conflict` false-TRUSTWORTHY on `code_excerpt`.
+- Routing code rows to this patch-aware specialist ties the retry-patch
+  seed-42 generalist on mixed held-out test (**98.74%** / **1.07%** FT), because
+  both are already perfect on in-distribution candidate code rows.
+
+Conclusion: do not replace or augment retry-patch with either the existing
+specialists or the patch-aware separate code encoder.
+
+Patch-aware structured-specialist follow-up:
+
+- `scripts/filter_processed_modalities.py` prepared
+  `data/processed_v8_plus_structured_retry_patch_candidate` from the retry-patch
+  processed set by keeping only `unstructured` and `structured` rows. Splits
+  are **train=27,665**, **eval=3,477**, and **test=3,450**.
+- Seed 42 trained at `outputs/modality_retraining/structured_retry_patch_seed42/`.
+  Held-out structured+unstructured test is **98.32%** accuracy / **1.02%** FT;
+  candidate structured is **100.00%** / **0.00%** FT, but unstructured is
+  **97.64%** / **1.42%** FT.
+- Routing structured rows to this specialist ties the retry-patch seed-42
+  generalist on mixed held-out test (**98.74%** / **1.07%** FT), because both
+  are already perfect on in-distribution candidate structured rows.
+- Tabular OOD is unsafe: **88.89%** accuracy / **16.67%** FT, with ABSTAIN
+  metric-mismatch and missing-result rows false-trusted.
+
+Conclusion: do not replace or augment retry-patch with the patch-aware separate
+structured encoder either. The joint retry-patch generalist remains the local
+baseline.
+
+## Modality Threshold Diagnostic
+
+`scripts/modality_threshold_sweep.py` tests the simplest no-training policy
+augmentation: choose TRUSTWORTHY thresholds per modality on eval, then apply
+them to held-out test for fixed checkpoints.
+
+Retry-patch 3-seed artifact:
+
+- `outputs/modality_threshold_sweep/retry_patch_3seed/summary.json`
+- `outputs/modality_threshold_sweep/retry_patch_3seed/report.md`
+
+Readout:
+
+- Global retry-patch thresholds remain best on held-out accuracy:
+  **98.62 ± 0.12%** accuracy / **1.06 ± 0.04%** FT.
+- Per-modality thresholds selected to avoid eval FT regression scored
+  **98.61 ± 0.11%** accuracy / **1.04 ± 0.05%** FT, a **-0.01 pp** accuracy
+  trade for **-0.02 pp** FT.
+- The only movement was seed 42 unstructured threshold **0.34 -> 0.53**, which
+  reduced test FT by **0.07 pp** but reduced accuracy by **0.04 pp**. Seeds
+  1337 and 7 kept their global thresholds for every modality.
+
+Conclusion: simple per-modality thresholding does not justify augmenting the
+retry-patch joint generalist.
+
 ## Concrete Next Data Work
 
-Do not merge or publish the current structured/code candidate rows yet. The
-retry patch has the best 3-seed code OOD evidence so far, and the missing-evidence
-patch has exposed-seed evidence that fixes one inherited FT but introduces a
-TRUSTWORTHY-recall tradeoff. Patch labels are still label-trusted only. Full
-blind-label QA for `modality_code_patch_v1_20260528`,
+Do not merge or publish the current structured/code candidate rows yet, and do
+not generate more rows for the current specialist question. The retry patch has
+the best 3-seed code OOD evidence so far, while the missing-evidence patch and
+patch-aware code specialist are diagnostic tradeoffs rather than successors; the
+threshold diagnostic also leaves the global retry-patch policy in place. Patch
+labels are still label-trusted only. Full blind-label QA for
+`modality_code_patch_v1_20260528`,
 `modality_code_retry_conflict_patch_v1_20260529`, and
 `modality_missing_evidence_patch_v1_20260529` is the next required gate before
-any merge or publish decision. If doing more local modeling first, compare
-specialist heads or separate specialist encoders against the retry-patch branch
-rather than adding more rows blindly.
+any merge or publish decision.
 
-After that, compare:
+QA readiness status:
 
-1. Joint generalist retrain.
-2. Code-specialist head on the same encoder.
-3. Separate code-specialist encoder.
+- `modality_code_patch_v1_20260528` has a 720-row blind queue/manifest and
+  **12** Codex blind shards at
+  `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_code_patch_v1_20260528/`.
+  Existing scores are partial/targeted, not a completed full pass.
+- `modality_code_retry_conflict_patch_v1_20260529` now has a 360-row blind
+  queue/manifest and **12** Codex blind shards at
+  `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_code_retry_conflict_patch_v1_20260529/`.
+- `modality_missing_evidence_patch_v1_20260529` now has a 360-row blind
+  queue/manifest and **12** Codex blind shards at
+  `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/qa/modality_missing_evidence_patch_v1_20260529/`.
+- No full blind-label scoring has run for these three patch packs yet.
+
+Blind labeling is intentionally deferred for rapid local progress, but patch
+labels remain label-trusted only and candidate rows must not be merged or
+published. Further specialist work should only happen if it tests a genuinely
+new architecture or training-objective question, not another simple
+separate-encoder reroute or threshold policy.
 
 The release question is not whether code has separate domains. It is whether the
 model can safely handle code-specific evidence failure modes without raising

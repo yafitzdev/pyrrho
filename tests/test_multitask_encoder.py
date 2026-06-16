@@ -12,6 +12,7 @@ from pyrrho.data import (
     QUERY_CONTRACT_LABEL2ID,
     RETRIEVAL_ACTION_LABEL2ID,
     RETRIEVAL_MODALITY_LABEL2ID,
+    RETRIEVAL_OBLIGATION_LABEL2ID,
     build_query_contract_text,
 )
 from pyrrho.multitask import PyrrhoMultiTaskConfig
@@ -21,6 +22,16 @@ from pyrrho.multitask_inference import class_prediction
 def load_prepare_moe_data_module():
     path = Path(__file__).resolve().parents[1] / "scripts" / "prepare_moe_data.py"
     spec = importlib.util.spec_from_file_location("prepare_moe_data", path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_prepare_g4_alpha_data_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "prepare_g4_alpha_data.py"
+    spec = importlib.util.spec_from_file_location("prepare_g4_alpha_data", path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -53,6 +64,7 @@ def make_case() -> dict:
                 "gap_type": {"kind": "none"},
                 "answerability_shape": {"kind": "exact_lookup"},
                 "preferred_retrieval_modality": {"kind": "structured_table"},
+                "retrieval_obligation": {"kind": "row_key_lookup"},
                 "evidence_failure_severity": {"score": 0.07},
                 "labeler": "codex_subagent_v8_2",
                 "row_index": 1,
@@ -94,11 +106,52 @@ def test_prepare_moe_flatten_preserves_query_contract_and_query_text():
     assert row["answerability_shape_id"] == ANSWERABILITY_SHAPE_LABEL2ID["exact_lookup"]
     assert row["retrieval_modality"] == "structured_table"
     assert row["retrieval_modality_id"] == RETRIEVAL_MODALITY_LABEL2ID["structured_table"]
+    assert row["retrieval_obligation"] == "row_key_lookup"
+    assert row["retrieval_obligation_id"] == RETRIEVAL_OBLIGATION_LABEL2ID["row_key_lookup"]
     assert row["scalar_targets"] == {
         "evidence_sufficiency": 0.91,
         "retrieval_retry_value": 0.12,
         "evidence_failure_severity": 0.07,
     }
+
+
+def test_g5_prep_normalizes_answer_action_aliases():
+    prepare_g4_alpha_data = load_prepare_g4_alpha_data_module()
+    assert prepare_g4_alpha_data.normalize_retrieval_action("answer_from_evidence") == "answer_now"
+    assert prepare_g4_alpha_data.normalize_retrieval_action("return_answer") == "answer_now"
+    assert prepare_g4_alpha_data.normalize_retrieval_action("use_retrieved_evidence") == "answer_now"
+
+
+def test_g5_prep_forces_trustworthy_no_gap_to_answer_now():
+    prepare_g4_alpha_data = load_prepare_g4_alpha_data_module()
+    case = make_case()
+    case["routing"]["retrieval_control"]["retrieval_action"]["kind"] = "join_by_correlation_id"
+    metadata = {
+        "route2id": {"economics_finance": 0},
+        "taxonomy_pattern2id": {"direct_answer": 0},
+        "query_contract2id": {
+            label: idx for idx, label in enumerate(prepare_g4_alpha_data.CANONICAL_QUERY_CONTRACT_LABELS)
+        },
+        "retrieval_action2id": {
+            label: idx for idx, label in enumerate(prepare_g4_alpha_data.CANONICAL_RETRIEVAL_ACTION_LABELS)
+        },
+        "gap_type2id": {
+            label: idx for idx, label in enumerate(prepare_g4_alpha_data.CANONICAL_GAP_TYPE_LABELS)
+        },
+        "retrieval_modality2id": {
+            label: idx for idx, label in enumerate(prepare_g4_alpha_data.CANONICAL_RETRIEVAL_MODALITY_LABELS)
+        },
+    }
+    row = prepare_g4_alpha_data.flatten_sdgp_case(
+        case,
+        split="train",
+        metadata=metadata,
+        source_kind="unit_test",
+    )
+    assert row["label"] == "TRUSTWORTHY"
+    assert row["gap_type"] == "none"
+    assert row["retrieval_action_raw"] == "join_by_correlation_id"
+    assert row["retrieval_action"] == "answer_now"
 
 
 def test_multitask_config_roundtrip(tmp_path):
@@ -117,6 +170,7 @@ def test_multitask_config_roundtrip(tmp_path):
         gap_type_id2label={0: "none"},
         answerability_shape_id2label={0: "exact_lookup"},
         retrieval_modality_id2label={0: "structured_table"},
+        retrieval_obligation_id2label={0: "row_key_lookup"},
     )
     path = tmp_path / "cfg.json"
     path.write_text(json.dumps(cfg.to_mapping()), encoding="utf-8")

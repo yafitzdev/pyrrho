@@ -29,6 +29,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import yaml
+from safetensors.torch import load_file
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, get_cosine_schedule_with_warmup
@@ -92,6 +93,7 @@ class MultiTaskJsonlDataset(Dataset):
             "gap_type_id": int(row.get("gap_type_id", -1)),
             "answerability_shape_id": int(row.get("answerability_shape_id", -1)),
             "retrieval_modality_id": int(row.get("retrieval_modality_id", -1)),
+            "retrieval_obligation_id": int(row.get("retrieval_obligation_id", -1)),
             "scalar_targets": scalar_values,
             "scalar_mask": scalar_mask,
         }
@@ -103,6 +105,44 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def invert_mapping(mapping: dict[str, int]) -> dict[int, str]:
     return {int(v): str(k) for k, v in mapping.items()}
+
+
+def load_partial_init(
+    model: PyrrhoMultiTaskModernBert,
+    checkpoint_dir: Path,
+) -> dict[str, Any]:
+    """Initialize matching tensors from a previous multitask checkpoint."""
+    weights_path = checkpoint_dir / "model.safetensors"
+    if not weights_path.exists():
+        raise FileNotFoundError(weights_path)
+    source_state = load_file(weights_path, device="cpu")
+    target_state = model.state_dict()
+    copied: list[str] = []
+    skipped_shape: list[dict[str, Any]] = []
+    skipped_missing: list[str] = []
+    for name, target_tensor in target_state.items():
+        source_tensor = source_state.get(name)
+        if source_tensor is None:
+            skipped_missing.append(name)
+            continue
+        if tuple(source_tensor.shape) != tuple(target_tensor.shape):
+            skipped_shape.append(
+                {
+                    "name": name,
+                    "source_shape": list(source_tensor.shape),
+                    "target_shape": list(target_tensor.shape),
+                }
+            )
+            continue
+        target_state[name] = source_tensor.to(dtype=target_tensor.dtype)
+        copied.append(name)
+    model.load_state_dict(target_state)
+    return {
+        "checkpoint_dir": str(checkpoint_dir),
+        "copied_tensors": len(copied),
+        "skipped_shape": skipped_shape,
+        "skipped_missing": skipped_missing,
+    }
 
 
 def class_weights_from_counts(labels: list[int], num_classes: int) -> list[float]:
@@ -174,6 +214,10 @@ def collate_builder(
             ),
             "retrieval_modality_ids": torch.tensor(
                 [row["retrieval_modality_id"] for row in rows],
+                dtype=torch.long,
+            ),
+            "retrieval_obligation_ids": torch.tensor(
+                [row["retrieval_obligation_id"] for row in rows],
                 dtype=torch.long,
             ),
             "scalar_targets": torch.tensor(
@@ -260,6 +304,9 @@ def compute_loss(
     retrieval_modality_loss = optional_cross_entropy(
         "retrieval_modality_logits", "retrieval_modality_ids"
     )
+    retrieval_obligation_loss = optional_cross_entropy(
+        "retrieval_obligation_logits", "retrieval_obligation_ids"
+    )
     total = (
         weights["governance"] * gov_loss
         + weights["query_contract"] * query_contract_loss
@@ -270,6 +317,7 @@ def compute_loss(
         + weights.get("gap_type", 0.0) * gap_type_loss
         + weights.get("answerability_shape", 0.0) * answerability_shape_loss
         + weights.get("retrieval_modality", 0.0) * retrieval_modality_loss
+        + weights.get("retrieval_obligation", 0.0) * retrieval_obligation_loss
     )
     return total, {
         "governance": float(gov_loss.detach().cpu()),
@@ -281,6 +329,7 @@ def compute_loss(
         "gap_type": float(gap_type_loss.detach().cpu()),
         "answerability_shape": float(answerability_shape_loss.detach().cpu()),
         "retrieval_modality": float(retrieval_modality_loss.detach().cpu()),
+        "retrieval_obligation": float(retrieval_obligation_loss.detach().cpu()),
         "total": float(total.detach().cpu()),
     }
 
@@ -322,6 +371,7 @@ def evaluate(
     gap_type_id2label: dict[int, str],
     answerability_shape_id2label: dict[int, str],
     retrieval_modality_id2label: dict[int, str],
+    retrieval_obligation_id2label: dict[int, str],
     scalar_fields: tuple[str, ...],
     threshold: float | None = None,
 ) -> dict[str, Any]:
@@ -334,6 +384,7 @@ def evaluate(
     gap_type_logits: list[np.ndarray] = []
     answerability_shape_logits: list[np.ndarray] = []
     retrieval_modality_logits: list[np.ndarray] = []
+    retrieval_obligation_logits: list[np.ndarray] = []
     scalar_preds: list[np.ndarray] = []
     labels: list[np.ndarray] = []
     qc_labels: list[np.ndarray] = []
@@ -343,6 +394,7 @@ def evaluate(
     gap_type_labels: list[np.ndarray] = []
     answerability_shape_labels: list[np.ndarray] = []
     retrieval_modality_labels: list[np.ndarray] = []
+    retrieval_obligation_labels: list[np.ndarray] = []
     scalar_targets: list[np.ndarray] = []
     scalar_masks: list[np.ndarray] = []
 
@@ -375,6 +427,11 @@ def evaluate(
         if "retrieval_modality_logits" in outputs:
             retrieval_modality_logits.append(outputs["retrieval_modality_logits"].float().cpu().numpy())
             retrieval_modality_labels.append(batch["retrieval_modality_ids"].cpu().numpy())
+        if "retrieval_obligation_logits" in outputs:
+            retrieval_obligation_logits.append(
+                outputs["retrieval_obligation_logits"].float().cpu().numpy()
+            )
+            retrieval_obligation_labels.append(batch["retrieval_obligation_ids"].cpu().numpy())
         scalar_preds.append(outputs["scalar_preds"].float().cpu().numpy())
         labels.append(batch["labels"].cpu().numpy())
         qc_labels.append(batch["query_contract_ids"].cpu().numpy())
@@ -459,6 +516,12 @@ def evaluate(
             id2label=retrieval_modality_id2label,
             prefix="retrieval_modality",
         ),
+        "retrieval_obligation": optional_multiclass_metrics(
+            retrieval_obligation_logits,
+            retrieval_obligation_labels,
+            id2label=retrieval_obligation_id2label,
+            prefix="retrieval_obligation",
+        ),
     }
     metrics.update({key: value for key, value in optional_heads.items() if value is not None})
     return metrics
@@ -476,6 +539,7 @@ def composite_score(metrics: dict[str, Any]) -> float:
         ("gap_type", "gap_type_macro_f1", 0.08),
         ("answerability_shape", "answerability_shape_macro_f1", 0.04),
         ("retrieval_modality", "retrieval_modality_macro_f1", 0.04),
+        ("retrieval_obligation", "retrieval_obligation_macro_f1", 0.06),
     )
     for section, key, weight in optional_heads:
         if section in metrics:
@@ -501,6 +565,10 @@ def print_report(name: str, metrics: dict[str, Any]) -> None:
     if "retrieval_modality" in metrics:
         optional.append(
             f"retrieval_modality_f1={metrics['retrieval_modality']['retrieval_modality_macro_f1']:.4f}"
+        )
+    if "retrieval_obligation" in metrics:
+        optional.append(
+            f"retrieval_obligation_f1={metrics['retrieval_obligation']['retrieval_obligation_macro_f1']:.4f}"
         )
     print(
         f"{name}: gov_acc={gov['accuracy']:.4f} gov_FT={gov['false_trustworthy_rate']:.4f} "
@@ -543,6 +611,9 @@ def main() -> int:
     retrieval_modality_id2label = (
         invert_mapping(metadata.get("retrieval_modality2id", {})) if has_retrieval_control else {}
     )
+    retrieval_obligation_id2label = (
+        invert_mapping(metadata.get("retrieval_obligation2id", {})) if has_retrieval_control else {}
+    )
 
     train_ds = MultiTaskJsonlDataset(data_dir / "train.jsonl", scalar_fields=scalar_fields)
     eval_ds = MultiTaskJsonlDataset(data_dir / "eval.jsonl", scalar_fields=scalar_fields)
@@ -552,7 +623,8 @@ def main() -> int:
         else None
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_cfg["base_model"])
+    tokenizer_source = model_cfg.get("tokenizer_from") or model_cfg.get("init_from") or model_cfg["base_model"]
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_source)
     collate = collate_builder(
         tokenizer,
         max_seq_length=int(data_cfg.get("max_seq_length", 4096)),
@@ -602,9 +674,14 @@ def main() -> int:
         gap_type_id2label=gap_type_id2label or None,
         answerability_shape_id2label=answerability_shape_id2label or None,
         retrieval_modality_id2label=retrieval_modality_id2label or None,
+        retrieval_obligation_id2label=retrieval_obligation_id2label or None,
         dropout=float(model_cfg.get("dropout", 0.0)),
     )
     model = PyrrhoMultiTaskModernBert(mt_config)
+    init_report = None
+    init_from = model_cfg.get("init_from")
+    if init_from:
+        init_report = load_partial_init(model, Path(str(init_from)))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -620,6 +697,15 @@ def main() -> int:
     print(f"Output dir    : {output_dir}")
     print(f"Device        : {device}")
     print(f"Seed          : {seed}")
+    if init_report is not None:
+        print(f"Init from     : {init_report['checkpoint_dir']}")
+        print(
+            "Init tensors  : copied={copied} shape_skipped={shape} missing={missing}".format(
+                copied=init_report["copied_tensors"],
+                shape=len(init_report["skipped_shape"]),
+                missing=len(init_report["skipped_missing"]),
+            )
+        )
     print(f"Splits        : train={len(train_ds)} eval={len(eval_ds)} test={len(test_ds) if test_ds else 0}")
     print(
         "Heads         : "
@@ -630,6 +716,7 @@ def main() -> int:
         f"gap_type={len(gap_type_id2label)} "
         f"answerability_shape={len(answerability_shape_id2label)} "
         f"retrieval_modality={len(retrieval_modality_id2label)} "
+        f"retrieval_obligation={len(retrieval_obligation_id2label)} "
         f"scalars={len(scalar_fields)}"
     )
 
@@ -660,6 +747,7 @@ def main() -> int:
         "gap_type": float(loss_cfg.get("gap_type", 0.0)),
         "answerability_shape": float(loss_cfg.get("answerability_shape", 0.0)),
         "retrieval_modality": float(loss_cfg.get("retrieval_modality", 0.0)),
+        "retrieval_obligation": float(loss_cfg.get("retrieval_obligation", 0.0)),
     }
     label_smoothing = float(train_cfg.get("label_smoothing", 0.0))
 
@@ -736,6 +824,7 @@ def main() -> int:
             gap_type_id2label=gap_type_id2label,
             answerability_shape_id2label=answerability_shape_id2label,
             retrieval_modality_id2label=retrieval_modality_id2label,
+            retrieval_obligation_id2label=retrieval_obligation_id2label,
             scalar_fields=scalar_fields,
         )
         score = composite_score(eval_metrics)
@@ -772,6 +861,7 @@ def main() -> int:
             gap_type_id2label=gap_type_id2label,
             answerability_shape_id2label=answerability_shape_id2label,
             retrieval_modality_id2label=retrieval_modality_id2label,
+            retrieval_obligation_id2label=retrieval_obligation_id2label,
             scalar_fields=scalar_fields,
             threshold=float(best_eval["threshold"]),
         )
@@ -793,6 +883,8 @@ def main() -> int:
         "loss_weights": weights,
         "governance_class_weights": governance_weights,
         "query_contract_class_weights": query_contract_weights,
+        "init_from": str(init_from) if init_from else None,
+        "init_report": init_report,
         "global_step": global_step,
         "elapsed_seconds": time.time() - start,
     }
@@ -810,6 +902,7 @@ def main() -> int:
         extra={
             "script": "train_multitask_encoder.py",
             "base_model": model_cfg["base_model"],
+            "init_from": str(init_from) if init_from else None,
             "data_dir": str(data_dir),
             "best_epoch": best_epoch,
             "best_score": best_score,
@@ -822,6 +915,7 @@ def main() -> int:
                 "gap_type": len(gap_type_id2label),
                 "answerability_shape": len(answerability_shape_id2label),
                 "retrieval_modality": len(retrieval_modality_id2label),
+                "retrieval_obligation": len(retrieval_obligation_id2label),
                 "scalars": list(scalar_fields),
             },
         },

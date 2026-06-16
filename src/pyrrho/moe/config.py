@@ -67,6 +67,7 @@ class PyrrhoMoEConfig:
     semantic_expert_groups: tuple[str, ...] = field(
         default_factory=lambda: DEFAULT_SEMANTIC_EXPERT_GROUPS
     )
+    semantic_expert_shards: dict[str, int] | None = None
     taxonomy_patterns: int = 23
     scalar_heads: int = 15
     governance_classes: int = 3
@@ -77,6 +78,11 @@ class PyrrhoMoEConfig:
         raw = dict(raw or {})
         if "semantic_expert_groups" in raw and isinstance(raw["semantic_expert_groups"], list):
             raw["semantic_expert_groups"] = tuple(raw["semantic_expert_groups"])
+        if "semantic_expert_shards" in raw and raw["semantic_expert_shards"] is not None:
+            raw["semantic_expert_shards"] = {
+                str(key): int(value)
+                for key, value in dict(raw["semantic_expert_shards"]).items()
+            }
         if "head_dim" in raw and "attention_head_dim" not in raw:
             raw["attention_head_dim"] = raw.pop("head_dim")
         allowed = set(cls.__dataclass_fields__.keys())
@@ -102,9 +108,20 @@ class PyrrhoMoEConfig:
         return len(self.semantic_expert_groups)
 
     @property
-    def physical_shards_per_group(self) -> int:
+    def semantic_shard_map(self) -> dict[str, int]:
         self.validate()
-        return self.experts_per_moe_layer // self.semantic_group_count
+        if self.semantic_expert_shards is not None:
+            return dict(self.semantic_expert_shards)
+        shards = self.experts_per_moe_layer // self.semantic_group_count
+        return {group: shards for group in self.semantic_expert_groups}
+
+    @property
+    def physical_shards_per_group(self) -> int | None:
+        self.validate()
+        shard_counts = set(self.semantic_shard_map.values())
+        if len(shard_counts) == 1:
+            return next(iter(shard_counts))
+        return None
 
     def validate(self) -> None:
         """Raise `ValueError` if dimensions cannot produce the intended topology."""
@@ -128,8 +145,29 @@ class PyrrhoMoEConfig:
             raise ValueError("CPU release config currently supports only top_k=1")
         if not self.semantic_expert_groups:
             raise ValueError("at least one semantic expert group is required")
-        if self.experts_per_moe_layer % len(self.semantic_expert_groups) != 0:
-            raise ValueError("experts_per_moe_layer must divide evenly across semantic groups")
+        if self.semantic_expert_shards is None:
+            if self.experts_per_moe_layer % len(self.semantic_expert_groups) != 0:
+                raise ValueError(
+                    "experts_per_moe_layer must divide evenly across semantic groups "
+                    "unless semantic_expert_shards is provided"
+                )
+        else:
+            expected = set(self.semantic_expert_groups)
+            actual = set(self.semantic_expert_shards)
+            if actual != expected:
+                missing = sorted(expected - actual)
+                extra = sorted(actual - expected)
+                raise ValueError(
+                    "semantic_expert_shards must match semantic_expert_groups; "
+                    f"missing={missing} extra={extra}"
+                )
+            if any(int(value) <= 0 for value in self.semantic_expert_shards.values()):
+                raise ValueError("semantic_expert_shards values must be positive")
+            total_shards = sum(int(value) for value in self.semantic_expert_shards.values())
+            if total_shards != self.experts_per_moe_layer:
+                raise ValueError(
+                    "semantic_expert_shards must sum to experts_per_moe_layer"
+                )
         if self.vocab_size <= 0:
             raise ValueError("vocab_size must be positive")
 
@@ -215,6 +253,7 @@ class PyrrhoMoEConfig:
                 "kv_dim": self.kv_dim,
                 "semantic_group_count": self.semantic_group_count,
                 "physical_shards_per_group": self.physical_shards_per_group,
+                "semantic_expert_shards": self.semantic_shard_map,
             },
             "parameters": counts.to_dict(),
             "budget_checks": {

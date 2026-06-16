@@ -31,11 +31,15 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-import joblib
 import numpy as np
 import torch
 
 from pyrrho.moe.data import MoEVocab
+from pyrrho.moe.posthoc_verifier import (
+    PACKAGE_SCHEMA_VERSION,
+    PosthocVerifierPackage,
+    feature_schema_from_config,
+)
 
 
 def _load_training_helpers():
@@ -55,18 +59,15 @@ def _load_training_helpers():
 
 
 _HELPERS = _load_training_helpers()
-TRUSTWORTHY_ID = _HELPERS.TRUSTWORTHY_ID
 collect_split = _HELPERS.collect_split
 evaluate_predictions = _HELPERS.evaluate_predictions
-guarded_predictions = _HELPERS.guarded_predictions
 invert_mapping = _HELPERS.invert_mapping
 load_config = _HELPERS.load_config
 load_stage0_model = _HELPERS.load_stage0_model
 
-PACKAGE_SCHEMA_VERSION = "pyrrho_moe_posthoc_verifier_package_v1"
-FEATURE_SCHEMA_VERSION = "pyrrho_moe_posthoc_features_v1"
 DEFAULT_SUMMARY = Path("outputs/moe/stage0_7_posthoc_verifier_g3_3seed_ft028/summary.json")
 DEFAULT_PACKAGE_DIR = Path("outputs/moe/stage0_7_posthoc_verifier_g3_ft028_package")
+DEFAULT_RELEASE_DIR = Path("models/pyrrho-MoE-g3-alpha")
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,11 +79,20 @@ def parse_args() -> argparse.Namespace:
     create.add_argument("--output-dir", type=Path, default=DEFAULT_PACKAGE_DIR)
     create.add_argument("--root", type=Path, default=Path.cwd(), help="Root for relative paths in reports")
     create.add_argument("--copy-predictions", action="store_true", help="Also copy test_predictions.jsonl")
+    create.add_argument("--copy-checkpoints", action="store_true", help="Copy base MoE checkpoints into each seed directory")
+    create.add_argument("--copy-config", action="store_true", help="Copy the base MoE YAML config into the package")
+    create.add_argument("--copy-metadata", action="store_true", help="Copy data metadata.json into the package for raw inference")
     create.add_argument("--hash-checkpoints", action="store_true", help="Hash base checkpoints")
+    create.add_argument("--manifest-root", default=None, help="Root value written to manifest; useful for portable release dirs")
+    create.add_argument("--portable-provenance", action="store_true", help="Write provenance paths relative to --root when possible")
+    create.add_argument("--release-name", default=None, help="Optional release name recorded in manifest")
+    create.add_argument("--default-policy", default=None, help="Optional default ensemble policy recorded in manifest")
+    create.add_argument("--policy-summary", type=Path, default=None, help="Optional policy-comparison summary to copy into reports/")
     create.add_argument("--evaluate", action="store_true", help="Evaluate package after creating it")
     create.add_argument("--eval-split", choices=["eval", "test", "both"], default="test")
     create.add_argument("--batch-size", type=int, default=None)
     create.add_argument("--max-samples", type=int, default=None)
+    create.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
 
     evaluate = sub.add_parser("evaluate", help="Reload and evaluate an existing package")
     evaluate.add_argument("--package-dir", type=Path, default=DEFAULT_PACKAGE_DIR)
@@ -91,6 +101,7 @@ def parse_args() -> argparse.Namespace:
     evaluate.add_argument("--split", choices=["eval", "test", "both"], default="test")
     evaluate.add_argument("--batch-size", type=int, default=None)
     evaluate.add_argument("--max-samples", type=int, default=None)
+    evaluate.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     evaluate.add_argument("--output", type=Path, default=None)
 
     return p.parse_args()
@@ -109,6 +120,31 @@ def resolve_path(path: str | Path, root: Path) -> Path:
     if candidate.is_absolute():
         return candidate
     return (root / candidate).resolve()
+
+
+def manifest_root(package_dir: Path, manifest: dict[str, Any], root_override: Path | None = None) -> Path:
+    if root_override is not None:
+        return root_override.resolve()
+    raw = manifest.get("root")
+    if raw is None:
+        return package_dir.resolve()
+    root = Path(str(raw))
+    if root.is_absolute():
+        return root.resolve()
+    return (package_dir.resolve() / root).resolve()
+
+
+def path_for_manifest(path: Path, root: Path, *, portable: bool) -> str:
+    if not portable:
+        return str(path)
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def package_relative(path: Path, package_dir: Path) -> str:
+    return path.resolve().relative_to(package_dir.resolve()).as_posix()
 
 
 def copy_artifact(src: Path, dst: Path) -> None:
@@ -133,37 +169,6 @@ def stat_file(path: Path, *, include_sha256: bool = False) -> dict[str, Any]:
     return row
 
 
-def feature_schema_from_config(model_config: dict[str, Any]) -> dict[str, Any]:
-    num_labels = int(model_config.get("num_labels", 3))
-    num_routes = int(model_config["num_routes"])
-    num_taxonomy = int(model_config["num_taxonomy_patterns"])
-    num_scalars = int(model_config["num_scalar_targets"])
-    blocks = [
-        {"name": "governance_logits", "width": num_labels},
-        {"name": "governance_probs", "width": num_labels},
-        {"name": "route_logits", "width": num_routes},
-        {"name": "route_probs", "width": num_routes},
-        {"name": "taxonomy_logits", "width": num_taxonomy},
-        {"name": "taxonomy_probs", "width": num_taxonomy},
-        {"name": "scalar_preds", "width": num_scalars},
-        {"name": "trustworthy_probability", "width": 1},
-        {"name": "trust_margin_vs_best_non_trustworthy", "width": 1},
-        {"name": "disputed_minus_abstain_logit", "width": 1},
-        {"name": "governance_entropy", "width": 1},
-        {"name": "route_entropy", "width": 1},
-        {"name": "taxonomy_entropy", "width": 1},
-        {"name": "route_pred_one_hot", "width": num_routes},
-        {"name": "taxonomy_pred_one_hot", "width": num_taxonomy},
-    ]
-    return {
-        "schema_version": FEATURE_SCHEMA_VERSION,
-        "total_width": int(sum(int(block["width"]) for block in blocks)),
-        "blocks": blocks,
-        "candidate_policy": "score every row; demote only base TRUSTWORTHY predictions below threshold",
-        "demotion_policy": "replace rejected TRUSTWORTHY with the higher ABSTAIN/DISPUTED base logit",
-    }
-
-
 def metric_snapshot(report: dict[str, Any], split: str) -> dict[str, Any]:
     baseline = report[split]["baseline"]["governance"]
     guarded = report[split]["guarded"]["governance"]
@@ -182,12 +187,12 @@ def package_readme(manifest: dict[str, Any]) -> str:
     mean_std = manifest.get("summary", {}).get("mean_std", {})
     acc = mean_std.get("test_accuracy_guarded", {})
     ft = mean_std.get("test_false_trustworthy_guarded", {})
+    release = manifest.get("release", {})
     lines = [
-        "# Stage 0.7 Post-Hoc Verifier Package",
+        f"# {release.get('name', 'Stage 0.7 Post-Hoc Verifier Package')}",
         "",
         "This directory packages the lightweight verifier/reranker artifacts for the",
-        "frozen Stage 0.7 support-aggregation MoE baseline. It does not copy the base",
-        "MoE checkpoints; the manifest records their local paths.",
+        "frozen Stage 0.7 support-aggregation MoE baseline.",
         "",
         f"- Package schema: `{manifest['schema_version']}`",
         f"- Stage: `{manifest.get('stage')}`",
@@ -196,6 +201,8 @@ def package_readme(manifest: dict[str, Any]) -> str:
         f"- Target eval FT: `{manifest.get('target_ft')}`",
         f"- Feature width: `{manifest['feature_schema']['total_width']}`",
     ]
+    if release.get("default_policy"):
+        lines.append(f"- Default policy: `{release['default_policy']}`")
     if acc and ft:
         lines.extend(
             [
@@ -224,12 +231,21 @@ def create_package(
     output_dir: Path,
     root: Path,
     copy_predictions: bool,
+    copy_checkpoints: bool = False,
+    copy_config: bool = False,
+    copy_metadata: bool = False,
     hash_checkpoints: bool,
+    manifest_root_value: str | None = None,
+    portable_provenance: bool = False,
+    release_name: str | None = None,
+    default_policy: str | None = None,
+    policy_summary_path: Path | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
     summary_path = resolve_path(summary_path, root)
     summary = read_json(summary_path)
     output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = output_dir.resolve()
     copy_artifact(summary_path, output_dir / "summary.json")
 
     runs = summary.get("runs", [])
@@ -241,6 +257,8 @@ def create_package(
     first_model_kind: str | None = None
     first_data_dir: str | None = None
     first_config: str | None = None
+    copied_config_by_source: dict[Path, Path] = {}
+    copied_metadata_by_source: dict[Path, Path] = {}
 
     for run in runs:
         seed = int(run["seed"])
@@ -262,30 +280,61 @@ def create_package(
 
         checkpoint = resolve_path(str(report["checkpoint"]), root)
         config = resolve_path(str(report["config"]), root)
+        checkpoint_for_manifest = str(report["checkpoint"])
+        checkpoint_for_stats = checkpoint
+        if copy_checkpoints:
+            checkpoint_dst = seed_dir / "model.pt"
+            copy_artifact(checkpoint, checkpoint_dst)
+            checkpoint_for_manifest = package_relative(checkpoint_dst, output_dir)
+            checkpoint_for_stats = checkpoint_dst
+
+        config_for_manifest = str(report["config"])
+        config_for_stats = config
+        if copy_config:
+            config_dst = copied_config_by_source.get(config)
+            if config_dst is None:
+                config_dir = output_dir / "config"
+                config_dst = config_dir / config.name
+                copy_artifact(config, config_dst)
+                copied_config_by_source[config] = config_dst
+            config_for_manifest = package_relative(config_dst, output_dir)
+            config_for_stats = config_dst
+
+        data_dir = resolve_path(str(report["data_dir"]), root)
+        data_dir_for_manifest = str(report["data_dir"])
+        if copy_metadata:
+            metadata_dst_dir = copied_metadata_by_source.get(data_dir)
+            if metadata_dst_dir is None:
+                metadata_src = data_dir / "metadata.json"
+                metadata_dst_dir = output_dir / "metadata"
+                copy_artifact(metadata_src, metadata_dst_dir / "metadata.json")
+                copied_metadata_by_source[data_dir] = metadata_dst_dir
+            data_dir_for_manifest = package_relative(metadata_dst_dir, output_dir)
+
         if first_model_config is None:
             payload = torch.load(checkpoint, map_location="cpu")
             first_model_config = dict(payload["config"])
             first_model_kind = str(payload["model_kind"])
-            first_data_dir = str(report["data_dir"])
-            first_config = str(report["config"])
+            first_data_dir = data_dir_for_manifest
+            first_config = config_for_manifest
 
         entry = {
             "seed": seed,
-            "checkpoint": str(report["checkpoint"]),
-            "config": str(report["config"]),
-            "data_dir": str(report["data_dir"]),
+            "checkpoint": checkpoint_for_manifest,
+            "config": config_for_manifest,
+            "data_dir": data_dir_for_manifest,
             "base_threshold": float(report["base_threshold"]),
             "selected_threshold": float(report["selected_threshold"]),
             "selection_reason": str(report["selection_reason"]),
             "verifier_path": f"seeds/seed_{seed}/verifier.joblib",
             "report_path": f"seeds/seed_{seed}/verifier_report.json",
-            "source_report": str(report_path),
-            "source_run_dir": str(run_dir),
+            "source_report": path_for_manifest(report_path, root, portable=portable_provenance),
+            "source_run_dir": path_for_manifest(run_dir, root, portable=portable_provenance),
             "artifacts": {
                 "verifier": stat_file(seed_dir / "verifier.joblib", include_sha256=True),
                 "report": stat_file(seed_dir / "verifier_report.json", include_sha256=True),
-                "checkpoint": stat_file(checkpoint, include_sha256=hash_checkpoints),
-                "config": stat_file(config, include_sha256=True),
+                "checkpoint": stat_file(checkpoint_for_stats, include_sha256=hash_checkpoints),
+                "config": stat_file(config_for_stats, include_sha256=True),
             },
             "eval": metric_snapshot(report, "eval"),
             "test": metric_snapshot(report, "test"),
@@ -298,12 +347,43 @@ def create_package(
     if first_model_config is None or first_model_kind is None:
         raise ValueError("could not infer base model config from package runs")
 
+    release_block: dict[str, Any] = {}
+    if release_name:
+        release_block["name"] = release_name
+    if default_policy:
+        release_block["default_policy"] = default_policy
+    if copy_checkpoints:
+        release_block["checkpoint_packaging"] = "copied_per_seed"
+    if copy_metadata:
+        release_block["metadata_packaging"] = "copied_metadata_json_only"
+    if policy_summary_path is not None:
+        policy_summary = resolve_path(policy_summary_path, root)
+        reports_dir = output_dir / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        policy_summary_dst = reports_dir / "posthoc_policy_compare_summary.json"
+        copy_artifact(policy_summary, policy_summary_dst)
+        policy_report_src = policy_summary.with_name("report.md")
+        policy_report_path = None
+        if policy_report_src.exists():
+            policy_report_dst = reports_dir / "posthoc_policy_compare_report.md"
+            copy_artifact(policy_report_src, policy_report_dst)
+            policy_report_path = package_relative(policy_report_dst, output_dir)
+        release_block["policy_summary_path"] = package_relative(policy_summary_dst, output_dir)
+        if policy_report_path is not None:
+            release_block["policy_report_path"] = policy_report_path
+        if default_policy:
+            policy_payload = read_json(policy_summary)
+            release_block["default_policy_metrics"] = extract_policy_metrics(
+                policy_payload,
+                policy_name=default_policy,
+            )
+
     manifest = {
         "schema_version": PACKAGE_SCHEMA_VERSION,
         "created_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
-        "package_dir": str(output_dir),
-        "root": str(root),
-        "source_summary": str(summary_path),
+        "package_dir": "." if manifest_root_value is not None and portable_provenance else str(output_dir),
+        "root": manifest_root_value if manifest_root_value is not None else str(root),
+        "source_summary": path_for_manifest(summary_path, root, portable=portable_provenance),
         "stage": summary.get("stage"),
         "base_stage": summary.get("base_stage"),
         "verifier_kind": summary.get("verifier_kind"),
@@ -321,9 +401,21 @@ def create_package(
         },
         "seeds": seed_entries,
     }
+    if release_block:
+        manifest["release"] = release_block
     write_json(output_dir / "manifest.json", manifest)
     (output_dir / "README.md").write_text(package_readme(manifest), encoding="utf-8")
     return manifest
+
+
+def extract_policy_metrics(policy_summary: dict[str, Any], *, policy_name: str) -> dict[str, Any]:
+    metrics: dict[str, Any] = {}
+    for split_name, split_payload in (policy_summary.get("splits") or {}).items():
+        for policy in split_payload.get("policies") or []:
+            if policy.get("name") == policy_name:
+                metrics[str(split_name)] = policy.get("metrics", {})
+                break
+    return metrics
 
 
 def split_names(raw: str) -> list[str]:
@@ -340,6 +432,14 @@ def mean_std(values: list[float]) -> dict[str, float]:
         "min": float(arr.min()),
         "max": float(arr.max()),
     }
+
+
+def select_device(name: str) -> torch.device:
+    if name == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if name == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested but is not available")
+    return torch.device(name)
 
 
 def metric_deltas(expected: dict[str, Any], actual: dict[str, Any]) -> dict[str, float | int]:
@@ -367,12 +467,14 @@ def evaluate_package(
     split: str,
     batch_size_override: int | None,
     max_samples: int | None,
+    device_name: str = "auto",
     output: Path | None,
 ) -> dict[str, Any]:
     package_dir = package_dir.resolve()
     manifest = read_json(package_dir / "manifest.json")
-    root = (root_override or Path(manifest["root"])).resolve()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    verifier_package = PosthocVerifierPackage.load(package_dir, verify_hashes=True)
+    root = manifest_root(package_dir, manifest, root_override=root_override)
+    device = select_device(device_name)
     data_dir = (data_dir_override or Path(manifest["data_dir"])).resolve()
     vocab = MoEVocab.from_metadata(data_dir / "metadata.json")
     route_names_by_id = invert_mapping(vocab.route2id)
@@ -388,7 +490,6 @@ def evaluate_package(
         payload = torch.load(checkpoint, map_location="cpu")
         model = load_stage0_model(payload)
         model_cfg = model.config
-        verifier = joblib.load(package_dir / seed_entry["verifier_path"])
         batch_size = int(batch_size_override or stage_cfg.get("per_device_eval_batch_size", 128))
         max_length = int(stage_cfg.get("max_seq_length", data_cfg.get("max_seq_length", 768)))
         max_query_length = int(stage_cfg.get("max_query_length", 96))
@@ -413,11 +514,10 @@ def evaluate_package(
                 base_threshold=float(seed_entry["base_threshold"]),
                 device=device,
             )
-            accept_scores = verifier.predict_proba(frozen.features)[:, 1]
-            guarded = guarded_predictions(
-                frozen,
-                accept_scores,
-                float(seed_entry["selected_threshold"]),
+            guarded_result = verifier_package.apply_features(
+                seed=int(seed_entry["seed"]),
+                features=frozen.features,
+                governance_logits=frozen.governance_logits,
             )
             row = {
                 "seed": int(seed_entry["seed"]),
@@ -426,13 +526,8 @@ def evaluate_package(
                 "base_threshold": float(seed_entry["base_threshold"]),
                 "selected_threshold": float(seed_entry["selected_threshold"]),
                 "baseline": evaluate_predictions(frozen, frozen.base_preds),
-                "guarded": evaluate_predictions(frozen, guarded),
-                "rejected_candidate_trustworthy": int(
-                    (
-                        (frozen.base_preds == TRUSTWORTHY_ID)
-                        & (accept_scores < float(seed_entry["selected_threshold"]))
-                    ).sum()
-                ),
+                "guarded": evaluate_predictions(frozen, guarded_result.guarded_predictions),
+                "rejected_candidate_trustworthy": guarded_result.rejected_count,
             }
             if max_samples is None and split_name in seed_entry:
                 row["packaged_metric_deltas"] = metric_deltas(seed_entry[split_name], row)
@@ -526,7 +621,15 @@ def main() -> int:
             output_dir=args.output_dir,
             root=args.root,
             copy_predictions=args.copy_predictions,
+            copy_checkpoints=args.copy_checkpoints,
+            copy_config=args.copy_config,
+            copy_metadata=args.copy_metadata,
             hash_checkpoints=args.hash_checkpoints,
+            manifest_root_value=args.manifest_root,
+            portable_provenance=args.portable_provenance,
+            release_name=args.release_name,
+            default_policy=args.default_policy,
+            policy_summary_path=args.policy_summary,
         )
         print(f"Wrote package   : {args.output_dir}")
         print(f"Wrote manifest  : {args.output_dir / 'manifest.json'}")
@@ -542,6 +645,7 @@ def main() -> int:
                 split=args.eval_split,
                 batch_size_override=args.batch_size,
                 max_samples=args.max_samples,
+                device_name=args.device,
                 output=None,
             )
             for split_name, metrics in report["aggregate"].items():
@@ -559,6 +663,7 @@ def main() -> int:
         split=args.split,
         batch_size_override=args.batch_size,
         max_samples=args.max_samples,
+        device_name=args.device,
         output=args.output,
     )
     print(f"Wrote eval report: {args.output or (args.package_dir / 'package_eval_report.json')}")

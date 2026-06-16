@@ -33,6 +33,7 @@ from pyrrho.data import (
     QUERY_CONTRACT_LABEL2ID,
     RETRIEVAL_ACTION_LABEL2ID,
     RETRIEVAL_MODALITY_LABEL2ID,
+    RETRIEVAL_OBLIGATION_LABEL2ID,
     build_encoder_text,
     build_query_contract_text,
 )
@@ -206,6 +207,12 @@ def flatten_case(
         RETRIEVAL_MODALITY_LABEL2ID,
         required=require_retrieval_control,
     )
+    retrieval_obligation = normalize_retrieval_control_label(
+        row,
+        "retrieval_obligation",
+        RETRIEVAL_OBLIGATION_LABEL2ID,
+        required=False,
+    )
 
     route = str(routing.get("expert_fired") or "")
     pattern = str(taxonomy.get("pattern") or "")
@@ -245,6 +252,8 @@ def flatten_case(
         "answerability_shape_id": ANSWERABILITY_SHAPE_LABEL2ID.get(answerability_shape, -1),
         "retrieval_modality": retrieval_modality,
         "retrieval_modality_id": RETRIEVAL_MODALITY_LABEL2ID.get(retrieval_modality, -1),
+        "retrieval_obligation": retrieval_obligation,
+        "retrieval_obligation_id": RETRIEVAL_OBLIGATION_LABEL2ID.get(retrieval_obligation, -1),
         "secondary_expert": routing.get("secondary_expert"),
         "routing_confidence": routing.get("routing_confidence"),
         "taxonomy_pattern": pattern,
@@ -346,6 +355,7 @@ def main() -> int:
             ("gap_type", GAP_TYPE_LABEL2ID),
             ("answerability_shape", ANSWERABILITY_SHAPE_LABEL2ID),
             ("preferred_retrieval_modality", RETRIEVAL_MODALITY_LABEL2ID),
+            ("retrieval_obligation", RETRIEVAL_OBLIGATION_LABEL2ID),
         ):
             try:
                 normalize_retrieval_control_label(
@@ -429,6 +439,7 @@ def main() -> int:
         "gap_type2id": GAP_TYPE_LABEL2ID,
         "answerability_shape2id": ANSWERABILITY_SHAPE_LABEL2ID,
         "retrieval_modality2id": RETRIEVAL_MODALITY_LABEL2ID,
+        "retrieval_obligation2id": RETRIEVAL_OBLIGATION_LABEL2ID,
         "require_retrieval_control": require_retrieval_control,
         "scalar_fields": list(scalar_fields),
     }

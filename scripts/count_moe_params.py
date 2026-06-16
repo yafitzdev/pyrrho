@@ -62,7 +62,18 @@ def main() -> int:
     print(f"Head dim / KV dim              : {derived['head_dim']} / {derived['kv_dim']}")
     print(f"Dense FFN / MoE FFN layers     : {cfg.dense_ffn_layers} / {cfg.moe_ffn_layers}")
     print(f"Experts per MoE layer          : {cfg.experts_per_moe_layer}")
-    print(f"Semantic groups / shards/group : {derived['semantic_group_count']} / {derived['physical_shards_per_group']}")
+    shards_per_group = derived["physical_shards_per_group"]
+    if shards_per_group is None:
+        shard_text = "mixed"
+    else:
+        shard_text = str(shards_per_group)
+    print(f"Semantic groups / shards/group : {derived['semantic_group_count']} / {shard_text}")
+    if shards_per_group is None:
+        shard_map = ", ".join(
+            f"{key}:{value}"
+            for key, value in derived["semantic_expert_shards"].items()
+        )
+        print(f"Semantic shard map             : {shard_map}")
     print()
     for key in (
         "embedding",

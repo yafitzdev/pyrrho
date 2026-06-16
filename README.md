@@ -87,6 +87,8 @@ For **production CPU inference at ~30 ms/query**, use the INT8 ONNX variant via 
 
 Output contract: the nano encoder emits governance logits only. A product wrapper should expose a normalized decision object with `label`, `raw_label`, `logits`, `probabilities`, `confidence`, `trustworthy_probability`, `threshold`, and `used_threshold_fallback`. It does not detect taxonomy/category tags, routes, source spans, citations, retrieval results, or explanations; taxonomy/category fields in reports are benchmark metadata. Route, taxonomy, and scalar heads are part of the experimental MoE track.
 
+Experimental generative MoE MVP: [`yafitzdev/pyrrho-MoE-g3-mvp`](https://huggingface.co/yafitzdev/pyrrho-MoE-g3-mvp) is now published as a portfolio-track CPU-runnable GGUF package. It is not the production default; use the nano encoder for production governance. For local MoE testing, follow [`docs/PYRRHO_MOE_MVP_RUN_GUIDE.md`](docs/PYRRHO_MOE_MVP_RUN_GUIDE.md) and consume full-sequence label scoring, not raw generation.
+
 ---
 
 ### About
@@ -97,7 +99,7 @@ Most RAG governance is either **(a) a black-box LLM call** ("ask GPT-4 if these 
 
 The architecture call: pure encoder (ModernBERT-base, 149M params) — not a generative SLM, not an LLM. For 3-class classification with constrained label space, encoder + INT8 ONNX is 50–100× faster on CPU than the same task with a generative model, and **doesn't lose accuracy** when the labels are categorical and the input fits in 4K tokens (as RAG retrievals almost always do).
 
-It's the model family that powers governance in [`fitz-sage`](https://github.com/yafitzdev/fitz-sage) (the RAG library). `pyrrho-nano-g1` is the current fitz-sage production backend; [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) is the published V7 encoder baseline; [`pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3) is the current V8 encoder release. The three projects form a triangle: benchmark, models, library.
+It's the model family that powers governance in [`fitz-sage`](https://github.com/yafitzdev/fitz-sage) (the RAG library). `pyrrho-nano-g1` is the current fitz-sage production backend; [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) is the published V7 encoder baseline; [`pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3) is the current V8 encoder release; [`pyrrho-MoE-g3-mvp`](https://huggingface.co/yafitzdev/pyrrho-MoE-g3-mvp) is the experimental generative MoE MVP. The three projects form a triangle: benchmark, models, library.
 
 Yan Fitzner — ([LinkedIn](https://www.linkedin.com/in/yan-fitzner/), [GitHub](https://github.com/yafitzdev)).
 
@@ -105,7 +107,7 @@ Yan Fitzner — ([LinkedIn](https://www.linkedin.com/in/yan-fitzner/), [GitHub](
 
 ### Headline results
 
-Latest encoder — `pyrrho-nano-g3` on published fitz-gov V8.0.0 default `v8` splits. 3-seed mean ± std on the 2,459-row held-out test split; validation is used only for checkpoint and threshold selection:
+Latest encoder — `pyrrho-nano-g3` on published fitz-gov V8.0.1 default `v8` splits. 3-seed mean ± std on the 2,459-row held-out test split; validation is used only for checkpoint and threshold selection:
 
 | Metric | **pyrrho-nano-g3** |
 |---|---|
@@ -178,7 +180,7 @@ Three tiers, generation-suffixed by the fitz-gov data version they were trained 
 - **`pyrrho-small`** — fine-tuned generative SLM (1–3B dense). Classification + reasoning trace.
 - **`pyrrho-MoE`** — sparse Mixture-of-Experts trained from scratch (4B total / 0.4B active). The terminal architecture; covers 16 RAG governance capabilities in v1.
 
-Dataset status, 2026-05-26: published fitz-gov is **V8.0.0** on Hugging Face. Default config `v8` has **24,592 rows** (2,980 V6 + 7,520 V7 + 14,092 V8) with query-grouped splits: train=19,674 / validation=2,459 / test=2,459. V8.0.0 is the current `g3` training contract; V7.0.1 remains the published `g2` contract.
+Dataset status, 2026-05-31: published fitz-gov is **V8.0.1** on Hugging Face. Default config `v8` has **24,592 rows** (2,980 V6 + 7,520 V7 + 14,092 V8) with query-grouped splits: train=19,674 / validation=2,459 / test=2,459. V8.0.1 is the current `g3` training contract; V7.0.1 remains the published `g2` contract.
 
 <br>
 
@@ -187,9 +189,10 @@ Dataset status, 2026-05-26: published fitz-gov is **V8.0.0** on Hugging Face. De
 | [`pyrrho-nano-g1`](https://huggingface.co/yafitzdev/pyrrho-nano-g1) | encoder | 149M | ✅ **live on HF** (trained on fitz-gov V5.1) |
 | `pyrrho-nano-g1.1` | encoder | 149M | local V6 retrain attempted; not released; superseded by `pyrrho-nano-g2` |
 | [`pyrrho-nano-g2`](https://huggingface.co/yafitzdev/pyrrho-nano-g2) | encoder | 149M | **live on HF** (trained on fitz-gov V7.0.1 schema-clean contract); **95.24 ± 0.48% acc / 3.48 ± 0.40% FT** on held-out V7 test |
-| [`pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3) | encoder | 149M | **live on HF** (trained on fitz-gov V8.0.0); **97.52 ± 0.43% acc / 1.42 ± 0.16% FT** on held-out V8 test |
+| [`pyrrho-nano-g3`](https://huggingface.co/yafitzdev/pyrrho-nano-g3) | encoder | 149M | **live on HF** (trained on fitz-gov V8.0.1 row-equivalent contract); **97.52 ± 0.43% acc / 1.42 ± 0.16% FT** on held-out V8 test |
 | `pyrrho-small-g2` | generative SLM | 1–3B dense | planned — V8 SLM baseline with asymmetric safety pressure or RL fine-tuning |
-| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | experimental — Stage 0 prototype and Qwen upcycling scaffold run locally; next lever is router-aware distillation or custom sparse-expert adapters |
+| [`pyrrho-MoE-g3-mvp`](https://huggingface.co/yafitzdev/pyrrho-MoE-g3-mvp) | sparse MoE | 4.083B total / 0.424B active | **live on HF** as the experimental Pyrrho MoE MVP; Q4_K_M GGUF full-sequence label scoring: **82.15% acc / 5.27% FT**, about **4.224 GiB** peak RSS |
+| `pyrrho-MoE-g3` | sparse MoE | 4B total / 0.4B active | planned quality iteration after the MVP baseline |
 | `pyrrho-MoE-g4` | sparse MoE | 4B total / 0.4B active | planned — V9+ retrain, infrastructure-grade reliability (ROADMAP Phase 6) |
 
 Full release roadmap, expert specifications, evaluation metrics, and publication strategy in [`docs/ROADMAP.md`](docs/ROADMAP.md). The older 10-release breakdown in [`docs/PROJECT.md §10`](docs/PROJECT.md) is retained for historical context but superseded.
@@ -291,7 +294,7 @@ Full methodology, release gates, and W&B conventions in [`docs/METHODOLOGY.md`](
 ### Related projects
 
 - [**`fitz-sage`**](https://github.com/yafitzdev/fitz-sage) — production RAG library that uses `pyrrho` for governance.
-- [**`fitz-gov`**](https://github.com/yafitzdev/fitz-gov) — benchmark for RAG epistemic honesty. Published HF version is V8.0.0 with 24,592 query-grouped rows. Also on HF: [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov).
+- [**`fitz-gov`**](https://github.com/yafitzdev/fitz-gov) — benchmark for RAG epistemic honesty. Published HF version is V8.0.1 with 24,592 query-grouped rows. Also on HF: [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov).
 
 The three projects form a triangle: `fitz-gov` defines the eval contract, `pyrrho` produces the models, `fitz-sage` consumes them in production.
 

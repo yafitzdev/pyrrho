@@ -44,3 +44,26 @@ def test_moe_config_requires_even_semantic_shards() -> None:
     cfg = PyrrhoMoEConfig(experts_per_moe_layer=10)
     with pytest.raises(ValueError, match="divide evenly"):
         cfg.parameter_counts()
+
+
+def test_moe_config_accepts_explicit_uneven_semantic_shards() -> None:
+    cfg = PyrrhoMoEConfig(
+        dense_ffn_layers=0,
+        moe_ffn_layers=24,
+        experts_per_moe_layer=14,
+        semantic_expert_shards={
+            "science_medicine": 2,
+            "law_policy": 2,
+            "history_geography": 1,
+            "technology_computing": 2,
+            "economics_finance": 2,
+            "culture_society": 1,
+            "general_commonsense": 2,
+            "conflict_detection": 2,
+        },
+    )
+    report = cfg.budget_report()
+
+    assert report["derived"]["physical_shards_per_group"] is None
+    assert report["derived"]["semantic_expert_shards"]["conflict_detection"] == 2
+    assert all(report["budget_checks"].values())

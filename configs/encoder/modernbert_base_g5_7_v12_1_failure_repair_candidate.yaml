@@ -1,0 +1,66 @@
+# pyrrho-nano-g5.7 V12.1 failure-repair candidate multitask ModernBERT encoder.
+# Data: g5.6 V12 focused-medium candidate rows plus 1,200 V12.1 failure-repair candidates.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  init_from: models/pyrrho-nano-g5.6
+  tokenizer_from: models/pyrrho-nano-g5.6
+  dropout: 0.0
+
+architecture:
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+
+data:
+  fitz_gov_local: ../fitz-gov/data/_workspaces/reports/v12_1_cases_plus_g5_7_failure_repair_20260616.jsonl
+  fitz_gov_base_revision: v11.0.0_plus_v12_candidate
+  target_profile: failure_repair
+  moe_output_dir: data/multitask_g5_7_v12_1_failure_repair_candidate
+  input_dir: data/multitask_g5_7_v12_1_failure_repair_candidate
+  require_query_contract: true
+  require_retrieval_control: true
+  max_seq_length: 4096
+  max_query_length: 256
+  scalar_fields:
+    - evidence_sufficiency
+    - query_evidence_alignment
+    - answer_coverage
+    - conflict_density
+    - retrieval_retry_value
+    - false_trustworthy_risk
+    - evidence_failure_severity
+
+training:
+  output_dir: outputs/pyrrho-nano-g5_7_v12_1_failure_repair_candidate/seed_1337
+  num_train_epochs: 2
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_workers: 0
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  max_grad_norm: 1.0
+  bf16: true
+  label_smoothing: 0.10
+  governance_class_weights: [2.3, 2.3, 1.0]
+  balance_query_contract: true
+  seed: 1337
+
+loss:
+  governance: 1.0
+  query_contract: 0.55
+  route: 0.20
+  taxonomy: 0.25
+  scalars: 0.25
+  retrieval_action: 0.20
+  gap_type: 0.24
+  answerability_shape: 0.18
+  retrieval_modality: 0.18
+  retrieval_obligation: 0.22

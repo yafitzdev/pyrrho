@@ -1,0 +1,66 @@
+# pyrrho-nano-g5.6 focused-medium V12 candidate multitask ModernBERT encoder.
+# Data: official fitz-gov V11.0.0 rows plus 7,061 local focused-medium candidates.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  init_from: models/pyrrho-nano-g5.5
+  tokenizer_from: models/pyrrho-nano-g5.5
+  dropout: 0.0
+
+architecture:
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+
+data:
+  fitz_gov_local: ../fitz-gov/data/_workspaces/reports/v12_cases_plus_g5_6_focused_medium_20260615.jsonl
+  fitz_gov_base_revision: v11.0.0
+  target_profile: focused_medium
+  moe_output_dir: data/multitask_g5_6_v12_focused_medium_candidate
+  input_dir: data/multitask_g5_6_v12_focused_medium_candidate
+  require_query_contract: true
+  require_retrieval_control: true
+  max_seq_length: 4096
+  max_query_length: 256
+  scalar_fields:
+    - evidence_sufficiency
+    - query_evidence_alignment
+    - answer_coverage
+    - conflict_density
+    - retrieval_retry_value
+    - false_trustworthy_risk
+    - evidence_failure_severity
+
+training:
+  output_dir: outputs/pyrrho-nano-g5_6_v12_focused_medium_candidate/seed_1337
+  num_train_epochs: 2
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_workers: 0
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  max_grad_norm: 1.0
+  bf16: true
+  label_smoothing: 0.10
+  governance_class_weights: [2.3, 2.3, 1.0]
+  balance_query_contract: true
+  seed: 1337
+
+loss:
+  governance: 1.0
+  query_contract: 0.55
+  route: 0.20
+  taxonomy: 0.25
+  scalars: 0.25
+  retrieval_action: 0.20
+  gap_type: 0.24
+  answerability_shape: 0.18
+  retrieval_modality: 0.18
+  retrieval_obligation: 0.22

@@ -1,0 +1,186 @@
+# pyrrho-MoE-g4-real - OLMoE stock-runtime carrier candidate.
+#
+# This is the current public-carrier candidate after the user rejected public
+# Mixtral/Qwen metadata. A tiny random OlmoeForCausalLM checkpoint converts with
+# clean upstream llama.cpp and loads/generates with clean upstream llama-cli.
+#
+# OLMoE carrier constraints observed in the tiny proof:
+# - untied output embeddings are required by the stock converter/runtime path
+# - num_key_value_heads must equal num_attention_heads for the stock OLMoE
+#   q/k norm tensor shape
+# - tokenizer/vocab follows the OLMoE tokenizer seed: 50,304 tokens
+#
+# This config is a parameter/runtime-shape gate candidate. It is not trained.
+
+name: pyrrho-MoE-g4-real
+
+architecture:
+  runtime_carrier: OlmoeForCausalLM
+  model_type: olmoe
+  layers: 24
+  hidden_size: 1024
+  attention_heads: 16
+  kv_heads: 16
+  attention_qk_norms: true
+  ffn_dim: 2688
+  dense_ffn_layers: 0
+  moe_ffn_layers: 24
+  experts_per_moe_layer: 19
+  top_k: 1
+  vocab_size: 50304
+  tied_embeddings: false
+  taxonomy_patterns: 23
+  scalar_heads: 15
+  governance_classes: 3
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+    - conflict_detection
+  semantic_expert_shards:
+    science_medicine: 3
+    law_policy: 3
+    history_geography: 2
+    technology_computing: 3
+    economics_finance: 2
+    culture_society: 2
+    general_commonsense: 2
+    conflict_detection: 2
+
+runtime_gate:
+  target: stock_llama_cpp_and_lm_studio_class_loadability
+  selected_carrier: OlmoeForCausalLM
+  selected_model_type: olmoe
+  status: donor_initialized_stock_load_passed_adapter_sft_distillation_gate_up_and_head_topnorm_quality_negative
+  public_carrier_rule: do_not_ship_public_metadata_as_mixtral_or_qwen
+  carrier_probe_report: outputs/moe/g4_real_stock_runtime_carrier/olmoe_stock_runtime_carrier_probe_report.json
+  full_structural_probe_report: outputs/moe/g4_real_stock_runtime_carrier/olmoe_full_stock_runtime_probe_report.json
+  donor_initialized_runtime_probe_report: outputs/moe/g4_real_olmoe_donor_init/donor_init_runtime_probe_report.json
+  internal_mixtral_probe_report: outputs/moe/g4_real_stock_runtime_carrier/stock_runtime_carrier_probe_report.json
+  donor_initialization:
+    status: olmoe_1b7b_block_resize_passed_stock_load
+    donor: allenai/OLMoE-1B-7B-0924
+    strategy: layer_interpolation_plus_axis_block_mean_or_nearest_repeat
+    hf_checkpoint: outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_block_resize_hf
+    gguf: outputs/moe/g4_real_olmoe_donor_init/pyrrho_g4_real_olmoe_1b7b_block_resize_f16.gguf
+    gguf_sha256: e646c254f4bf7f11605ef6b9dc463994245ff104b6d4e711f635b05baacefaf4
+    quality_status: adapter_sft_teacher_distillation_gate_up_surface_and_head_topnorm_init_quality_negative
+    bounded_sft_summary: outputs/moe/g4_real_olmoe_donor_init/sft_probe_summary_2026-05-31.json
+    teacher_distillation_summary: outputs/moe/g4_real_olmoe_donor_init/teacher_distillation_probe_summary_2026-05-31.json
+    gate_up_expert_surface_summary: outputs/moe/g4_real_olmoe_donor_init/gate_up_expert_surface_probe_summary_2026-05-31.json
+    head_topnorm_slice_init_summary: outputs/moe/g4_real_olmoe_donor_init/head_topnorm_slice_init_probe_summary_2026-05-31.json
+    best_small_gated_label_score:
+      accuracy: 0.390625
+      false_trustworthy_rate: 0.0
+      tau: 0.55
+    scaled_attention_lora_label_score:
+      train_rows: 1024
+      eval_rows: 256
+      accuracy: 0.3359375
+      false_trustworthy_rate: 0.005847953216374269
+      tau: 0.50
+    raw_router_lm_head_unfreeze_status: float16_training_nan_from_step_2
+    stable_adaptation_summary: outputs/moe/g4_real_olmoe_donor_init/stable_adaptation_probe_summary_2026-05-31.json
+    stable_adaptation_status: mechanically_positive_quality_negative
+    expert_down_lora_probe:
+      rank: 4
+      train_rows: 256
+      eval_rows: 64
+      accuracy: 0.375
+      false_trustworthy_rate: 0.023255813953488372
+      tau: 0.50
+    attention_plus_expert_down_lora_probe:
+      train_rows: 256
+      eval_rows: 64
+      accuracy: 0.3125
+      false_trustworthy_rate: 0.0
+      tau: 0.50
+    teacher_distillation_status: mechanically_positive_quality_negative
+    teacher_eval_sample:
+      rows: 64
+      accuracy: 0.96875
+      false_trustworthy_rate: 0.023255813953488372
+    best_teacher_distillation_probe:
+      train_rows: 128
+      eval_rows: 64
+      adaptation_surface: expert_down_lora_rank_4
+      teacher_weight: 1.0
+      accuracy: 0.390625
+      false_trustworthy_rate: 0.023255813953488372
+      tau: 0.50
+    gate_up_expert_surface_status: mechanically_positive_quality_negative
+    gate_up_plus_down_lora_lr1e4_probe:
+      train_rows: 128
+      eval_rows: 64
+      trainable_parameters: 18444288
+      raw_tau_050_accuracy: 0.359375
+      raw_tau_050_false_trustworthy_rate: 0.4883720930232558
+      best_gate_passing_tau: 0.65
+      best_gate_passing_accuracy: 0.34375
+      best_gate_passing_false_trustworthy_rate: 0.023255813953488372
+    gate_up_plus_down_lora_lr3e5_probe:
+      train_rows: 128
+      eval_rows: 64
+      trainable_parameters: 18444288
+      tau_050_accuracy: 0.3125
+      tau_050_false_trustworthy_rate: 0.023255813953488372
+      best_gate_passing_tau: 0.55
+      best_gate_passing_accuracy: 0.328125
+      best_gate_passing_false_trustworthy_rate: 0.0
+    head_topnorm_slice_init_status: mechanically_positive_quality_negative
+    head_topnorm_seed:
+      hf_checkpoint: outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_head_topnorm_slice_hf
+      strategy: layer_interpolation_plus_head_topnorm_hidden_slice_or_nearest_repeat
+      hidden_index_count: 1024
+      copied_parameter_count: 3969688576
+      missing_target_parameters: 0
+    head_topnorm_best_expert_down_distill_probe:
+      train_rows: 128
+      eval_rows: 64
+      adaptation_surface: expert_down_lora_rank_4
+      teacher_weight: 1.0
+      best_gate_passing_tau: 0.70
+      best_gate_passing_accuracy: 0.390625
+      best_gate_passing_false_trustworthy_rate: 0.046511627906976744
+      note: ties_old_accuracy_ceiling_but_is_less_safe_than_block_resize_same_recipe
+  known_carrier_constraints:
+    - untied_output_head_required
+    - kv_heads_must_equal_attention_heads_for_stock_olmoe_qk_norm_shape
+    - vocab_size_50304_from_olmoe_tokenizer_seed
+  disallowed:
+    - patched_llama_cpp
+    - qwen3moe_mlp_only_layers
+    - public_mixtral_model_type
+    - custom_gguf_loader_behavior
+    - label_scoring_only_release
+  required_next:
+    - stronger_initialization_or_training_surface_before_scaleup
+    - preserve_full_stock_runtime_shape_during_training
+    - rerun_full_gguf_and_lm_studio_load_after_quality_positive_trained_weights
+
+data:
+  fitz_gov_hf: yafitzdev/fitz-gov
+  fitz_gov_config: v8
+  fitz_gov_revision: v8.0.1
+  moe_output_dir: data/moe_v8
+  max_seq_length: 4096
+  scalar_fields:
+    - trustworthy
+    - disputed
+    - abstain
+    - confidence
+    - grounding
+    - conflict_density
+    - evidence_sufficiency
+    - domain_familiarity
+    - false_trustworthy_risk
+    - hallucination_pressure
+    - retrieval_retry_value
+    - human_escalation_score
+    - query_evidence_alignment
+    - answer_coverage
+    - evidence_bias_score

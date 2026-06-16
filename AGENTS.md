@@ -9,12 +9,13 @@ Fine-tuned classification models for RAG governance. Given a `(query, retrieved_
 ## Read these in order on any fresh session
 
 1. **[docs/HANDOFF.md](docs/HANDOFF.md)** — current state snapshot. Always reflects "what's true right now." Read this first.
-2. **[docs/ROADMAP.md](docs/ROADMAP.md)** — current vision: model tiers (`pyrrho-nano` / `-small` / `-MoE`), fitz-gov data path (V5.1 → V6 → V7 → V8), training phases through pyrrho-MoE. Supersedes PROJECT.md §10 release table.
-3. **[docs/LOG.md](docs/LOG.md)** — append-only project history. Read when HANDOFF mentions something you don't have context on.
-4. **[docs/PROJECT.md](docs/PROJECT.md)** — original vision document. Still load-bearing for §1–§9, §11–§18. Section §10 release table is superseded by ROADMAP.md.
-5. **[docs/METHODOLOGY.md](docs/METHODOLOGY.md)** — the 8-step pipeline every release follows.
-6. **[docs/SETUP.md](docs/SETUP.md)** — RTX 5090 / Blackwell / Windows specifics.
-7. **[docs/INDEX.md](docs/INDEX.md)** — index of all docs with reading order.
+2. **[docs/GOAL.md](docs/GOAL.md)** — active north-star goal. Current target is the real ~4B/A0.4B CPU-executable generative `pyrrho-MoE` MVP, not more alpha-quorum hardening.
+3. **[docs/ROADMAP.md](docs/ROADMAP.md)** — current vision: model tiers (`pyrrho-nano` / `-small` / `-MoE`), fitz-gov data path (V5.1 → V6 → V7 → V8), training phases through pyrrho-MoE. Supersedes PROJECT.md §10 release table.
+4. **[docs/LOG.md](docs/LOG.md)** — append-only project history. Read when HANDOFF mentions something you don't have context on.
+5. **[docs/PROJECT.md](docs/PROJECT.md)** — original vision document. Still load-bearing for §1–§9, §11–§18. Section §10 release table is superseded by ROADMAP.md.
+6. **[docs/METHODOLOGY.md](docs/METHODOLOGY.md)** — the 8-step pipeline every release follows.
+7. **[docs/SETUP.md](docs/SETUP.md)** — RTX 5090 / Blackwell / Windows specifics.
+8. **[docs/INDEX.md](docs/INDEX.md)** — index of all docs with reading order.
 
 ---
 

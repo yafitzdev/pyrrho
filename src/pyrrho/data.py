@@ -107,6 +107,46 @@ RETRIEVAL_MODALITY_ID2LABEL: dict[int, str] = {
     idx: label for label, idx in RETRIEVAL_MODALITY_LABEL2ID.items()
 }
 
+RETRIEVAL_OBLIGATION_LABELS: tuple[str, ...] = (
+    "row_key_lookup",
+    "column_value_lookup",
+    "multi_row_comparison",
+    "aggregate_or_count",
+    "stale_row_version",
+    "symbol_definition",
+    "constant_or_env_var",
+    "call_path_or_helper",
+    "test_or_execution_result",
+    "versioned_api_behavior",
+    "config_key_value",
+    "default_or_fallback",
+    "environment_override",
+    "version_scope",
+    "conflicting_config_sources",
+    "status_or_outcome",
+    "timestamp_ordering",
+    "error_signature",
+    "correlation_id",
+    "missing_run_result",
+    "table_or_figure_reference",
+    "footnote_or_caption",
+    "section_header_scope",
+    "page_or_revision_scope",
+    "form_or_field_value",
+    "prose_plus_table",
+    "prose_plus_code",
+    "table_plus_config",
+    "policy_plus_latest_row",
+    "log_plus_config",
+    "code_plus_changelog",
+)
+RETRIEVAL_OBLIGATION_LABEL2ID: dict[str, int] = {
+    label: idx for idx, label in enumerate(RETRIEVAL_OBLIGATION_LABELS)
+}
+RETRIEVAL_OBLIGATION_ID2LABEL: dict[int, str] = {
+    idx: label for label, idx in RETRIEVAL_OBLIGATION_LABEL2ID.items()
+}
+
 PYRRHO_G3_1_SCALAR_FIELDS: tuple[str, ...] = (
     "evidence_sufficiency",
     "query_evidence_alignment",

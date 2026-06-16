@@ -140,12 +140,79 @@ def reset_output_dir(output_dir: Path, *, overwrite: bool) -> None:
 def seed_report(summary: dict[str, Any], seed: int) -> dict[str, Any]:
     reports = summary.get("seed_reports") or {}
     key = str(seed)
-    if key not in reports:
+    if isinstance(reports, dict):
+        if key not in reports:
+            raise KeyError(f"seed {seed} not present in summary")
+        return normalize_report_for_packaging(reports[key])
+    if isinstance(reports, list):
+        for entry in reports:
+            if int(entry.get("seed", -1)) != int(seed):
+                continue
+            metrics_path = entry.get("path")
+            if metrics_path and Path(metrics_path).exists():
+                return normalize_report_for_packaging(read_json(Path(metrics_path)))
+            if "test_key_metrics" in entry:
+                threshold = float(entry["test_key_metrics"].get("threshold", 0.5))
+                return {
+                    "best_epoch": entry.get("best_epoch"),
+                    "eval": {"threshold": threshold},
+                    "test": dict(entry["test_key_metrics"]),
+                }
         raise KeyError(f"seed {seed} not present in summary")
-    return reports[key]
+    raise TypeError("summary seed_reports must be a dict or list")
+
+
+def flatten_split_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Normalize nested trainer metrics to the older flat package format."""
+    flat: dict[str, Any] = {}
+    for key, value in metrics.items():
+        if not isinstance(value, dict):
+            flat[key] = value
+
+    governance = metrics.get("governance_calibrated")
+    if isinstance(governance, dict):
+        for key, value in governance.items():
+            if key == "threshold":
+                flat["threshold"] = value
+                flat["gov_threshold"] = value
+            elif key == "target_met":
+                flat["gov_target_met"] = value
+            else:
+                flat[f"gov_{key}"] = value
+
+    for group in (
+        "query_contract",
+        "route",
+        "taxonomy",
+        "scalars",
+        "retrieval_action",
+        "gap_type",
+        "answerability_shape",
+        "retrieval_modality",
+        "retrieval_obligation",
+    ):
+        group_metrics = metrics.get(group)
+        if isinstance(group_metrics, dict):
+            flat.update(group_metrics)
+    return flat
+
+
+def normalize_report_for_packaging(report: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(report)
+    for split in ("eval", "test"):
+        split_metrics = normalized.get(split)
+        if isinstance(split_metrics, dict):
+            normalized[split] = flatten_split_metrics(split_metrics)
+    return normalized
 
 
 def default_selection_reason(model_name: str, seed: int) -> str:
+    if model_name.endswith("g4"):
+        return (
+            f"Seed {seed} was selected from the completed official fitz-gov "
+            "V9.0.0 3-seed run because it has the strongest validation "
+            "composite score and the best balanced auxiliary-head tradeoff."
+        )
     if model_name.endswith("g3.2"):
         return (
             f"Seed {seed} was selected after reviewing the completed 3-seed V8.2 "
@@ -168,6 +235,7 @@ def has_retrieval_control(report: dict[str, Any]) -> bool:
             "gap_type_macro_f1",
             "answerability_shape_macro_f1",
             "retrieval_modality_macro_f1",
+            "retrieval_obligation_macro_f1",
         )
     )
 
@@ -180,9 +248,37 @@ def metric_row(metrics: dict[str, Any], label: str, key: str) -> str:
 
 def aggregate_row(summary: dict[str, Any], label: str, key: str, *, percent: bool) -> str:
     aggregate = summary.get("aggregate", {}).get("test", {})
-    if key not in aggregate:
+    aggregate_key = key
+    if aggregate_key not in aggregate:
+        aliases = {
+            "gov_accuracy": ("governance_calibrated.accuracy", "governance_accuracy"),
+            "gov_false_trustworthy_rate": (
+                "governance_calibrated.false_trustworthy_rate",
+                "false_trustworthy_rate",
+            ),
+            "query_contract_macro_f1": ("query_contract.query_contract_macro_f1",),
+            "route_accuracy": ("route.route_accuracy",),
+            "taxonomy_accuracy": ("taxonomy.taxonomy_accuracy",),
+            "scalar_mae": ("scalars.scalar_mae",),
+            "retrieval_action_macro_f1": ("retrieval_action.retrieval_action_macro_f1",),
+            "gap_type_macro_f1": ("gap_type.gap_type_macro_f1",),
+            "answerability_shape_macro_f1": (
+                "answerability_shape.answerability_shape_macro_f1",
+            ),
+            "retrieval_modality_macro_f1": (
+                "retrieval_modality.retrieval_modality_macro_f1",
+            ),
+            "retrieval_obligation_macro_f1": (
+                "retrieval_obligation.retrieval_obligation_macro_f1",
+            ),
+        }
+        for candidate in aliases.get(key, ()):
+            if candidate in aggregate:
+                aggregate_key = candidate
+                break
+    if aggregate_key not in aggregate:
         return ""
-    row = aggregate[key]
+    row = aggregate[aggregate_key]
     mean = float(row["mean"])
     std = float(row["std"])
     if percent:
@@ -206,7 +302,247 @@ def release_readme(
 ) -> str:
     test = report["test"]
     retrieval_control = has_retrieval_control(report)
-    if retrieval_control:
+    has_retrieval_obligation = "retrieval_obligation_macro_f1" in test
+    is_g4_alpha = "g4-alpha" in model_name
+    is_g4_target100 = "g4-target100" in model_name or "g4-v9-target100" in model_name
+    is_g4_official = (
+        model_name == "pyrrho-nano-g4"
+        or "g4-v9-official" in model_name
+        or "g4_v9_official" in model_name
+    )
+    is_g5_alpha = "g5-alpha" in model_name
+    is_g5_repair = model_name == "pyrrho-nano-g5.1" or "g5_1" in model_name
+    is_g5_5 = model_name == "pyrrho-nano-g5.5" or "g5_5" in model_name
+    is_g5_6 = (
+        model_name == "pyrrho-nano-g5.6"
+        or "g5.6" in model_name
+        or "g5_6" in model_name
+    )
+    is_g5_official = model_name == "pyrrho-nano-g5" or "g5_v10_target10" in model_name
+    if is_g5_official or is_g5_repair or is_g5_5 or is_g5_6:
+        if is_g5_6:
+            comparison = (
+                "Compared with `pyrrho-nano-g5.5`, this local candidate starts "
+                "from the g5.5 checkpoint and adds 7,061 V12 focused-medium "
+                "retrieval-planning rows targeted at the remaining strict-owner "
+                "fitz-sage gaps."
+            )
+        elif is_g5_5:
+            comparison = (
+                "Compared with `pyrrho-nano-g5`, this package trains the same "
+                "multitask surface on the official fitz-gov V11.0.0 repair "
+                "release, adding targeted strict-owner retrieval-planning rows "
+                "for class obligations, failure-focused cases, and larger "
+                "retrieval evidence packs."
+            )
+        elif is_g5_repair:
+            comparison = (
+                "Compared with `pyrrho-nano-g5`, this local repair rebuilds "
+                "the same V10 target-10 training rows after fixing retrieval-"
+                "action alias normalization so TRUSTWORTHY rows with no "
+                "evidence gap train as `answer_now`, not `retrieve_more`."
+            )
+        else:
+            comparison = (
+                "Compared with `pyrrho-nano-g5-alpha`, this package expands the "
+                "V10 retrieval-obligation training block from the initial 5/5/5 "
+                "candidate set to the full target-10 candidate set and uses a "
+                "completed 3-seed run."
+            )
+        if is_g5_6:
+            data_description = (
+                "Trained from the local `pyrrho-nano-g5.5` checkpoint on the "
+                "official fitz-gov V11.0.0 row set plus 7,061 local V12/g5.6 "
+                "focused-medium candidate rows. Total prepared rows: 67,944 = "
+                "2,980 V6 rows + 7,520 V7 rows + 14,092 V8 rows + 16,163 V9 "
+                "rows + 12,748 V10 rows + 7,380 V11 rows + 7,061 V12 candidate "
+                "rows. Prepared splits are train=54,416 / validation=6,778 / "
+                "test=6,750. The V12 candidate block is structurally validated, "
+                "duplicate-clean, and gap-closed against the saved focused-medium "
+                "plan, but it has not received blind-label QA."
+            )
+            limitation_extra = (
+                "- This is a local candidate, not a publishable official release.\n"
+                "- The 7,061 V12/g5.6 candidate rows are structurally clean and "
+                "gap-targeted, but not blind-label QAed.\n"
+                "- This package exists to test whether the focused-medium data "
+                "moves fitz-sage strict-owner behavior before committing to a "
+                "larger V12 expansion.\n"
+                "- The retrieval-obligation head is trained only on rows with a "
+                "concrete retrieval obligation; rows with `retrieval_obligation=none` "
+                "are masked for that head.\n"
+            )
+        elif is_g5_5:
+            data_description = (
+                "Trained on the published fitz-gov V11.0.0 Hugging Face release "
+                "with official query-grouped splits. Total prepared rows: 60,883 "
+                "= 2,980 V6 rows + 7,520 V7 rows + 14,092 V8 rows + 16,163 V9 "
+                "rows + 12,748 V10 rows + 7,380 V11 rows. Splits are "
+                "train=48,800 / validation=6,028 / test=6,055. Split assignments "
+                "come from `v11/split_assignments.jsonl` at dataset commit "
+                "`580809e42376d84284043689c702de4c500bca85`."
+            )
+            limitation_extra = (
+                "- The retrieval-obligation head is trained only on rows with a "
+                "concrete retrieval obligation; rows with `retrieval_obligation=none` "
+                "are masked for that head.\n"
+                "- Retrieval obligation and retrieval modality are planning heads. "
+                "Low-confidence fine-grained obligations should be treated as "
+                "retrieval hints, not hard guarantees.\n"
+                "- This package is trained against the official V11 benchmark "
+                "contract; fitz-sage integration still needs a separate strict-owner "
+                "benchmark run before declaring a production upgrade.\n"
+            )
+        else:
+            data_description = (
+                "Trained on published fitz-gov V9.0.0 plus 12,748 local V10 "
+                "target-10 retrieval-planning candidates. The V10 block combines "
+                "6,058 initial 5/5/5 rows with 6,690 target-10 continuation rows; "
+                "after repair, blind-label QA scored 12,748/12,748 agreement with "
+                "0 triage, 0 missing, 0 invalid, and 0 error rows. Prepared splits "
+                "are train=42,826 / validation=5,372 / test=5,305. Treat this as a "
+                "local release candidate until the repaired V10 block is published "
+                "as an official fitz-gov release."
+            )
+            limitation_extra = (
+                "- This package depends on local V10 candidate rows that are QA-clean "
+                "but not yet published as an official fitz-gov release.\n"
+                "- The retrieval-obligation head is trained only on the V10 candidate "
+                "rows; official V9 rows are masked for that head.\n"
+                + (
+                    "- This is a local repair checkpoint, not a published release. "
+                    "fitz-sage benchmark pass rate improved versus g5, but mixed "
+                    "table/prose/code retrieval remains unresolved.\n"
+                    if is_g5_repair
+                    else ""
+                )
+                + "- Retrieval obligation is the main remaining weak head. Low-support "
+                "or fine-grained obligations such as row-key lookup, column-value "
+                "lookup, stale-row versioning, and mixed-modality obligations should "
+                "be treated as planning hints, not hard guarantees.\n"
+            )
+        answerability_head_row = (
+            "| `answerability_shape` | `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, `structured_reasoning` | Query-only collapsed answer "
+            "shape for retrieval planning. |"
+        )
+    elif is_g5_alpha:
+        comparison = (
+            "Compared with `pyrrho-nano-g4`, this alpha package keeps the "
+            "official V9 governance/retrieval-control surface and adds a "
+            "query-only V10 `retrieval_obligation` head for corpus-aware "
+            "evidence-contract planning."
+        )
+        data_description = (
+            "Trained on the published fitz-gov V9.0.0 Hugging Face release plus "
+            "6,058 local V10 5/5/5 retrieval-planning candidates from "
+            "`data/_workspaces/handoff/v10_cogeneration_5x5_20260612`. The V10 "
+            "candidate block passed post-repair structural validation and quality "
+            "audit, but has not received independent blind-label QA."
+        )
+        limitation_extra = (
+            "- This is an alpha integration checkpoint, not a public release-quality "
+            "benchmark replacement for `pyrrho-nano-g4`.\n"
+            "- The V10 candidate block is structurally clean and targeted, but not "
+            "blind-label QAed. Treat metrics as development signals.\n"
+            "- The retrieval-obligation head is trained only on the V10 candidate "
+            "rows; official V9 rows are masked for that head.\n"
+        )
+        answerability_head_row = (
+            "| `answerability_shape` | `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, `structured_reasoning` | Query-only collapsed answer "
+            "shape for retrieval planning. |"
+        )
+    elif is_g4_alpha:
+        comparison = (
+            "Compared with `pyrrho-nano-g3.2`, this alpha package keeps the "
+            "retrieval-control head surface but collapses answerability into the "
+            "four V9 planning labels: `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, and `structured_reasoning`."
+        )
+        data_description = (
+            "Trained on a local alpha dataset made from published fitz-gov V8.2.0 "
+            "plus local V9 rows: 24,592 V8.2 rows, 750 locally merged V9 rows, "
+            "and 10,020 structurally clean V9 candidate rows from batches 100-433. "
+            "The 10,020 candidate rows have not received blind-label QA."
+        )
+        limitation_extra = (
+            "- This is an alpha integration checkpoint, not a public release-quality "
+            "benchmark or replacement for `pyrrho-nano-g3.2`.\n"
+            "- The four-way answerability head is intentionally collapsed for "
+            "fitz-sage integration; it does not expose the old eleven detailed "
+            "answerability labels.\n"
+            "- The V9 candidate block was structurally normalized and label-trusted, "
+            "but not blind-label QAed. Treat metrics as development signals.\n"
+            "- Retrieval modality remains weak for sparse subclasses such as "
+            "`pdf_layout`, `code`, and `configuration`.\n"
+        )
+        answerability_head_row = (
+            "| `answerability_shape` | `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, `structured_reasoning` | Query-only collapsed answer "
+            "shape for retrieval planning. |"
+        )
+    elif is_g4_official:
+        comparison = (
+            "Compared with `pyrrho-nano-g3.2`, this package keeps the "
+            "retrieval-control head surface but collapses answerability into the "
+            "four V9 planning labels: `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, and `structured_reasoning`."
+        )
+        data_description = (
+            "Trained on the published fitz-gov V9.0.0 Hugging Face release with "
+            "official query-grouped splits. Total prepared rows: 40,755 = 2,980 "
+            "V6 rows + 7,520 V7 rows + 14,092 V8 rows + 16,163 V9 rows. Splits "
+            "are train=32,625 / validation=4,104 / test=4,026. Split assignments "
+            "come from `v9/split_assignments.jsonl` at dataset commit "
+            "`874fd18d4952eec0e72b6df2264f8281615fd350`."
+        )
+        limitation_extra = (
+            "- The four-way answerability head is intentionally collapsed for "
+            "fitz-sage integration; it does not expose the old eleven detailed "
+            "answerability labels.\n"
+            "- Retrieval modality remains the weakest auxiliary head; sparse "
+            "subclasses such as `pdf_layout`, `code`, and `configuration` should "
+            "be treated as hints, not hard guarantees.\n"
+        )
+        answerability_head_row = (
+            "| `answerability_shape` | `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, `structured_reasoning` | Query-only collapsed answer "
+            "shape for retrieval planning. |"
+        )
+    elif is_g4_target100:
+        comparison = (
+            "Compared with `pyrrho-nano-g3.2`, this local candidate keeps the "
+            "retrieval-control head surface but collapses answerability into the "
+            "four V9 planning labels: `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, and `structured_reasoning`."
+        )
+        data_description = (
+            "Trained on `data/multitask_g4_v9_target100`, built from published "
+            "fitz-gov V8.2.0 plus the QA-gated local V9 target-100 vault. Total "
+            "prepared rows: 40,755 = 24,592 published V8.2 rows + 16,163 local "
+            "V9 rows. Splits are train=32,617 / eval=4,051 / test=4,087. The "
+            "local V9 expansion closed all 189 answerability target cells at "
+            "100/cell before training prep."
+        )
+        limitation_extra = (
+            "- This is a pre-public-split local candidate, superseded by the "
+            "official fitz-gov V9.0.0 `pyrrho-nano-g4` run; do not treat it as "
+            "a final public release.\n"
+            "- The four-way answerability head is intentionally collapsed for "
+            "fitz-sage integration; it does not expose the old eleven detailed "
+            "answerability labels.\n"
+            "- The local V9 rows were QA-gated, but this package uses the "
+            "pre-public local split rather than the official Hub split.\n"
+            "- Retrieval modality remains weak for sparse subclasses such as "
+            "`pdf_layout`, `code`, and `configuration`.\n"
+        )
+        answerability_head_row = (
+            "| `answerability_shape` | `direct_answer`, `synthesis_answer`, "
+            "`set_answer`, `structured_reasoning` | Query-only collapsed answer "
+            "shape for retrieval planning. |"
+        )
+    elif retrieval_control:
         comparison = (
             "Compared with `pyrrho-nano-g3.1`, this package adds V8.2 "
             "retrieval-control heads for retrieval action, gap type, "
@@ -224,6 +560,10 @@ def release_readme(
             "not receive a separate independent blind-label QA pass before this "
             "local candidate package.\n"
         )
+        answerability_head_row = (
+            "| `answerability_shape` | 11 answer-shape labels | Query-only hint "
+            "for the answer shape the evidence must support. |"
+        )
     else:
         comparison = (
             "Compared with `pyrrho-nano-g3`, this package adds multitask heads "
@@ -235,6 +575,7 @@ def release_readme(
             "plus the mandatory `routing.query_contract` field."
         )
         limitation_extra = ""
+        answerability_head_row = ""
 
     scalar_names = ", ".join(f"`{field}`" for field in scalar_fields)
     scalar_count = len(scalar_fields)
@@ -250,10 +591,14 @@ def release_readme(
             [
                 "| `retrieval_action` | `answer_now`, `retrieve_more`, `broaden_search`, `resolve_conflict`, `ask_clarifying_question`, `structured_lookup` | Retrieval policy hint for the next pipeline action. |",
                 "| `gap_type` | 12 evidence-gap labels | More specific reason why retrieval is insufficient or conflicting. |",
-                "| `answerability_shape` | 11 answer-shape labels | Query-only hint for the answer shape the evidence must support. |",
+                answerability_head_row,
                 "| `retrieval_modality` | `unstructured_text`, `structured_table`, `code`, `configuration`, `log_trace`, `pdf_layout`, `mixed` | Query-only hint for the preferred retrieval substrate. |",
             ]
         )
+        if has_retrieval_obligation:
+            head_rows.append(
+                "| `retrieval_obligation` | 31 V10 obligation labels | Query-only target/closure obligation for corpus-aware retrieval planning. |"
+            )
     output_rows = [
         "| `governance.final_label` | Final calibrated label after the TRUSTWORTHY threshold rule. |",
         "| `governance.raw_label` | Highest-probability governance label before threshold calibration. |",
@@ -273,6 +618,10 @@ def release_readme(
                 "| `retrieval_modality.final_label` | Query-only retrieval-modality prediction. |",
             ]
         )
+        if has_retrieval_obligation:
+            output_rows.append(
+                "| `retrieval_obligation.final_label` | Query-only retrieval-obligation prediction. |"
+            )
     output_rows.append("| `timing_ms` | Local inference timing for the call. |")
     single_seed_rows = compact_table(
         [
@@ -289,6 +638,7 @@ def release_readme(
             metric_row(test, "Gap-type macro F1", "gap_type_macro_f1"),
             metric_row(test, "Answerability-shape macro F1", "answerability_shape_macro_f1"),
             metric_row(test, "Retrieval-modality macro F1", "retrieval_modality_macro_f1"),
+            metric_row(test, "Retrieval-obligation macro F1", "retrieval_obligation_macro_f1"),
         ]
     )
     aggregate_rows = compact_table(
@@ -328,7 +678,19 @@ def release_readme(
                 "retrieval_modality_macro_f1",
                 percent=True,
             ),
+            aggregate_row(
+                summary,
+                "Retrieval-obligation macro F1",
+                "retrieval_obligation_macro_f1",
+                percent=True,
+            ),
         ]
+    )
+    seed_count = len(summary.get("seeds") or [])
+    aggregate_heading = (
+        "Single-seed local candidate headline:"
+        if seed_count == 1
+        else "Three-seed headline from the local release summary:"
     )
     example_retrieval_action = (
         '  "retrieval_action": {\n    "final_label": "answer_now"\n  },\n'
@@ -368,6 +730,8 @@ def release_readme(
                 'print(result["gap_type"]["final_label"])',
             ]
         )
+        if has_retrieval_obligation:
+            quick_start_rows.append('print(result["retrieval_obligation"]["final_label"])')
     quick_start_rows.append('print(result["scalars"])')
     return f"""---
 license: cc-by-nc-4.0
@@ -516,7 +880,7 @@ python scripts/package_multitask_encoder.py verify --package-dir models/{model_n
 |---|---:|
 {single_seed_rows}
 
-Three-seed headline from the local release summary:
+{aggregate_heading}
 
 | Metric | Mean +/- std |
 |---|---:|
@@ -573,6 +937,7 @@ def run_smoke(
             "gap_type",
             "answerability_shape",
             "retrieval_modality",
+            "retrieval_obligation",
         ):
             if key in prediction:
                 row[key] = prediction[key]
@@ -646,6 +1011,7 @@ def create_package(args: argparse.Namespace) -> dict[str, Any]:
         "gap_type_id2label",
         "answerability_shape_id2label",
         "retrieval_modality_id2label",
+        "retrieval_obligation_id2label",
     ):
         mapping = getattr(model.pyrrho_config, key)
         if mapping:

@@ -1,8 +1,98 @@
 # pyrrho-MoE Architecture Spec
 
-Status: draft baseline for alignment, 2026-05-25.
+Status: historical architecture baseline plus active g4-real reset. The active goal was reset again on 2026-05-31; see [GOAL.md](GOAL.md).
 
 This document defines the target architecture for `pyrrho-MoE-g3`. It supersedes any older language that treats an off-the-shelf MoE checkpoint as the final pyrrho-MoE model. LFM2/Qwen/other models may be teachers, baselines, or proxy experiments, but the deployed pyrrho-MoE target is custom.
+
+The active project goal is in [GOAL.md](GOAL.md): build `pyrrho-MoE-g4-real` with stock runtime compatibility as gate zero. `pyrrho-MoE-g3-mvp` is now frozen as a patched-runtime experimental proof-of-life artifact, not the clean target.
+
+## 0. g4-real Reset
+
+The first valid generic `g4-real` shape candidate is `configs/moe/pyrrho_moe_g4_real_stock_runtime.yaml`.
+
+It deliberately changes the earlier mixed dense/MoE shape:
+
+- no Qwen3MoE `mlp_only_layers`,
+- no dense-only FFN layers,
+- 24 MoE FFN layers,
+- 14 physical experts per layer,
+- uneven semantic expert shard allocation,
+- top-1 routing.
+
+Parameter gate result:
+
+| Count | Value |
+|---|---:|
+| Total | **4.092512305B** |
+| Active inclusive | **0.412010545B** |
+| Active excluding embedding | **0.346474545B** |
+
+This passes the local shape/budget audit at `outputs/moe/g4_real_runtime_shape_gate.json`.
+
+That first shape is still useful as budget evidence, but it is no longer the current public-carrier shape.
+
+Current OLMoE public-carrier candidate:
+
+- Config: `configs/moe/pyrrho_moe_g4_real_olmoe_stock_runtime.yaml`.
+- Runtime carrier: `OlmoeForCausalLM` / `model_type: olmoe`.
+- Shape: 24 all-MoE layers, 19 physical experts/layer, top-1 routing, `ffn_dim=2688`.
+- Attention: full `kv_heads=16` because the stock OLMoE q/k norm tensor shape rejected the earlier GQA tiny probe.
+- Embeddings: untied, 50,304-token OLMoE tokenizer seed.
+
+Parameter gate result:
+
+| Count | Value |
+|---|---:|
+| Total | **3.969692721B** |
+| Active inclusive | **0.402437169B** |
+| Active excluding embedding | **0.299414577B** |
+
+This passes the local shape/budget audit at `outputs/moe/g4_real_olmoe_runtime_shape_gate.json`.
+
+Full structural runtime proof:
+
+- HF random-weight checkpoint: `outputs/moe/g4_real_stock_runtime_carrier/olmoe_g4_real_full_random_hf/` (**16** files, **7,941,833,825** bytes, 9 safetensor shards).
+- Full GGUF: `outputs/moe/g4_real_stock_runtime_carrier/pyrrho_g4_real_olmoe_full_random_stock_converter_f16.gguf` (**7,942,296,864** bytes, SHA256 `5bc7c7e6a9f6ec4095477279937e34c95167af454148d489cfc3d242046d62da`).
+- Clean upstream llama.cpp load smoke: pass, generated one token, host memory reported **7,623 MiB**.
+- LM Studio CLI load smoke: pass after hard-link import as `pyrrho-moe-g4-real-olmoe-structural`, CPU/local load reported **5.68s** and **7.40 GiB**.
+- Full proof report: `outputs/moe/g4_real_stock_runtime_carrier/olmoe_full_stock_runtime_probe_report.json`.
+
+Non-Mixtral stock carrier proof:
+
+- Carrier tested: `OlmoeForCausalLM`.
+- Tiny random checkpoint: `outputs/moe/g4_real_stock_runtime_carrier/olmoe_tiny_hf/`.
+- Stock-converted GGUF: `outputs/moe/g4_real_stock_runtime_carrier/pyrrho_g4_real_olmoe_tiny_stock_converter_f16.gguf`.
+- Upstream llama.cpp worktree: `outputs/moe/g4_real_stock_runtime_carrier/llama_cpp_stock_568aec82/` at commit `568aec82d2fc48341c54cae565768ac75072a31d`, clean status.
+- Load smoke report: `outputs/moe/g4_real_stock_runtime_carrier/olmoe_stock_runtime_carrier_probe_report.json`.
+
+Internal Mixtral carrier proof:
+
+- Carrier tested: `MixtralForCausalLM`.
+- Tiny random checkpoint: `outputs/moe/g4_real_stock_runtime_carrier/mixtral_tiny_hf/`.
+- Stock-converted GGUF: `outputs/moe/g4_real_stock_runtime_carrier/pyrrho_g4_real_mixtral_tiny_stock_converter_f16.gguf`.
+- Upstream llama.cpp worktree: `outputs/moe/g4_real_stock_runtime_carrier/llama_cpp_stock_568aec82/` at commit `568aec82d2fc48341c54cae565768ac75072a31d`, clean status.
+- Load smoke report: `outputs/moe/g4_real_stock_runtime_carrier/stock_runtime_carrier_probe_report.json`.
+
+The tiny Mixtral carrier proof is positive, but it is internal evidence only. It is not the full 4B model, not a quality result, and not the final public carrier decision. Public `pyrrho-MoE-g4-real` should not ship with visible `mixtral` or `qwen3moe` architecture metadata unless [GOAL.md](GOAL.md) is deliberately changed again.
+
+Gate zero is now passed for the OLMoE carrier shape. The first donor-initialized seed also preserves stock-loadability. Bounded attention-LoRA SFT, stable expert/router adaptation, bounded teacher distillation, the fuller raw expert `gate_up_proj` + `down_proj` LoRA surface, and a second head-topnorm donor-resize seed are all quality-negative at the tested scale. The exact carrier structure should remain unchanged, but the next work must move beyond simple tensor-resize initialization and tiny adapter probes: use stronger initialization/upcycling or a materially broader training surface before any longer scale-up. Rerun GGUF and LM Studio load checks only after trained weights show real quality movement.
+
+Mechanical training smoke:
+
+- Wrapper: `scripts/train_moe_olmoe_sft.py`.
+- Full-shape one-step output: `outputs/moe/olmoe_g4_real_sft_full_smoke_fp32loss/train_report.json`.
+- Reload-only output: `outputs/moe/olmoe_g4_real_sft_full_smoke_fp32loss_reload/train_report.json`.
+- Result: full carrier loads in Transformers, trains one LoRA step with finite loss **11.070787**, saves an adapter, and reloads it.
+
+First donor-initialized seed:
+
+- Script: `scripts/init_olmoe_from_donor.py`.
+- Donor: local mirror of `allenai/OLMoE-1B-7B-0924`.
+- HF checkpoint: `outputs/moe/g4_real_olmoe_donor_init/olmoe_1b7b_block_resize_hf/`.
+- GGUF: `outputs/moe/g4_real_olmoe_donor_init/pyrrho_g4_real_olmoe_1b7b_block_resize_f16.gguf` (**7,942,296,800** bytes, SHA256 `e646c254f4bf7f11605ef6b9dc463994245ff104b6d4e711f635b05baacefaf4`).
+- Result: clean llama.cpp load/generate passes; LM Studio load passes as `pyrrho-moe-g4-real-olmoe-donor-init`; runtime report is `outputs/moe/g4_real_olmoe_donor_init/donor_init_runtime_probe_report.json`.
+
+This still does not prove quality. The donor transplant is a compressed/resized initialization, and the tiny baseline eval smoke scored only **1/12** accuracy. Bounded SFT probes then confirmed that attention-LoRA scaling is not enough: the best small gated label-score probe reached only **39.06% accuracy / 0.00% FT**, the 1,024-row scale-up regressed to **33.59% / 0.58% FT**, generation remained malformed or collapsed, and naive router/lm_head raw unfreeze went **NaN**. The follow-up BF16 low-LR raw unfreeze avoided NaN but was unsafe, while rank-4 expert-down LoRA reached only **37.50% / 2.33% FT** and attention+expert LoRA collapsed. Teacher distillation was mechanically wired and the teacher was strong on the exact eval sample (**96.88% / 2.33% FT**), but the best student probe still only reached **39.06% / 2.33% FT** and the other surfaces collapsed. Current training decision: use [OLMOE_TRAINING_PATH_2026-05-31.md](OLMOE_TRAINING_PATH_2026-05-31.md), and do not scale the tested tiny adapter SFT/distillation recipes.
 
 ## 1. Goal
 
@@ -17,7 +107,9 @@ Build a CPU-runnable sparse MoE governance model with:
 
 This is feasible only as a dense-to-MoE upcycling + distillation project. It is not feasible as random-initialized general LLM pretraining on fitz-gov alone.
 
-## 2. Baseline Architecture: `pyrrho-moe-g3-alpha`
+MVP priority: the first release does not need perfect quality, but it must be the real sparse generative MoE artifact. It should produce compact pyrrho-style governance output/signals, report its weaknesses honestly, and give the project a working 4B-A0.4B base to iterate.
+
+## 2. Baseline Architecture: `pyrrho-MoE-g3-mvp` target skeleton
 
 The baseline is a decoder-only Transformer with sparse SwiGLU FFN experts.
 
