@@ -39,6 +39,16 @@ def load_prepare_g4_alpha_data_module():
     return module
 
 
+def load_train_multitask_encoder_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "train_multitask_encoder.py"
+    spec = importlib.util.spec_from_file_location("train_multitask_encoder", path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 def make_case() -> dict:
     return {
         "id": "case_001",
@@ -200,3 +210,69 @@ def test_governance_threshold_fallback_metadata():
     assert set(result["probabilities"]) == {"ABSTAIN", "DISPUTED", "TRUSTWORTHY"}
     assert result["runner_up_label"] == "DISPUTED"
     assert result["entropy"] > 0
+
+
+def test_multitask_training_masks_negative_label_ids(tmp_path):
+    train_multitask = load_train_multitask_encoder_module()
+    data_path = tmp_path / "stage_masked.jsonl"
+    data_path.write_text(
+        json.dumps(
+            {
+                "id": "query_plan_001",
+                "text": "Question: Which row contains INC-103?\n\nSources:",
+                "query_text": "Question: Which row contains INC-103?",
+                "label_id": -1,
+                "query_contract_id": 0,
+                "route_id": 0,
+                "taxonomy_pattern_id": -1,
+                "scalar_targets": {},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    dataset = train_multitask.MultiTaskJsonlDataset(
+        data_path,
+        scalar_fields=("evidence_sufficiency",),
+    )
+    item = dataset[0]
+    assert item["label_id"] == -1
+    assert item["query_contract_id"] == 0
+    assert item["taxonomy_pattern_id"] == -1
+
+    outputs = {
+        "governance_logits": torch.zeros(2, 3, requires_grad=True),
+        "query_contract_logits": torch.zeros(2, 1, requires_grad=True),
+        "route_logits": torch.zeros(2, 1, requires_grad=True),
+        "taxonomy_logits": torch.zeros(2, 1, requires_grad=True),
+        "scalar_preds": torch.zeros(2, 1, requires_grad=True),
+        "retrieval_action_logits": torch.zeros(2, 1, requires_grad=True),
+    }
+    batch = {
+        "labels": torch.tensor([-1, 2]),
+        "query_contract_ids": torch.tensor([0, -1]),
+        "route_ids": torch.tensor([0, -1]),
+        "taxonomy_ids": torch.tensor([-1, 0]),
+        "scalar_targets": torch.tensor([[0.0], [0.5]]),
+        "scalar_mask": torch.tensor([[0.0], [1.0]]),
+        "retrieval_action_ids": torch.tensor([-1, 0]),
+    }
+    loss, parts = train_multitask.compute_loss(
+        outputs,
+        batch,
+        weights={
+            "governance": 1.0,
+            "query_contract": 1.0,
+            "route": 1.0,
+            "taxonomy": 1.0,
+            "scalars": 1.0,
+            "retrieval_action": 1.0,
+        },
+        governance_class_weights=torch.ones(3),
+        query_contract_class_weights=None,
+        label_smoothing=0.0,
+    )
+    assert torch.isfinite(loss)
+    assert parts["governance"] >= 0.0
+    assert parts["query_contract"] >= 0.0
+    loss.backward()

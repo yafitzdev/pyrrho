@@ -14,11 +14,12 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 | 4 | [PROJECT.md](PROJECT.md) §1–§5 | Vision, the fitz-gov / fitz-sage / pyrrho triangle, baseline to beat, encoder-vs-SLM rationale. | When you need *why* anything was decided structurally. |
 | 5 | [METHODOLOGY.md](METHODOLOGY.md) | End-to-end model-development pipeline. The 8-step process every release follows. | Before producing any new release. |
 | 6 | [CODE_MODALITY_AXES.md](CODE_MODALITY_AXES.md) | Current structured/code modality axis decision, code coverage audit, targeted patch status, and local-control results. | Before touching structured/code candidate rows or code OOD probes. |
-| 7 | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) | Canonical `pyrrho-MoE` architecture spec: 4B-A0.4B parameter math, expert layout, upcycling/distillation plan, training gates. | Before touching MoE implementation or model selection. |
-| 8 | [PYRRHO_MOE_MVP_RUN_GUIDE.md](PYRRHO_MOE_MVP_RUN_GUIDE.md) | Short operator guide for running the published `pyrrho-MoE-g3-mvp` GGUF package with full-sequence label scoring. | Before trying the MoE MVP locally or writing downstream consumer docs. |
-| 9 | [OLMOE_TRAINING_PATH_2026-05-31.md](OLMOE_TRAINING_PATH_2026-05-31.md) | Current `g4-real` OLMoE carrier training path: SFT smoke, donor audit, donor initialization result, and next bounded training step. | Before starting `pyrrho-MoE-g4-real` training/upcycling. |
-| 10 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
-| 11 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
+| 7 | [FITZ_GOV_SAGE_PLAN.md](FITZ_GOV_SAGE_PLAN.md) | V10-clean `fitz-gov-sage` plan: source version, stage-aware row shape, subagent prompt, workpack tooling, and training gates. | Before creating or training the sage-shaped encoder line. |
+| 8 | [PYRRHO_MOE_ARCHITECTURE.md](PYRRHO_MOE_ARCHITECTURE.md) | Canonical `pyrrho-MoE` architecture spec: 4B-A0.4B parameter math, expert layout, upcycling/distillation plan, training gates. | Before touching MoE implementation or model selection. |
+| 9 | [PYRRHO_MOE_MVP_RUN_GUIDE.md](PYRRHO_MOE_MVP_RUN_GUIDE.md) | Short operator guide for running the published `pyrrho-MoE-g3-mvp` GGUF package with full-sequence label scoring. | Before trying the MoE MVP locally or writing downstream consumer docs. |
+| 10 | [OLMOE_TRAINING_PATH_2026-05-31.md](OLMOE_TRAINING_PATH_2026-05-31.md) | Current `g4-real` OLMoE carrier training path: SFT smoke, donor audit, donor initialization result, and next bounded training step. | Before starting `pyrrho-MoE-g4-real` training/upcycling. |
+| 11 | [SETUP.md](SETUP.md) | Environment specifics — RTX 5090 / Blackwell / Windows / WSL2. | First time setting up the project locally. |
+| 12 | [PROJECT.md](PROJECT.md) §6–§18 | Full plan: hardware reality, model picks, training recipes, release roadmap, open questions, research notes, original session history. | When you need the deep context behind a model pick or hyperparameter choice. |
 
 ---
 
@@ -37,6 +38,8 @@ This directory holds everything a fresh contributor (or Claude session) needs to
 | Current OLMoE training path | [OLMOE_TRAINING_PATH_2026-05-31.md](OLMOE_TRAINING_PATH_2026-05-31.md) |
 | Active MoE MVP goal | [GOAL.md](GOAL.md) |
 | Published MoE MVP run guide | [PYRRHO_MOE_MVP_RUN_GUIDE.md](PYRRHO_MOE_MVP_RUN_GUIDE.md) |
+| Sage-shaped encoder plan | [FITZ_GOV_SAGE_PLAN.md](FITZ_GOV_SAGE_PLAN.md) |
+| Sage transform prompt | [prompts/FITZ_GOV_SAGE_TRANSFORM_SUBAGENT.md](prompts/FITZ_GOV_SAGE_TRANSFORM_SUBAGENT.md) |
 | Structured/code modality status | [CODE_MODALITY_AXES.md](CODE_MODALITY_AXES.md) |
 | Public model card template | [MODEL_CARD_TEMPLATE.md](MODEL_CARD_TEMPLATE.md) |
 | Python library | [../src/pyrrho/](../src/pyrrho/) |

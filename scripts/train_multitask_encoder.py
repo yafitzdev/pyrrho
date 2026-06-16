@@ -59,8 +59,6 @@ class MultiTaskJsonlDataset(Dataset):
             for raw in fh:
                 if raw.strip():
                     row = json.loads(raw)
-                    if int(row.get("query_contract_id", -1)) < 0:
-                        raise ValueError(f"{path}: row {row.get('id')!r} is missing query_contract_id")
                     self.rows.append(row)
         if not self.rows:
             raise ValueError(f"no rows loaded from {path}")
@@ -85,10 +83,10 @@ class MultiTaskJsonlDataset(Dataset):
             "id": row["id"],
             "text": row["text"],
             "query_text": row.get("query_text") or f"Question: {row.get('query', '')}",
-            "label_id": int(row["label_id"]),
-            "query_contract_id": int(row["query_contract_id"]),
-            "route_id": int(row["route_id"]),
-            "taxonomy_pattern_id": int(row["taxonomy_pattern_id"]),
+            "label_id": int(row.get("label_id", -1)),
+            "query_contract_id": int(row.get("query_contract_id", -1)),
+            "route_id": int(row.get("route_id", -1)),
+            "taxonomy_pattern_id": int(row.get("taxonomy_pattern_id", -1)),
             "retrieval_action_id": int(row.get("retrieval_action_id", -1)),
             "gap_type_id": int(row.get("gap_type_id", -1)),
             "answerability_shape_id": int(row.get("answerability_shape_id", -1)),
@@ -146,7 +144,10 @@ def load_partial_init(
 
 
 def class_weights_from_counts(labels: list[int], num_classes: int) -> list[float]:
-    counts = Counter(labels)
+    valid_labels = [int(label) for label in labels if int(label) >= 0]
+    if not valid_labels:
+        return [1.0] * num_classes
+    counts = Counter(valid_labels)
     total = sum(counts.values())
     weights = []
     for idx in range(num_classes):
@@ -268,29 +269,41 @@ def compute_loss(
     query_contract_class_weights: torch.Tensor | None,
     label_smoothing: float,
 ) -> tuple[torch.Tensor, dict[str, float]]:
-    def optional_cross_entropy(output_key: str, target_key: str) -> torch.Tensor:
-        logits = outputs.get(output_key)
-        labels = batch.get(target_key)
+    def masked_cross_entropy(
+        logits: torch.Tensor | None,
+        labels: torch.Tensor | None,
+        *,
+        weight: torch.Tensor | None = None,
+        smoothing: float = 0.0,
+    ) -> torch.Tensor:
         if logits is None or labels is None:
             return outputs["governance_logits"].sum() * 0.0
         valid = labels >= 0
         if not bool(valid.any().item()):
             return logits.sum() * 0.0
-        return F.cross_entropy(logits[valid], labels[valid])
+        return F.cross_entropy(
+            logits[valid],
+            labels[valid],
+            weight=weight,
+            label_smoothing=smoothing,
+        )
 
-    gov_loss = F.cross_entropy(
+    def optional_cross_entropy(output_key: str, target_key: str) -> torch.Tensor:
+        return masked_cross_entropy(outputs.get(output_key), batch.get(target_key))
+
+    gov_loss = masked_cross_entropy(
         outputs["governance_logits"],
         batch["labels"],
         weight=governance_class_weights,
-        label_smoothing=label_smoothing,
+        smoothing=label_smoothing,
     )
-    query_contract_loss = F.cross_entropy(
+    query_contract_loss = masked_cross_entropy(
         outputs["query_contract_logits"],
         batch["query_contract_ids"],
         weight=query_contract_class_weights,
     )
-    route_loss = F.cross_entropy(outputs["route_logits"], batch["route_ids"])
-    taxonomy_loss = F.cross_entropy(outputs["taxonomy_logits"], batch["taxonomy_ids"])
+    route_loss = masked_cross_entropy(outputs["route_logits"], batch["route_ids"])
+    taxonomy_loss = masked_cross_entropy(outputs["taxonomy_logits"], batch["taxonomy_ids"])
     scalar_diff = (outputs["scalar_preds"] - batch["scalar_targets"]) ** 2
     scalar_mask = batch["scalar_mask"]
     scalar_loss = (scalar_diff * scalar_mask).sum() / scalar_mask.sum().clamp_min(1.0)
@@ -345,6 +358,23 @@ def optional_multiclass_metrics(
         return None
     logits = np.concatenate(logits_chunks, axis=0)
     labels = np.concatenate(label_chunks, axis=0)
+    return multiclass_metrics_for_valid(
+        logits,
+        labels,
+        id2label=id2label,
+        prefix=prefix,
+    )
+
+
+def multiclass_metrics_for_valid(
+    logits: np.ndarray,
+    labels: np.ndarray,
+    *,
+    id2label: dict[int, str],
+    prefix: str,
+) -> dict[str, float] | None:
+    if not id2label:
+        return None
     valid = labels >= 0
     if not valid.any():
         return None
@@ -355,6 +385,24 @@ def optional_multiclass_metrics(
         label_names=id2label,
         prefix=prefix,
     )
+
+
+def required_multiclass_metrics_for_valid(
+    logits: np.ndarray,
+    labels: np.ndarray,
+    *,
+    id2label: dict[int, str],
+    prefix: str,
+) -> dict[str, float]:
+    metrics = multiclass_metrics_for_valid(
+        logits,
+        labels,
+        id2label=id2label,
+        prefix=prefix,
+    )
+    if metrics is None:
+        raise ValueError(f"evaluation split has no valid {prefix} labels")
+    return metrics
 
 
 @torch.no_grad()
@@ -451,42 +499,44 @@ def evaluate(
     tax_y = np.concatenate(taxonomy_labels, axis=0)
     scalar_y = np.concatenate(scalar_targets, axis=0)
     scalar_mask = np.concatenate(scalar_masks, axis=0)
+    gov_valid = y >= 0
+    if not gov_valid.any():
+        raise ValueError("evaluation split has no valid governance labels")
+    gov_for_metrics = gov[gov_valid]
+    y_for_metrics = y[gov_valid]
 
     if threshold is None:
-        gov_calibrated = find_optimal_threshold(gov, y)
+        gov_calibrated = find_optimal_threshold(gov_for_metrics, y_for_metrics)
         tau = float(gov_calibrated["threshold"])
     else:
         tau = float(threshold)
-        calibrated_preds = gated_predictions(gov, tau, num_classes=3)
-        gov_calibrated = compute_classification_metrics(calibrated_preds, y)
+        calibrated_preds = gated_predictions(gov_for_metrics, tau, num_classes=3)
+        gov_calibrated = compute_classification_metrics(calibrated_preds, y_for_metrics)
         gov_calibrated["threshold"] = tau
         gov_calibrated["target_met"] = bool(
             gov_calibrated["false_trustworthy_rate"] <= BASELINE_FALSE_TRUSTWORTHY
         )
 
     metrics = {
-        "governance_uncalibrated": compute_classification_metrics(gov, y),
+        "governance_uncalibrated": compute_classification_metrics(gov_for_metrics, y_for_metrics),
         "governance_calibrated": gov_calibrated,
         "threshold": tau,
-        "query_contract": compute_multiclass_metrics(
+        "query_contract": required_multiclass_metrics_for_valid(
             qc,
             qc_y,
-            label_ids=sorted(query_contract_id2label),
-            label_names=query_contract_id2label,
+            id2label=query_contract_id2label,
             prefix="query_contract",
         ),
-        "route": compute_multiclass_metrics(
+        "route": required_multiclass_metrics_for_valid(
             route,
             route_y,
-            label_ids=sorted(route_id2label),
-            label_names=route_id2label,
+            id2label=route_id2label,
             prefix="route",
         ),
-        "taxonomy": compute_multiclass_metrics(
+        "taxonomy": required_multiclass_metrics_for_valid(
             tax,
             tax_y,
-            label_ids=sorted(taxonomy_id2label),
-            label_names=taxonomy_id2label,
+            id2label=taxonomy_id2label,
             prefix="taxonomy",
         ),
         "scalars": scalar_metrics(scalar, scalar_y, scalar_mask, scalar_fields),
@@ -729,7 +779,7 @@ def main() -> int:
     query_contract_weights = None
     if bool(train_cfg.get("balance_query_contract", True)):
         query_contract_weights = class_weights_from_counts(
-            [row["query_contract_id"] for row in train_ds.rows],
+            [int(row.get("query_contract_id", -1)) for row in train_ds.rows],
             len(query_contract_id2label),
         )
     query_contract_class_weights = (

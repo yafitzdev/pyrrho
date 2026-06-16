@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-16 (evening) — fitz-gov-sage v1 preparation started from clean V10
+
+**What landed:**
+- Checkpointed the prior pyrrho g5/MoE working tree at commit `374fad6` and branched new work to `codex/fitz-gov-sage-v10`.
+- Defined the new source rule in `docs/FITZ_GOV_SAGE_PLAN.md`: use clean fitz-gov V10.0.0 / `data/multitask_g5_1_v10_repaired`, exclude V11/V12 repair rows, and target `pyrrho-sage-nano-g1`.
+- Added stage-aware training support in `scripts/train_multitask_encoder.py`: class id `-1` now masks that head for the row, so query-planning rows do not train governance/taxonomy/scalars.
+- Added `docs/prompts/FITZ_GOV_SAGE_TRANSFORM_SUBAGENT.md`, `scripts/prepare_fitz_gov_sage_workpacks.py`, `scripts/materialize_fitz_gov_sage_data.py`, and `configs/encoder/modernbert_base_sage_g1_v10_packview.yaml`.
+- Generated the first workpack selection under `data/fitz_gov_sage_v1_workpacks/`: **10,000** clean V10-line source rows, **20,000** expected stage rows, **200** workpacks.
+
+**What was learned:**
+- The first selector pass over-selected direct-answer rows. The selector was tightened so the 35% non-obligation portion actively fills weaker answerability buckets.
+- Final selected source spread: obligation-labeled **6,500**, obligation-masked **3,500**; dataset versions V10 **6,500**, V9 **2,764**, V8 **230**, V7 **252**, V6 **254**; answerability direct **5,375**, set **1,541**, structured **1,542**, synthesis **1,542**.
+- Focused validation passed: `python -m py_compile scripts\prepare_fitz_gov_sage_workpacks.py scripts\materialize_fitz_gov_sage_data.py scripts\train_multitask_encoder.py` and `python -m pytest tests\test_multitask_encoder.py tests\test_smoke.py -q` produced **18 passed**, **2 warnings**.
+
+**Next:** Generate subagent outputs for the 200 workpacks, materialize `data/fitz_gov_sage_v1`, run trainer dry-run, then train the first `pyrrho-sage-nano-g1` seed from `models/pyrrho-nano-g5.1`.
+
+---
+
 ## 2026-06-16 (afternoon) — g5.7 failure-repair candidate moved sideways
 
 **What landed:**
