@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (afternoon) — switched future sage waves to deferred QA
+
+**What landed:**
+- Updated [FITZ_GOV_SAGE_MANUAL_MESSY_PROCEDURE.md](FITZ_GOV_SAGE_MANUAL_MESSY_PROCEDURE.md) with the new throughput rule.
+- Updated [HANDOFF.md](HANDOFF.md) so fresh sessions use the faster path for `batch_0001+`.
+
+**What was learned:**
+- `batch_0000` was slow because it included procedure hardening, per-wave semantic QA, manual repairs, focused repaired-row QA, and doc/audit updates.
+- Future waves should only rewrite old fitz-gov source rows into fitz-sage-shaped packs, then run mechanical gates: structural, shape, and label/scalar preservation.
+- Semantic QA and repair are now deferred into one consolidated pass across accumulated mechanically clean waves.
+
+**Next:** generate `data/fitz_gov_sage_v1_messy_repair_batch_0001` from `--start-index 100` and skip per-wave semantic QA.
+
+---
+
 ## 2026-06-17 (afternoon) — first original-10k messy replacement wave accepted clean
 
 **What landed:**

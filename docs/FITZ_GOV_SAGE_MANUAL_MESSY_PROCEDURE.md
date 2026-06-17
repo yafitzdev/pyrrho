@@ -88,6 +88,26 @@ docs/prompts/FITZ_GOV_SAGE_TRANSFORM_SUBAGENT.md
 
 That older prompt produced mostly source-preserving rows in the original 10k.
 
+## Current Throughput Rule
+
+Future waves should **not** run per-wave semantic QA.
+
+The fast path is:
+
+```text
+prepare 100 source rows
+six GPT-5.4 workers manually rewrite them from the source rows
+run structural audit
+run shape audit
+run label/scalar preservation audit
+accumulate mechanically clean outputs
+```
+
+Semantic QA is deferred into one consolidated pass across the accumulated
+mechanically clean waves. The already completed `batch_0000` kept its full
+per-wave QA history because that was the procedure-validation wave, not the
+normal throughput path.
+
 ## Batch Preparation
 
 Use 100-row waves. This is the proven manual-quality unit:
@@ -240,9 +260,12 @@ It also verifies the numeric `*_id` label fields, because a later batch repair
 showed that preserving label names without the IDs is not sufficient for
 training the heads.
 
-## Semantic QA
+## Deferred Semantic QA
 
-Spawn GPT-5.4 QA workers using:
+Do not run this after every 100-row wave by default. Run it later as one
+consolidated QA pass across accumulated mechanically clean waves.
+
+When the consolidated QA pass starts, spawn GPT-5.4 QA workers using:
 
 ```text
 docs/prompts/FITZ_GOV_SAGE_SEMANTIC_QA_WORKER.md
@@ -283,7 +306,8 @@ metadata/content mismatch
 
 ## Repair
 
-Spawn GPT-5.4 repair workers using:
+Only run repair after the deferred semantic QA pass identifies rows that need
+repair. Spawn GPT-5.4 repair workers using:
 
 ```text
 docs/prompts/FITZ_GOV_SAGE_REPAIR_WORKER.md
@@ -313,18 +337,25 @@ The focused semantic QA report for a repaired batch should live under:
 <output-dir>/semantic_qa/final_repaired_rows_semantic_check.jsonl
 ```
 
-## Accepted Row Definition
+## Row State Definitions
 
-A row counts as accepted only after:
+A row counts as **mechanically clean** after:
 
 ```text
 structural audit passes
 shape audit passes
 label/scalar preservation passes
+```
+
+A row counts as **QA accepted** only after:
+
+```text
+mechanical gates pass
 semantic QA says accept, or repair was completed and post-repair gates pass
 ```
 
-Anything else is not training data.
+Mechanically clean rows may be accumulated for throughput. Do not use them for
+final training/publication until the deferred semantic QA pass is complete.
 
 ## Fixing The Original 10k
 
