@@ -176,3 +176,83 @@ but it does not create larger messy retrieval packs for those rows. That is the
 base state we are returning to, not proof that more source-preserving rows will
 solve fitz-sage downstream quality.
 
+## 100-Row Manual Messy-Pack Pilot
+
+After resetting again to commit `d97f97d`, the bad generated `v1.2` artifacts
+were removed from disk. A new pilot was created at:
+
+```text
+data/fitz_gov_sage_messy_pilot_100_20260617
+```
+
+This pilot is different from the source-preserving reproduction pilot above.
+It uses **100 source rows that were not present in the original v1 transformed
+source selection**:
+
+```text
+excluded base source ids: 10,000
+selected source rows:     100
+overlap with base v1:     0
+expected stage rows:      200
+```
+
+The selected pilot mix:
+
+```text
+labels: ABSTAIN 41, DISPUTED 23, TRUSTWORTHY 36
+modalities: code 19, configuration 20, log_trace 17, pdf_layout 26,
+            mixed 6, structured_table 6, unstructured_text 6
+obligation-labeled rows: 83
+```
+
+The 100 rows were split across six GPT-5.4 subagents:
+
+```text
+pack_0000.json  17 source rows / 34 output rows
+pack_0001.json  17 source rows / 34 output rows
+pack_0002.json  17 source rows / 34 output rows
+pack_0003.json  17 source rows / 34 output rows
+pack_0004.json  16 source rows / 32 output rows
+pack_0005.json  16 source rows / 32 output rows
+```
+
+The row content was written by the subagents. Code was used only for selecting
+untransformed source rows, splitting workpacks, and auditing outputs.
+
+Structural audit:
+
+```powershell
+.venv\Scripts\python.exe scripts\audit_fitz_gov_sage_outputs.py `
+  --workpack-dir data\fitz_gov_sage_messy_pilot_100_20260617 `
+  --input-dir data\fitz_gov_sage_messy_pilot_100_20260617\subagent_outputs `
+  --output data\fitz_gov_sage_messy_pilot_100_20260617\subagent_output_audit.json
+```
+
+Result:
+
+```text
+files:           6
+rows_seen:       200
+source_ids_seen: 100
+violations:      0
+```
+
+Shape audit:
+
+```text
+planning rows:                    100
+evidence rows:                    100
+exact source-context-list rows:   0 / 100
+changed context sets:             100 / 100
+rows with added contexts:         100 / 100
+context counts:                   4 contexts = 67 rows, 5 contexts = 33 rows
+mean context count:               4.33
+pack shapes:                      retrieval_pack_4_7 = 100 / 100
+label mismatches:                 0
+scalar mismatches:                0
+planning shape issues:            0
+```
+
+This is the current useful pilot for fitz-sage-shaped rows. Do not confuse it
+with the earlier source-preserving reproduction pilot.
+

@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (morning) — manual messy-pack pilot generated correctly
+
+**What landed:**
+- Reset the branch back to `d97f97d` and removed the bad generated `data/fitz_gov_sage_v1_2` / `data/fitz_gov_sage_v1_2_workpacks` artifacts from disk.
+- Selected **100** fitz-gov source rows from `data/multitask_g5_1_v10_repaired` with **0** overlap against `data/fitz_gov_sage_v1_workpacks/source_selection.jsonl`.
+- Split those rows into six workpacks under `data/fitz_gov_sage_messy_pilot_100_20260617/workpacks`.
+- Six GPT-5.4 subagents manually wrote the row content to `data/fitz_gov_sage_messy_pilot_100_20260617/subagent_outputs`: **200** rows total = **100** query-planning + **100** evidence-governance.
+
+**What was learned:**
+- Structural audit passed: **6** files / **200** rows / **100** source IDs / **0** violations.
+- Shape audit passed the actual fitz-sage requirement: **0/100** exact source-context-list copies, **100/100** changed context sets, **100/100** rows with added contexts, mean **4.33** contexts per evidence row, and **100/100** `retrieval_pack_4_7`.
+- Label/scalar preservation is clean: **0** label mismatches, **0** scalar mismatches, and **0** query-planning shape issues.
+- Pilot mix: ABSTAIN **41**, DISPUTED **23**, TRUSTWORTHY **36**; modalities include code **19**, configuration **20**, log_trace **17**, pdf_layout **26**, mixed **6**, structured_table **6**, unstructured_text **6**; **83** rows have retrieval obligations.
+
+**Next:** Review this 100-row manual messy-pack pilot. If accepted, scale the same subagent-by-hand procedure; do not train on any source-preserving v1.2 continuation.
+
+---
+
 ## 2026-06-17 (morning) — sage reset and 100-row reproduction pilot
 
 **What landed:**
