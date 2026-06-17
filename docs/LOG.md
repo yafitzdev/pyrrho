@@ -13,6 +13,29 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (morning) — manual messy-pack procedure codified
+
+**What landed:**
+- Added canonical procedure doc `docs/FITZ_GOV_SAGE_MANUAL_MESSY_PROCEDURE.md`.
+- Added exact GPT-5.4 prompt templates:
+  - `docs/prompts/FITZ_GOV_SAGE_MESSY_TRANSFORM_WORKER.md`
+  - `docs/prompts/FITZ_GOV_SAGE_SEMANTIC_QA_WORKER.md`
+  - `docs/prompts/FITZ_GOV_SAGE_REPAIR_WORKER.md`
+- Added repeatability tooling:
+  - `scripts/prepare_fitz_gov_sage_manual_batch.py`
+  - `scripts/audit_fitz_gov_sage_shape.py`
+  - `scripts/audit_fitz_gov_sage_label_preservation.py`
+  - `scripts/summarize_fitz_gov_sage_semantic_qa.py`
+
+**What was learned:**
+- The successful 100-row procedure is now reproducible without relying on conversation history: row selection, workpack splitting, worker prompts, shape gate, semantic QA, repair, and post-repair label/scalar checks are all documented.
+- A dry-run batch-prep probe against the original v1 source selection produced the expected source selection, workpacks, and worker assignments, then was removed.
+- The boundary is explicit: scripts can prepare and audit; only GPT-5.4 subagents write transformed evidence-pack content.
+
+**Next:** Start `data/fitz_gov_sage_v1_messy_repair_batch_0000` from the original 10k source selection using the codified process.
+
+---
+
 ## 2026-06-17 (morning) — manual messy-pack pilot QA repaired clean
 
 **What landed:**

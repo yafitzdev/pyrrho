@@ -3,6 +3,10 @@
 This is the exact reproducible procedure for the current base `fitz-gov-sage`
 transform path.
 
+For scaling new production-shaped rows, use the canonical manual messy-pack
+procedure in [FITZ_GOV_SAGE_MANUAL_MESSY_PROCEDURE.md](FITZ_GOV_SAGE_MANUAL_MESSY_PROCEDURE.md).
+This file preserves the historical base-state details and pilot results.
+
 ## Base State
 
 Use repo commit:
