@@ -13,6 +13,26 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (early morning) — pyrrho-sage-nano-g1.1 bug-fix control
+
+**What landed:**
+- Fixed multitask head ownership: `retrieval_action` and `gap_type` now use query-only state in `src/pyrrho/multitask.py`, matching fitz-sage pre-retrieval usage.
+- Fixed sage stage masking in `scripts/materialize_fitz_gov_sage_data.py`: evidence-governance rows now mask pre-retrieval labels instead of training those heads with evidence available.
+- Added `scripts/prepare_sage_mixed_data.py` and config `configs/encoder/modernbert_base_sage_g1_1_v10_clean_plus_stage.yaml`.
+- Rebuilt `data/fitz_gov_sage_v1_1` and mixed `data/multitask_sage_g1_1_v10_clean_plus_stage`: **73,503** rows = **53,503** clean V10 base + **20,000** sage stage rows.
+- Trained seed **1337** and packaged `models/pyrrho-sage-nano-g1.1/`; CPU package verification returned `ok=True`.
+
+**What was learned:**
+- The bug fix was real: held-out retrieval-action macro F1 improved from g1 **58.69%** to g1.1 **72.63%**, and gap-type macro F1 improved from **59.48%** to **70.81%**.
+- g1.1 held-out test: **97.27%** governance accuracy / **1.27%** false-TRUSTWORTHY, query-contract macro F1 **85.20%**, taxonomy accuracy **77.32%**, retrieval-modality macro F1 **85.51%**, retrieval-obligation macro F1 **83.44%**.
+- Strict-owner fitz-sage benchmark improved from g1 **78/120** to g1.1 **89/120**: core **15/20**, holdout **40/50**, holdout2 **34/50**, forbidden evidence **5**.
+- Remaining g1.1 failures: **18** mode mismatches, **8** required-evidence misses, **5** forbidden hits. This is better than g1 (**29/11/5**) but still below local g5.6 (**97/120**).
+- Tests passed: `python -m pytest tests\test_smoke.py tests\test_multitask_encoder.py -q` produced **20 passed**, **2 warnings**.
+
+**Next:** Do not publish or wire g1.1. Decide whether the sage line deserves targeted temporal/conflict/mixed data, or whether downstream work should return to the stronger g5.6 line.
+
+---
+
 ## 2026-06-16 (night) — pyrrho-sage-nano-g1 downstream benchmark negative
 
 **What landed:**

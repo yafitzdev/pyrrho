@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import torch
+from transformers import BertConfig
 
 from pyrrho.data import (
     ANSWERABILITY_SHAPE_LABEL2ID,
@@ -15,7 +16,7 @@ from pyrrho.data import (
     RETRIEVAL_OBLIGATION_LABEL2ID,
     build_query_contract_text,
 )
-from pyrrho.multitask import PyrrhoMultiTaskConfig
+from pyrrho.multitask import PyrrhoMultiTaskConfig, PyrrhoMultiTaskModernBert
 from pyrrho.multitask_inference import class_prediction
 
 
@@ -42,6 +43,16 @@ def load_prepare_g4_alpha_data_module():
 def load_train_multitask_encoder_module():
     path = Path(__file__).resolve().parents[1] / "scripts" / "train_multitask_encoder.py"
     spec = importlib.util.spec_from_file_location("train_multitask_encoder", path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_materialize_fitz_gov_sage_data_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "materialize_fitz_gov_sage_data.py"
+    spec = importlib.util.spec_from_file_location("materialize_fitz_gov_sage_data", path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -195,6 +206,101 @@ def test_scalar_head_shape_without_backbone_download():
     assert tuple(out.shape) == (2, 3)
     assert torch.all(out >= 0)
     assert torch.all(out <= 1)
+
+
+def test_retrieval_action_and_gap_type_are_query_only_heads():
+    cfg = PyrrhoMultiTaskConfig(
+        base_model="unit-test-tiny-bert",
+        num_governance_labels=3,
+        num_query_contract_labels=1,
+        num_routes=1,
+        num_taxonomy_patterns=1,
+        scalar_fields=("evidence_sufficiency",),
+        id2label={0: "ABSTAIN", 1: "DISPUTED", 2: "TRUSTWORTHY"},
+        query_contract_id2label={0: "evidence_sufficiency"},
+        route_id2label={0: "general_commonsense"},
+        taxonomy_id2label={0: "direct_answer"},
+        retrieval_action_id2label={0: "answer_now", 1: "retrieve_more"},
+        gap_type_id2label={0: "none", 1: "missing_specific_fact"},
+    )
+    backbone_config = BertConfig(
+        vocab_size=32,
+        hidden_size=8,
+        num_hidden_layers=1,
+        num_attention_heads=2,
+        intermediate_size=16,
+        pad_token_id=0,
+    )
+    model = PyrrhoMultiTaskModernBert(
+        cfg,
+        backbone_config=backbone_config,
+        load_pretrained_backbone=False,
+    )
+    model.eval()
+    outputs = model(
+        input_ids=torch.tensor([[2, 3, 4, 0], [9, 8, 7, 0]]),
+        attention_mask=torch.tensor([[1, 1, 1, 0], [1, 1, 1, 0]]),
+        query_input_ids=torch.tensor([[5, 6, 0], [5, 6, 0]]),
+        query_attention_mask=torch.tensor([[1, 1, 0], [1, 1, 0]]),
+    )
+    assert torch.allclose(outputs["retrieval_action_logits"][0], outputs["retrieval_action_logits"][1])
+    assert torch.allclose(outputs["gap_type_logits"][0], outputs["gap_type_logits"][1])
+
+
+def test_sage_materializer_masks_pre_retrieval_heads_on_evidence_stage():
+    materialize = load_materialize_fitz_gov_sage_data_module()
+    source = {
+        "source_id": "src_001",
+        "source_split": "train",
+        "source_dataset_version": "v10",
+        "query": "Which row has INC-103?",
+        "labels": {
+            "label": "TRUSTWORTHY",
+            "label_id": 2,
+            "route": "technology_computing",
+            "query_contract": "structured_lookup",
+            "taxonomy_pattern": "direct_answer",
+            "retrieval_action": "answer_now",
+            "gap_type": "none",
+            "answerability_shape": "direct_answer",
+            "retrieval_modality": "structured_table",
+            "retrieval_obligation": "row_key_lookup",
+        },
+        "scalar_targets": {"evidence_sufficiency": 0.9},
+    }
+    metadata = {
+        "route2id": {"technology_computing": 0},
+        "query_contract2id": {"structured_lookup": 0},
+        "taxonomy_pattern2id": {"direct_answer": 0},
+        "retrieval_action2id": {"answer_now": 0},
+        "gap_type2id": {"none": 0},
+        "answerability_shape2id": {"direct_answer": 0},
+        "retrieval_modality2id": {"structured_table": 0},
+        "retrieval_obligation2id": {"row_key_lookup": 0},
+    }
+    query_row = materialize.materialize_stage(
+        source=source,
+        stage_row={"source_id": "src_001", "stage": "query_planning", "query": source["query"]},
+        metadata=metadata,
+    )
+    evidence_row = materialize.materialize_stage(
+        source=source,
+        stage_row={
+            "source_id": "src_001",
+            "stage": "evidence_governance",
+            "query": source["query"],
+            "contexts": ["INC-103 is present in the incident table."],
+        },
+        metadata=metadata,
+    )
+    assert query_row["label_id"] == -1
+    assert query_row["retrieval_action_id"] == 0
+    assert query_row["gap_type_id"] == 0
+    assert evidence_row["label_id"] == 2
+    assert evidence_row["taxonomy_pattern_id"] == 0
+    assert evidence_row["retrieval_action_id"] == -1
+    assert evidence_row["gap_type_id"] == -1
+    assert evidence_row["retrieval_modality_id"] == -1
 
 
 def test_governance_threshold_fallback_metadata():

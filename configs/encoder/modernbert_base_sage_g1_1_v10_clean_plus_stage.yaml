@@ -1,0 +1,66 @@
+# pyrrho-sage-nano-g1.1 stage-aware V10 packview encoder.
+# Data: clean repaired V10 base plus fitz-gov-sage v1.1 stage rows.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  init_from: models/pyrrho-nano-g5.1
+  tokenizer_from: models/pyrrho-nano-g5.1
+  dropout: 0.0
+
+architecture:
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+
+data:
+  source_data_dir: data/multitask_g5_1_v10_repaired
+  sage_data_dir: data/fitz_gov_sage_v1_1
+  input_dir: data/multitask_sage_g1_1_v10_clean_plus_stage
+  fitz_gov_revision: v10.0.0_clean_plus_sage_v1_1
+  stage_aware: true
+  require_query_contract: true
+  require_retrieval_control: true
+  max_seq_length: 4096
+  max_query_length: 256
+  scalar_fields:
+    - evidence_sufficiency
+    - query_evidence_alignment
+    - answer_coverage
+    - conflict_density
+    - retrieval_retry_value
+    - false_trustworthy_risk
+    - evidence_failure_severity
+
+training:
+  output_dir: outputs/pyrrho-sage-nano-g1_1_v10_clean_plus_stage/seed_1337
+  num_train_epochs: 2
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_workers: 0
+  learning_rate: 1.5e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  max_grad_norm: 1.0
+  bf16: true
+  label_smoothing: 0.10
+  governance_class_weights: [2.3, 2.3, 1.0]
+  balance_query_contract: true
+  seed: 1337
+
+loss:
+  governance: 1.0
+  query_contract: 0.70
+  route: 0.20
+  taxonomy: 0.25
+  scalars: 0.25
+  retrieval_action: 0.24
+  gap_type: 0.26
+  answerability_shape: 0.18
+  retrieval_modality: 0.22
+  retrieval_obligation: 0.26

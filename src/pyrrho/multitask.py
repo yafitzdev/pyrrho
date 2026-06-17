@@ -187,9 +187,9 @@ class PyrrhoMultiTaskModernBert(nn.Module):
             "scalar_preds": torch.sigmoid(self.scalar_head(evidence_state)),
         }
         if self.retrieval_action_head is not None:
-            outputs["retrieval_action_logits"] = self.retrieval_action_head(evidence_state)
+            outputs["retrieval_action_logits"] = self.retrieval_action_head(query_state)
         if self.gap_type_head is not None:
-            outputs["gap_type_logits"] = self.gap_type_head(evidence_state)
+            outputs["gap_type_logits"] = self.gap_type_head(query_state)
         if self.answerability_shape_head is not None:
             outputs["answerability_shape_logits"] = self.answerability_shape_head(query_state)
         if self.retrieval_modality_head is not None:
