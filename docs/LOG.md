@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (afternoon) — sage messy replacement batches 0001-0004 mechanically clean
+
+**What landed:**
+- Completed `data/fitz_gov_sage_v1_messy_repair_batch_0001` through `data/fitz_gov_sage_v1_messy_repair_batch_0004`.
+- Added **400** mechanically clean transformed source rows, bringing the local transformed total to **500 / 10,000** source rows when counting `batch_0000`.
+- Ran the deferred-QA mechanical gates for each new batch: structural audit, shape audit, and label/scalar preservation audit.
+- Repaired one mechanical label-preservation issue in `batch_0004/subagent_outputs/pack_0001.jsonl`; the repair changed labels only, not contexts, queries, source IDs, row count, or scalar targets.
+
+**What was learned:**
+- All completed batches are mechanically clean: **0** structural violations, **0** shape violations, **0** label/scalar violations.
+- Shape remains on target: every completed evidence row is `retrieval_pack_4_7`, source-context copies are **0/500**, and changed evidence packs are **500/500**.
+- The two-batch wave (`batch_0003` + `batch_0004`) works as a faster generation unit, but workers must be explicitly forbidden from editing docs; earlier worker-written per-pack log entries were collapsed into this batch-level record.
+- Semantic QA remains deferred for `batch_0001+`.
+
+**Next:** continue from `batch_0005` and `batch_0006` with the same two-batch worker wave, then audit mechanically before starting the next wave.
+
+---
+
 ## 2026-06-17 (afternoon) — switched future sage waves to deferred QA
 
 **What landed:**
