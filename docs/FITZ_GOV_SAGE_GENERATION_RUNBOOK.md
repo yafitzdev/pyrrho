@@ -256,3 +256,55 @@ planning shape issues:            0
 This is the current useful pilot for fitz-sage-shaped rows. Do not confuse it
 with the earlier source-preserving reproduction pilot.
 
+### Semantic QA And Repair
+
+Six GPT-5.4 semantic QA subagents reviewed one pack each and wrote reports under:
+
+```text
+data/fitz_gov_sage_messy_pilot_100_20260617/semantic_qa
+```
+
+Pre-repair semantic QA result:
+
+```text
+accepted rows: 85
+repair rows:   15
+```
+
+Main repair reasons:
+
+```text
+ABSTAIN answer leakage
+unsupported auxiliary contexts
+fake missing-evidence scaffolding
+scope erasure in a DISPUTED row
+one metadata/content mismatch
+```
+
+Four GPT-5.4 repair workers manually edited only the flagged `evidence_governance`
+rows in `pack_0000`, `pack_0001`, `pack_0002`, and `pack_0005`. The accepted
+rows were not edited.
+
+Post-repair gates:
+
+```text
+structural violations:            0
+source ids:                       100
+stage rows:                       200
+query_planning rows:              100
+evidence_governance rows:         100
+exact source-context-list rows:   0 / 100
+changed context sets:             100 / 100
+mean context count:               4.33
+pack shapes:                      retrieval_pack_4_7 = 100 / 100
+label mismatches:                 0
+scalar mismatches:                0
+planning shape issues:            0
+```
+
+Final status artifact:
+
+```text
+data/fitz_gov_sage_messy_pilot_100_20260617/pilot_status_after_semantic_repair.json
+```
+

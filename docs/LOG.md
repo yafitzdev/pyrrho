@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (morning) — manual messy-pack pilot QA repaired clean
+
+**What landed:**
+- Ran six GPT-5.4 semantic QA subagents over `data/fitz_gov_sage_messy_pilot_100_20260617`, one report per pack under `semantic_qa/`.
+- QA found **85** accepted rows and **15** repair rows.
+- Four GPT-5.4 repair workers manually repaired only the flagged `evidence_governance` rows in `pack_0000`, `pack_0001`, `pack_0002`, and `pack_0005`.
+- Wrote final status artifact `data/fitz_gov_sage_messy_pilot_100_20260617/pilot_status_after_semantic_repair.json`.
+
+**What was learned:**
+- The semantic failure mode was mostly ABSTAIN answer leakage and unsupported auxiliary context, not structural shape.
+- After repair, the pilot is clean on the hard gates: structural **0** violations, **0/100** exact source-context-list copies, **100/100** changed context sets, mean **4.33** contexts, **100/100** `retrieval_pack_4_7`, **0** label mismatches, **0** scalar mismatches, and **0** planning shape issues.
+- One repair worker changed a label field (`retrieval_obligation`) while fixing content; this was caught by the label-preservation check and restored to source truth. Label/scalar checks are mandatory after every repair pass.
+
+**Next:** Scale the same manual subagent procedure to the next batch size only after preserving the full generate -> structural audit -> shape audit -> semantic QA -> repair -> label/scalar check loop.
+
+---
+
 ## 2026-06-17 (morning) — manual messy-pack pilot generated correctly
 
 **What landed:**
