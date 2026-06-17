@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (morning) — sage reset and 100-row reproduction pilot
+
+**What landed:**
+- Reset the repo to commit `1863c7e` (`Fix sage planning heads and train g1.1 control`) as the base sage state.
+- Removed later generated `v1.2` / `v2` data artifacts from disk while keeping `data/fitz_gov_sage_v1`, `data/fitz_gov_sage_v1_1`, `data/fitz_gov_sage_v1_workpacks`, and `data/multitask_sage_g1_1_v10_clean_plus_stage`.
+- Created a six-worker 100-row pilot at `data/fitz_gov_sage_pilot_100_20260617`, using the first 100 rows from the original v1 source selection and the original `docs/prompts/FITZ_GOV_SAGE_TRANSFORM_SUBAGENT.md`.
+- Added `docs/FITZ_GOV_SAGE_GENERATION_RUNBOOK.md` with the exact base state, worker prompt template, pilot split, audit command, and comparison results.
+
+**What was learned:**
+- Six GPT-5.4 workers produced **6** output files / **200** stage rows; `scripts/audit_fitz_gov_sage_outputs.py` passed with **0 violations**.
+- Against the original v1 output rows for the same 100 source IDs, the pilot matched labels **200/200**, context lists **200/200**, and pack shapes **200/200**.
+- Both the pilot and original v1 baseline for those 100 IDs are source-context-preserving: **100/100** `short_pack_1_3`, mean **1.98** contexts per evidence row, and **100/100** exact source-context lists.
+
+**Next:** Treat this as the exact reproducible base transform procedure. Do not scale new sage rows until the user decides whether to preserve this source-context shape or intentionally design a separate messy-pack transform with stronger semantic QA.
+
+---
+
 ## 2026-06-17 (early morning) — pyrrho-sage-nano-g1.1 bug-fix control
 
 **What landed:**
