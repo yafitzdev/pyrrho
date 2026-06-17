@@ -28,13 +28,14 @@ Repair only these source_ids:
 
 Hard rules:
 - Do not change labels, source_id, query, scalar_targets, or query_planning rows unless a query_planning row is malformed.
+- Preserve every numeric label *_id field from the source workpack. Label names without their matching IDs are not acceptable.
 - Keep exactly 2 rows per source_id.
 - For each repaired evidence_governance row, keep realistic fitz-sage shape: 4-9 contexts, pack_shape retrieval_pack_4_7 or retrieval_pack_8_10, one pack_metadata.items entry per context.
 - For ABSTAIN rows, do not add decisive answer evidence or fake missing-evidence scaffolding.
 - For DISPUTED rows, preserve visible material contradiction.
 - For TRUSTWORTHY rows, keep enough decisive evidence to answer.
+- Remove internal source_id strings from contexts, anchors, and why_present text; replace them with natural document/table/log identifiers.
 - Leave all unflagged rows byte-for-byte as much as practical.
 - Do not write summaries, docs, scripts, or extra validation reports.
 - Final answer: state only which source_ids you repaired.
 ```
-

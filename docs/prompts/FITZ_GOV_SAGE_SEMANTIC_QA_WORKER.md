@@ -32,8 +32,9 @@ Semantic checks:
 - ABSTAIN: the pack must not accidentally include the missing decisive answer.
 - Distractors/stale/partial evidence must be plausible and label-consistent.
 - No fake missing-evidence context, placeholders, or fitz-sage benchmark names.
+- No internal source_id strings should appear inside evidence contexts or pack metadata text.
+- Labels must preserve both label names and numeric *_id fields from the source workpack.
 - Metadata roles should match the context content enough to be usable.
 
 Be strict. If a row is questionable, mark repair and give a concrete repair instruction. Do not edit the generated rows.
 ```
-

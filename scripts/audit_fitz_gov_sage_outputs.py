@@ -68,6 +68,22 @@ def text_fields(row: dict[str, Any]) -> Iterable[tuple[str, str]]:
                         yield f"pack_metadata.items[{idx}].{key}", value
 
 
+def evidence_leakage_fields(row: dict[str, Any]) -> Iterable[tuple[str, str]]:
+    contexts = row.get("contexts")
+    if isinstance(contexts, list):
+        for idx, value in enumerate(contexts):
+            if isinstance(value, str):
+                yield f"contexts[{idx}]", value
+    pack = row.get("pack_metadata")
+    if isinstance(pack, dict):
+        for idx, item in enumerate(pack.get("items") or []):
+            if isinstance(item, dict):
+                for key in ("anchor", "why_present"):
+                    value = item.get(key)
+                    if isinstance(value, str):
+                        yield f"pack_metadata.items[{idx}].{key}", value
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workpack-dir", type=Path, default=DEFAULT_WORKPACK_DIR)
@@ -130,6 +146,10 @@ def main() -> int:
                     violations.append({**location, "kind": "placeholder_token", "field": field})
                 if SYNTHETIC_MISSING_RE.search(value):
                     violations.append({**location, "kind": "synthetic_missing_context", "field": field})
+            if stage == "evidence_governance":
+                for field, value in evidence_leakage_fields(row):
+                    if source_id and source_id in value:
+                        violations.append({**location, "kind": "source_id_leakage", "field": field})
 
     for source_id, stages in grouped.items():
         missing = sorted(STAGES - set(stages))

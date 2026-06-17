@@ -15,6 +15,7 @@ The procedure was validated on:
 
 ```text
 data/fitz_gov_sage_messy_pilot_100_20260617
+data/fitz_gov_sage_v1_messy_repair_batch_0000
 ```
 
 Final status:
@@ -40,6 +41,35 @@ Final artifact:
 data/fitz_gov_sage_messy_pilot_100_20260617/pilot_status_after_semantic_repair.json
 ```
 
+The first original-10k replacement wave was validated on:
+
+```text
+data/fitz_gov_sage_v1_messy_repair_batch_0000
+```
+
+Final status:
+
+```text
+source rows:                       100
+stage rows:                        200
+semantic QA before repair:         87 accept / 13 repair
+semantic repair rows:              13
+final repaired-row QA:             13 accept / 0 repair
+structural violations after repair: 0
+exact source-context-list copies:  0 / 100
+changed evidence packs:            100 / 100
+mean contexts per evidence row:    4.18
+pack shape:                        100 / 100 retrieval_pack_4_7
+label mismatches:                  0
+scalar mismatches:                 0
+```
+
+Final artifact:
+
+```text
+data/fitz_gov_sage_v1_messy_repair_batch_0000/batch_status_final.json
+```
+
 ## Worker Prompt Files
 
 Use these prompt templates exactly:
@@ -60,13 +90,26 @@ That older prompt produced mostly source-preserving rows in the original 10k.
 
 ## Batch Preparation
 
+Use 100-row waves. This is the proven manual-quality unit:
+
+```text
+100 source rows
+200 stage rows
+6 GPT-5.4 transform workers
+15-17 source rows per worker
+```
+
+Do not use 500-row waves without a separate serialization layer. The first
+500-row attempt put about 85 source rows on each worker and stalled before
+content generation. The repeatable procedure is smaller waves with hard audits.
+
 Prepare workpacks with:
 
 ```powershell
 .venv\Scripts\python.exe scripts\prepare_fitz_gov_sage_manual_batch.py `
   --source-selection data\fitz_gov_sage_v1_workpacks\source_selection.jsonl `
   --output-dir data\fitz_gov_sage_v1_messy_repair_batch_0000 `
-  --target-source-rows 500 `
+  --target-source-rows 100 `
   --start-index 0 `
   --selection-mode sequential `
   --workpack-size 17 `
@@ -112,7 +155,9 @@ query_planning row has no contexts
 evidence_governance row has 4-9 realistic fitz-sage evidence contexts
 do not copy the source context list unchanged
 preserve labels, query, source_id, scalar_targets
+preserve all numeric label *_id fields from the source row
 no fake "missing evidence" context
+no internal source_id strings inside evidence contexts or pack metadata
 one pack_metadata.items entry per context
 ```
 
@@ -134,6 +179,10 @@ violations = 0
 rows_seen = source_rows * 2
 source_ids_seen = source_rows
 ```
+
+This audit also rejects placeholder text, synthetic "missing evidence" filler,
+pack/context count mismatches, and internal source-id leakage inside evidence
+contexts or pack metadata.
 
 ## Shape Audit
 
@@ -187,6 +236,9 @@ stage_counts.evidence_governance = source_rows
 
 This check is mandatory because the 100-row pilot repair pass caught one worker
 changing `retrieval_obligation`; it was restored before the pilot was accepted.
+It also verifies the numeric `*_id` label fields, because a later batch repair
+showed that preserving label names without the IDs is not sufficient for
+training the heads.
 
 ## Semantic QA
 
@@ -252,7 +304,13 @@ After repair, rerun:
 structural audit
 shape audit
 label/scalar preservation check
-semantic QA if the repair changed semantics substantially
+focused semantic QA on every repaired source_id
+```
+
+The focused semantic QA report for a repaired batch should live under:
+
+```text
+<output-dir>/semantic_qa/final_repaired_rows_semantic_check.jsonl
 ```
 
 ## Accepted Row Definition

@@ -16,24 +16,39 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 PRE_RETRIEVAL_LABEL_FIELDS = (
     "query_contract",
+    "query_contract_id",
     "route",
+    "route_id",
     "retrieval_action",
+    "retrieval_action_id",
     "gap_type",
+    "gap_type_id",
     "answerability_shape",
+    "answerability_shape_id",
     "retrieval_modality",
+    "retrieval_modality_id",
     "retrieval_obligation",
+    "retrieval_obligation_id",
 )
 EVIDENCE_LABEL_FIELDS = (
     "label",
     "label_id",
     "query_contract",
+    "query_contract_id",
     "route",
+    "route_id",
     "taxonomy_pattern",
+    "taxonomy_pattern_id",
     "retrieval_action",
+    "retrieval_action_id",
     "gap_type",
+    "gap_type_id",
     "answerability_shape",
+    "answerability_shape_id",
     "retrieval_modality",
+    "retrieval_modality_id",
     "retrieval_obligation",
+    "retrieval_obligation_id",
 )
 
 
@@ -114,6 +129,14 @@ def main() -> int:
                             "value": out_labels.get("taxonomy_pattern"),
                         }
                     )
+                if out_labels.get("taxonomy_pattern_id") not in (None, -1):
+                    violations.append(
+                        {
+                            **location,
+                            "kind": "planning_taxonomy_id_not_masked",
+                            "value": out_labels.get("taxonomy_pattern_id"),
+                        }
+                    )
                 if row.get("scalar_targets") not in ({}, None):
                     violations.append({**location, "kind": "planning_scalar_targets_not_empty"})
                 for field in PRE_RETRIEVAL_LABEL_FIELDS:
@@ -156,6 +179,9 @@ def main() -> int:
         "source_rows": len(sources),
         "stage_counts": dict(sorted(stage_counts.items())),
         "violations": len(violations),
+        "violations_by_path": dict(sorted(Counter(str(v.get("path") or "<batch>") for v in violations).items())),
+        "violations_by_kind": dict(sorted(Counter(str(v.get("kind") or "<unknown>") for v in violations).items())),
+        "violations_by_field": dict(sorted(Counter(str(v.get("field") or "<none>") for v in violations).items())),
         "violation_examples": violations[:100],
     }
     output = args.output or (workpack_dir / "label_preservation_audit.json")
@@ -166,4 +192,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -13,6 +13,62 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-17 (afternoon) — first original-10k messy replacement wave accepted clean
+
+**What landed:**
+- Completed `data/fitz_gov_sage_v1_messy_repair_batch_0000`, the first replacement messy-pack wave from the original 10k source selection.
+- Generated **100** source rows / **200** stage rows with **6 GPT-5.4 workers** using the manual procedure.
+- Repaired the **13** rows flagged by initial semantic QA and ran a final focused semantic check on those repaired rows.
+- Wrote durable local status artifact `data/fitz_gov_sage_v1_messy_repair_batch_0000/batch_status_final.json`.
+
+**What was learned:**
+- Initial semantic QA was **87 accept / 13 repair**; final repaired-row QA was **13 accept / 0 repair**.
+- Final hard gates are clean: structural **0** violations, shape **0** violations, **0/100** exact source-context-list copies, **100/100** changed context sets, mean **4.18** contexts, **100/100** `retrieval_pack_4_7`, and label/scalar preservation **0** violations.
+- The reproducible operating unit is **100 source rows** split across **6 workers**. The earlier 500-row wave was too large for the manual-quality procedure.
+
+**Next:** continue with `data/fitz_gov_sage_v1_messy_repair_batch_0001` using `--start-index 100 --target-source-rows 100 --worker-count 6 --workpack-size 17`.
+
+---
+
+## 2026-06-17 (afternoon) — repaired messy workpack pack_0003 and closed the batch label audit
+
+**What landed:**
+- Manually repaired only `data/fitz_gov_sage_v1_messy_repair_batch_0000/subagent_outputs/pack_0003.jsonl`.
+- Preserved the source numeric label IDs on all **34** JSONL rows for the required fields: query-contract, route, retrieval-action, gap-type, answerability-shape, retrieval-modality, retrieval-obligation, plus evidence-stage `taxonomy_pattern_id` / `label_id`.
+- Reran the required batch audit and rewrote `data/fitz_gov_sage_v1_messy_repair_batch_0000/label_preservation_audit_final.json`.
+
+**What was learned:**
+- The repaired pack itself is clean on the intended label-preservation requirement: a direct row-by-row check against `source_selection.jsonl` found **0** missing or mismatched numeric ID fields in `pack_0003.jsonl`.
+- The required full-batch label-preservation audit now passes cleanly: **6** files / **200** rows / **100** source rows / **0** violations.
+- This closes the earlier `247`-violation metadata gap without changing row count or source/stage pairings.
+
+**Next:** treat `data/fitz_gov_sage_v1_messy_repair_batch_0000` as the current clean metadata-preserved batch and only continue with semantic/content follow-up or the next user-directed sage step.
+
+---
+
+## 2026-06-17 (afternoon) — repaired messy workpack pack_0001 and isolated remaining batch audit failures
+
+**What landed:**
+- Manually repaired only `data/fitz_gov_sage_v1_messy_repair_batch_0000/subagent_outputs/pack_0001.jsonl`.
+- Preserved the source numeric label IDs on all **34** JSONL rows for the required fields: query-contract, route, retrieval-action, gap-type, answerability-shape, retrieval-modality, retrieval-obligation, plus evidence-stage `taxonomy_pattern_id` / `label_id`.
+- Removed the four requested source-id leaks from evidence text in:
+  - `sdgp_v10_10x_mixed__economics_finance__easy__0045` `contexts[0]`
+  - `sdgp_v10_5x_configuration__culture_society__medium__0004` `contexts[3]`
+  - `sdgp_v10_5x_mixed__culture_society__hard__0012` `contexts[3]`
+  - `sdgp_v10_10x_log_trace__law_policy__easy__0046` `contexts[0]`
+- Wrote final audit artifacts:
+  - `data/fitz_gov_sage_v1_messy_repair_batch_0000/subagent_output_audit_final.json`
+  - `data/fitz_gov_sage_v1_messy_repair_batch_0000/label_preservation_audit_final.json`
+
+**What was learned:**
+- The repaired pack itself is clean on the intended label-preservation requirement: a direct row-by-row check against `source_selection.jsonl` found **0** missing or mismatched numeric ID fields in `pack_0001.jsonl`.
+- The required structural audit over the full batch passes: **6** files / **200** rows / **100** source ids / **0** violations.
+- The required full-batch label-preservation audit still fails at **247** violations, but the remaining failures are in other files, beginning with `subagent_outputs/pack_0003.jsonl`; this repair did not regress `pack_0001`.
+
+**Next:** continue the same manual repair pass on the remaining batch files with label-audit violations, starting from `subagent_outputs/pack_0003.jsonl`.
+
+---
+
 ## 2026-06-17 (morning) — manual messy-pack procedure codified
 
 **What landed:**
