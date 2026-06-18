@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-19 (morning) — current V13 gap detector pass
+
+**What landed:**
+- Ran the current gap detector over **68,044** rows: active g5.6/V12 base (**67,944**) plus the accepted V13 Round 2 probe (**100**).
+- Wrote reports under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/reports/v13_current_gap_detector_20260619/`.
+- V11 practical planner (`class_obligation=5`, `failure_focus=8`, `pack_shape=5`) reports **420** practical rows needed, with **756** independent matrix deficit and **336** rows saved by stacking compatible cells.
+
+**What was learned:**
+- The old V10 detector is not valid on the flattened pyrrho training view without adaptation; it read zero current coverage. Use the V11 detector/planner for this current pass.
+- The remaining V11-shaped gap is narrow: all **420** target rows are `TRUSTWORTHY`, `failure_focus=stale_forbidden_decoy`, split across `unstructured_text` (**210**) and `log_trace` (**210**), all 7 domains (**60** each), all 3 difficulties (**140** each), and both pack shapes (`retrieval_pack_6_10` **210**, `long_pack_11_plus` **210**).
+- `class_obligation` is already fully covered; the new rows should be designed to fill `failure_focus` and `pack_shape` together, not to chase more obligation volume.
+
+**Next:** generate from `v11_row_targets_current_plus_v13_probe.jsonl` if continuing V13 classic data. Each target should be a TRUSTWORTHY stale-decoy retrieval pack with either 6-10 or 11+ contexts, using the specified modality/domain/difficulty bucket.
+
+---
+
 ## 2026-06-19 (morning) — classic reset archive and V13 100-row probe
 
 **What landed:**
