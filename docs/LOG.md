@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-19 (morning) — fitz-gov-modern generation contract
+
+**What landed:**
+- Defined the fresh `fitz-gov-modern` dataset-family plan in `C:/Users/yanfi/PycharmProjects/fitz-gov/docs/roadmap/FITZ_GOV_MODERN_DATA_PLAN.md`.
+- Wrote the worker prompt for GPT-5.4 / Sonnet 4.6 bulk generation at `C:/Users/yanfi/PycharmProjects/fitz-gov/docs/roadmap/FITZ_GOV_MODERN_GENERATION_PROMPT.md`.
+- Recorded that modern rows must stay separate from `fitz-gov-classic`, rejected sage-shaped artifacts, and V12/V13 compatibility fields.
+
+**What was learned:**
+- A prompt file alone is enough for the 100-row pilot, but bulk generation needs a `row_targets.jsonl` queue from the modern gap detector so agents fill missing buckets instead of duplicating easy rows.
+- The first serious modern target should be **40k** rows after a **100** row pilot and a **20k** alpha checkpoint; **10k** is only an alpha smoke, and **60k** should wait until 20k/40k prove the shape.
+
+**Next:** run a 100-row `fitz-gov-modern` pilot from the prompt, validate row quality and schema, then build the modern row-target queue before scaling to 20k.
+
+---
+
 ## 2026-06-19 (morning) — V13 gap level options
 
 **What landed:**

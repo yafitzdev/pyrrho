@@ -25,6 +25,8 @@ Current V13 gap detector pass: reports are under `C:/Users/yanfi/PycharmProjects
 
 V13 expansion levels are calculated in `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/reports/v13_current_gap_detector_20260619/v13_gap_level_options_20260619.json`. Level 1 is **420** rows. Level 2 is **836** rows total from current state, Level 3 **1,275**, Level 4 **1,767**, Level 5 **2,895**, and Level 6 **7,416**. These are practical row counts from the current base, not additive counts after regeneration.
 
+Modern dataset fork plan: if restarting from scratch, treat `fitz-gov-classic` as the historical corpus and create a separate `fitz-gov-modern` dataset family. Do not merge modern rows into classic and do not reuse rejected sage-shaped artifacts. The current generation contract is in `C:/Users/yanfi/PycharmProjects/fitz-gov/docs/roadmap/FITZ_GOV_MODERN_DATA_PLAN.md` and `C:/Users/yanfi/PycharmProjects/fitz-gov/docs/roadmap/FITZ_GOV_MODERN_GENERATION_PROMPT.md`. For a pilot, the prompt plus the built-in 100-row quota is enough. For bulk generation, use the prompt plus a `row_targets.jsonl` queue from the modern gap detector. Recommended scale: **100** pilot rows, then **20k** for the first meaningful alpha, then **40k** as the first serious modern-v1 target; **60k** only after 20k/40k validate cleanly.
+
 ## Active goal — pyrrho-MoE-g4-real
 
 The active goal is now explicitly defined in [GOAL.md](GOAL.md): build `pyrrho-MoE-g4-real`, a clean real sparse MoE with stock runtime compatibility as gate zero. `pyrrho-MoE-g3-mvp` is frozen as an experimental proof-of-life artifact, not the active target.
