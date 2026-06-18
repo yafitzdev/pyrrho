@@ -1005,6 +1005,7 @@ def create_package(args: argparse.Namespace) -> dict[str, Any]:
         "route_id2label": model.pyrrho_config.route_id2label,
         "taxonomy_id2label": model.pyrrho_config.taxonomy_id2label,
         "scalar_fields": list(model.pyrrho_config.scalar_fields),
+        "head_input_sources": dict(model.pyrrho_config.resolved_head_input_sources),
     }
     for key in (
         "retrieval_action_id2label",

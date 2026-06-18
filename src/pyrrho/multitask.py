@@ -12,6 +12,14 @@ from safetensors.torch import load_file, save_file
 from torch import nn
 from transformers import AutoConfig, AutoModel
 
+DEFAULT_HEAD_INPUT_SOURCES = {
+    "retrieval_action": "evidence",
+    "gap_type": "evidence",
+    "answerability_shape": "query",
+    "retrieval_modality": "query",
+    "retrieval_obligation": "query",
+}
+
 
 @dataclass(frozen=True)
 class PyrrhoMultiTaskConfig:
@@ -30,6 +38,7 @@ class PyrrhoMultiTaskConfig:
     answerability_shape_id2label: dict[int, str] | None = None
     retrieval_modality_id2label: dict[int, str] | None = None
     retrieval_obligation_id2label: dict[int, str] | None = None
+    head_input_sources: dict[str, str] | None = None
     dropout: float = 0.0
 
     @classmethod
@@ -58,6 +67,7 @@ class PyrrhoMultiTaskConfig:
             retrieval_obligation_id2label=_optional_id2label(
                 raw.get("retrieval_obligation_id2label")
             ),
+            head_input_sources=_head_input_sources(raw.get("head_input_sources")),
             dropout=float(raw.get("dropout", 0.0)),
         )
 
@@ -79,7 +89,12 @@ class PyrrhoMultiTaskConfig:
         ):
             mapping = getattr(self, key)
             data[key] = {str(k): v for k, v in mapping.items()} if mapping else None
+        data["head_input_sources"] = dict(self.resolved_head_input_sources)
         return data
+
+    @property
+    def resolved_head_input_sources(self) -> dict[str, str]:
+        return _head_input_sources(self.head_input_sources)
 
     @property
     def num_retrieval_action_labels(self) -> int:
@@ -107,6 +122,20 @@ def _optional_id2label(raw: Any) -> dict[int, str] | None:
         return None
     mapping = {int(k): str(v) for k, v in dict(raw).items()}
     return mapping or None
+
+
+def _head_input_sources(raw: Any) -> dict[str, str]:
+    sources = dict(DEFAULT_HEAD_INPUT_SOURCES)
+    if raw is None:
+        return sources
+    for name, source in dict(raw).items():
+        if name not in sources:
+            continue
+        value = str(source)
+        if value not in {"query", "evidence"}:
+            raise ValueError(f"invalid input source for {name}: {value!r}")
+        sources[name] = value
+    return sources
 
 
 class PyrrhoMultiTaskModernBert(nn.Module):
@@ -187,16 +216,35 @@ class PyrrhoMultiTaskModernBert(nn.Module):
             "scalar_preds": torch.sigmoid(self.scalar_head(evidence_state)),
         }
         if self.retrieval_action_head is not None:
-            outputs["retrieval_action_logits"] = self.retrieval_action_head(query_state)
+            outputs["retrieval_action_logits"] = self.retrieval_action_head(
+                self._head_state("retrieval_action", query_state, evidence_state)
+            )
         if self.gap_type_head is not None:
-            outputs["gap_type_logits"] = self.gap_type_head(query_state)
+            outputs["gap_type_logits"] = self.gap_type_head(
+                self._head_state("gap_type", query_state, evidence_state)
+            )
         if self.answerability_shape_head is not None:
-            outputs["answerability_shape_logits"] = self.answerability_shape_head(query_state)
+            outputs["answerability_shape_logits"] = self.answerability_shape_head(
+                self._head_state("answerability_shape", query_state, evidence_state)
+            )
         if self.retrieval_modality_head is not None:
-            outputs["retrieval_modality_logits"] = self.retrieval_modality_head(query_state)
+            outputs["retrieval_modality_logits"] = self.retrieval_modality_head(
+                self._head_state("retrieval_modality", query_state, evidence_state)
+            )
         if self.retrieval_obligation_head is not None:
-            outputs["retrieval_obligation_logits"] = self.retrieval_obligation_head(query_state)
+            outputs["retrieval_obligation_logits"] = self.retrieval_obligation_head(
+                self._head_state("retrieval_obligation", query_state, evidence_state)
+            )
         return outputs
+
+    def _head_state(
+        self,
+        name: str,
+        query_state: torch.Tensor,
+        evidence_state: torch.Tensor,
+    ) -> torch.Tensor:
+        source = self.pyrrho_config.resolved_head_input_sources.get(name, "query")
+        return evidence_state if source == "evidence" else query_state
 
     def save_pretrained(self, output_dir: str | Path) -> None:
         output = Path(output_dir)

@@ -14,21 +14,23 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 
-PRE_RETRIEVAL_LABEL_FIELDS = (
+QUERY_PLANNING_LABEL_FIELDS = (
     "query_contract",
     "query_contract_id",
     "route",
     "route_id",
-    "retrieval_action",
-    "retrieval_action_id",
-    "gap_type",
-    "gap_type_id",
     "answerability_shape",
     "answerability_shape_id",
     "retrieval_modality",
     "retrieval_modality_id",
     "retrieval_obligation",
     "retrieval_obligation_id",
+)
+EVIDENCE_CONTROL_LABEL_FIELDS = (
+    "retrieval_action",
+    "retrieval_action_id",
+    "gap_type",
+    "gap_type_id",
 )
 EVIDENCE_LABEL_FIELDS = (
     "label",
@@ -139,7 +141,7 @@ def main() -> int:
                     )
                 if row.get("scalar_targets") not in ({}, None):
                     violations.append({**location, "kind": "planning_scalar_targets_not_empty"})
-                for field in PRE_RETRIEVAL_LABEL_FIELDS:
+                for field in QUERY_PLANNING_LABEL_FIELDS:
                     if out_labels.get(field) != source_labels.get(field):
                         violations.append(
                             {
@@ -147,6 +149,18 @@ def main() -> int:
                                 "kind": "planning_label_mismatch",
                                 "field": field,
                                 "expected": source_labels.get(field),
+                                "observed": out_labels.get(field),
+                            }
+                        )
+                for field in EVIDENCE_CONTROL_LABEL_FIELDS:
+                    expected = -1 if field.endswith("_id") else None
+                    if out_labels.get(field) != expected:
+                        violations.append(
+                            {
+                                **location,
+                                "kind": "planning_evidence_control_not_masked",
+                                "field": field,
+                                "expected": expected,
                                 "observed": out_labels.get(field),
                             }
                         )

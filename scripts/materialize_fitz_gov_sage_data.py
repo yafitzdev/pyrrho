@@ -28,16 +28,21 @@ DEFAULT_SOURCE_DATA_DIR = Path("data/multitask_g5_1_v10_repaired")
 DEFAULT_OUTPUT_DIR = Path("data/fitz_gov_sage_v1")
 DEFAULT_CONFIG = Path("configs/encoder/modernbert_base_sage_g1_v10_packview.yaml")
 STAGES = ("query_planning", "evidence_governance")
-PRE_RETRIEVAL_LABEL_FIELDS = (
+QUERY_PLANNING_LABEL_FIELDS = (
     "route",
     "query_contract",
-    "retrieval_action",
-    "gap_type",
     "answerability_shape",
     "retrieval_modality",
     "retrieval_obligation",
 )
+EVIDENCE_CONTROL_LABEL_FIELDS = (
+    "retrieval_action",
+    "gap_type",
+)
+PRE_RETRIEVAL_LABEL_FIELDS = QUERY_PLANNING_LABEL_FIELDS + EVIDENCE_CONTROL_LABEL_FIELDS
 PRE_RETRIEVAL_ID_FIELDS = tuple(f"{field}_id" for field in PRE_RETRIEVAL_LABEL_FIELDS)
+QUERY_PLANNING_ID_FIELDS = tuple(f"{field}_id" for field in QUERY_PLANNING_LABEL_FIELDS)
+EVIDENCE_CONTROL_ID_FIELDS = tuple(f"{field}_id" for field in EVIDENCE_CONTROL_LABEL_FIELDS)
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -190,6 +195,10 @@ def materialize_stage(
     }
 
     if stage == "query_planning":
+        for field in EVIDENCE_CONTROL_LABEL_FIELDS:
+            row[field] = None
+        for field in EVIDENCE_CONTROL_ID_FIELDS:
+            row[field] = -1
         row.update(
             {
                 "label": None,
@@ -200,9 +209,9 @@ def materialize_stage(
             }
         )
     else:
-        for field in PRE_RETRIEVAL_LABEL_FIELDS:
+        for field in QUERY_PLANNING_LABEL_FIELDS:
             row[field] = None
-        for field in PRE_RETRIEVAL_ID_FIELDS:
+        for field in QUERY_PLANNING_ID_FIELDS:
             row[field] = -1
         row.update(
             {

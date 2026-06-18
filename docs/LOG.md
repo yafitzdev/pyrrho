@@ -13,6 +13,129 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-18 (evening) — sage-mix regression research controls
+
+**What landed:**
+- Fixed the multitask architecture contract: `retrieval_action` and `gap_type` now default to evidence-conditioned heads, while `answerability_shape`, `retrieval_modality`, and `retrieval_obligation` remain query-conditioned heads. `PyrrhoMultiTaskConfig` now records `head_input_sources`, package manifests include it, and fitz-sage's Pyrrho loader respects it.
+- Fixed sage materialization/normalization so query-planning rows mask `retrieval_action` and `gap_type`; added tests to catch query-planning rows that still train evidence-control labels.
+- Built corrected query-planning view `data/fitz_gov_sage_combined_laptop30000_local900_rofilled_query_planning_only_masked_action_gap_20260618`: **30,900** rows, all action/gap masked, all obligations retained.
+- Built corrected full-stage view `data/fitz_gov_sage_combined_laptop30000_local900_rofilled_materialized_masked_action_gap_20260618`: **61,800** rows = **30,900** query-planning + **30,900** evidence-governance; query-planning action/gap masked.
+- Trained/package/benchmarked three research controls:
+  - `pyrrho-nano-g5.6-evidence-replay-alpha`: clean g5.6 data only, role-correct head routing, **94/120** strict-owner fitz-sage.
+  - `pyrrho-sage-nano-g5.6-evidence-alpha`: clean g5.6 + corrected sage query-planning rows, **90/120** strict-owner fitz-sage.
+  - `pyrrho-sage-nano-g5.6-fullstage-alpha`: clean g5.6 + corrected full sage stage rows, **88/120** strict-owner fitz-sage.
+- Wrote comparison artifacts:
+  - `outputs/pyrrho-nano-g5_6_evidence_action_replay_alpha/fitz_sage_research_comparison_summary.json`
+  - `outputs/pyrrho-sage-nano-g5_6_full_stage_alpha_lowlr/fitz_sage_benchmark_summary.json`
+
+**What was learned:**
+- The old training/runtime contract was inconsistent: `retrieval_action`/`gap_type` were trained from query state but fitz-sage consumed them as evidence-control heads.
+- Correcting that contract alone costs about **3** downstream cases: g5.6 **97/120** -> role-correct replay **94/120**.
+- Sage rows are the bigger problem under the current recipe. Corrected query-planning sage changed `retrieval_obligation` on **58/120** benchmark cases and fell to **90/120**. Full-stage stacking gained **4** cases but lost **13**, ending at **88/120**.
+- Naive clean+sage stacking is rejected. The sage corpus is production-shaped, but at the current ratio/objective it shifts planner behavior instead of improving fitz-sage generalization.
+
+**Next:** run a small weighted/sampled curriculum control: clean g5.6 as anchor, low-ratio sage query-planning rows, no or low-weight sage evidence-governance rows, and g5.6 consistency/distillation to prevent obligation/modality drift. Do not generate the remaining 9,100 sage pairs until such a control beats the 94/120 role-correct replay.
+
+---
+
+## 2026-06-18 (morning) — ro-filled sage g2.1 alpha regressed downstream
+
+**What landed:**
+- Validated the laptop `done/done2` retrieval-obligation patch: **23,961** rows, **0** duplicates, **0** invalid labels, **0** label/id mismatches, and **294** expected local rows not covered because the laptop only had the 30k block.
+- Extracted the missing local **294** V6-V9 query-planning rows and labeled them with six `gpt-5.4` subagents; combined local patch passed with **294/294** rows, **0** duplicates, **0** invalid labels, and average confidence **0.862**.
+- Built `data/fitz_gov_sage_combined_laptop30000_local900_rofilled_materialized_20260618`: **61,800** rows / **30,900** source pairs, all **30,900** query-planning rows carrying `retrieval_obligation`, evidence-governance rows still masked, **0** duplicate row IDs, and **0** remaining V6-V9 query-planning obligation gaps.
+- Fixed `scripts/prepare_sage_mixed_data.py` so mixed-prep metadata recomputes `retrieval_obligation_counts`, `answerability_shape_counts`, and `retrieval_modality_counts` from actual merged rows instead of inheriting stale base counts.
+- Prepared `data/multitask_sage_g2_1_alpha_v10_clean_plus_laptop30k_local900_rofilled`: **115,303** rows, split train **92,166** / eval **11,604** / test **11,533**, with obligation-labeled rows rising **19,393 -> 43,648**.
+- Trained, packaged, and CPU-verified local `pyrrho-sage-nano-g2.1-alpha` at `models/pyrrho-sage-nano-g2.1-alpha`.
+
+**What was learned:**
+- Held-out pyrrho metrics remained governance-safe but did not improve the key expanded obligation head enough: **97.29%** governance accuracy / **1.25%** false-trustworthy, query-contract macro F1 **86.76%**, retrieval-modality macro F1 **86.21%**, and expanded retrieval-obligation macro F1 **76.08%**.
+- Strict-owner fitz-sage regressed to **81/120**: core **14/20**, holdout **36/50**, holdout2 **31/50**, forbidden evidence **6**.
+- Versus `pyrrho-sage-nano-g2-alpha` (**86/120**), ro-filling fixed **4** cases but introduced **9** new failures. The worst regressions were holdout2 mixed/table cases.
+- The missing-label hypothesis is falsified as a complete explanation. Filling obligations changed the planning distribution toward labels such as `column_value_lookup`, `status_or_outcome`, and `multi_row_comparison`, but it did not teach the downstream coupling fitz-sage needs and sometimes displaced odd-but-effective obligations from g2/g5.6.
+
+**Next:** stop scaling the current sage recipe blindly; diagnose objective/loss weighting, V6-V9 obligation label quality, and whether the next sage-shaped run must restart from the stronger g5.6/V12 base rather than g5.1/V10.
+
+---
+
+## 2026-06-17 (night) — repaired laptop 30k and trained sage g2 alpha
+
+**What landed:**
+- Repaired the **35** missing/incomplete laptop source pairs and rebuilt `data/fitz_gov_sage_opus30k_laptop_repaired_full_20260617` with **60,000** stage rows / **30,000** complete source pairs.
+- Full laptop audits passed with **0** structural violations, **0** shape violations, **0** label/scalar violations, **0** exact source-context copies, and **30,000/30,000** changed evidence context sets.
+- Rebuilt the combined current sage base at `data/fitz_gov_sage_combined_laptop30000_local900_materialized_20260617`: **30,900** source pairs / **61,800** stage rows, split train **49,340** / eval **6,232** / test **6,228**.
+- Prepared mixed training data at `data/multitask_sage_g2_alpha_v10_clean_plus_laptop30k_local900_stage`: **53,503** clean V10 rows + **61,800** sage stage rows = **115,303** rows, split train **92,166** / eval **11,604** / test **11,533**.
+- Trained and packaged local `pyrrho-sage-nano-g2-alpha` from `models/pyrrho-nano-g5.1`, copying **154/154** tensors. Package is `models/pyrrho-sage-nano-g2-alpha`; config is `configs/encoder/modernbert_base_sage_g2_alpha_v10_clean_plus_laptop30k_local900_stage.yaml`.
+- CPU package verification passed, and fitz-sage benchmark summaries were written under `outputs/pyrrho-sage-nano-g2_alpha_v10_clean_plus_laptop30k_local900_stage/`.
+
+**What was learned:**
+- Held-out pyrrho test metrics look healthy: **97.43%** governance accuracy / **1.18%** false-trustworthy, query-contract macro F1 **86.06%**, retrieval-modality macro F1 **86.06%**, and retrieval-obligation macro F1 **84.35%**.
+- Strict-owner fitz-sage moved the wrong way: **86/120** total, core **13/20**, holdout **37/50**, holdout2 **36/50**, forbidden evidence **5**.
+- This is worse than `pyrrho-sage-nano-g1.1` (**89/120**) and much worse than local `pyrrho-nano-g5.6` (**97/120**), so the current clean-V10-plus-large-sage-stage mix is not automatically a downstream improvement path.
+- The 30k laptop block is now closed. Remaining current transformed-scope work is only the local **9,100** source pairs from batches `0009`-`0099`, but more rows should not be generated blindly from this recipe until the downstream regression is understood.
+
+**Next:** treat `pyrrho-sage-nano-g2-alpha` as a negative control; diagnose the sage-mix regression before publishing, wiring into fitz-sage, or scaling the same data recipe further.
+
+---
+
+## 2026-06-17 (evening) — merged current fitz-gov-sage transformed base
+
+**What landed:**
+- Mechanically audited `data/fitz_gov_sage_v1_messy_repair_batch_0007` and `data/fitz_gov_sage_v1_messy_repair_batch_0008`; both passed structural, shape, and label/scalar preservation gates with **0** violations.
+- Marked batches `0007` and `0008` as mechanically clean, then combined local accepted batches `0000`-`0008` into `data/fitz_gov_sage_local_accepted_0000_0008_stage_20260617`.
+- Materialized the accepted local bundle to `data/fitz_gov_sage_local_accepted_0000_0008_materialized_20260617`: **1,800** stage rows from **900** complete source pairs, split train **1,400** / eval **202** / test **198**.
+- Merged the accepted local materialization with the normalized laptop partial into `data/fitz_gov_sage_combined_laptop29965_local900_materialized_20260617`.
+- Wrote the remaining-scope assessment to `data/fitz_gov_sage_combined_laptop29965_local900_materialized_20260617/remaining_transform_assessment.json`.
+
+**What was learned:**
+- The combined current base has **30,865** complete transformed source pairs / **61,730** stage rows, split train **49,288** / eval **6,218** / test **6,224**.
+- Source overlap and duplicate row IDs are clean between the laptop 30k partial and local accepted batches.
+- The current 40k transformed-scope plan is **30,865 / 40,000** complete; **9,135** source pairs remain.
+- Remaining work is **35** laptop missing/incomplete source pairs plus **9,100** local rows from batches `0009`-`0099`; this corresponds to **18,270** additional materialized stage rows or **18,268** new generation rows if the two existing laptop planning-only rows are reused.
+- The missing planned set still spans all major labels/routes/modalities; it is not a single narrow repair slice.
+
+**Next:** repair the **35** laptop missing/incomplete pairs, then continue transforming local batches `0009`-`0099` with the documented subagent procedure.
+
+---
+
+## 2026-06-17 (evening) — validated and normalized laptop 30k sage drop
+
+**What landed:**
+- Audited the completed work-laptop drop at repo-root `done/`.
+- Added `scripts/normalize_fitz_gov_sage_laptop_outputs.py` to convert the API-agent row shape into the local canonical sage row shape.
+- Wrote normalized generated outputs to `data/fitz_gov_sage_opus30k_laptop_normalized_20260617` and reports under its `reports/` directory.
+- Materialized the complete normalized pairs with `--allow-partial` to `data/fitz_gov_sage_opus30k_laptop_materialized_partial_20260617`.
+
+**What was learned:**
+- The laptop drop has all **1,800** expected JSONL pack files but only **59,932 / 60,000** raw rows.
+- Coverage is **29,967 / 30,000** source IDs: **33** source IDs are absent, and **2** additional source IDs have only the `query_planning` row.
+- Raw rows were content-useful but not training-clean: **136,973** evidence contexts were dict objects, expected row fields were absent, roles/modalities were free-form, and **132** raw rows contained fake-missing phrases.
+- Normalization fixed the usable rows: **59,932** rows normalized, **0** invalid rows, fake-missing phrases reduced to **0**, canonical roles/modalities restored.
+- Existing complete pairs materialized cleanly to **59,930** trainer rows: train **47,888**, eval **6,016**, test **6,026**, with stage counts **29,965** query-planning / **29,965** evidence-governance.
+- Mechanical audits now fail only on real missing stages: shape audit reports **35** missing evidence outputs, label audit reports **35** missing/extra-stage sources, and structural audit reports the **2** planning-only rows.
+- Smoke test after adding the normalizer passed: `11 passed, 2 warnings`.
+
+**Next:** backfill the **35** missing evidence/source outputs with real generated rows, rerun normalization and all audits without partial materialization, then merge accepted laptop rows with the local accepted batches.
+
+---
+
+## 2026-06-17 (afternoon) — sage local queue and 30k handoff status
+
+**What landed:**
+- Verified the local sage replacement queue: `data/fitz_gov_sage_v1_workpacks/source_selection.jsonl` has **10,000** source rows.
+- Confirmed mechanically clean accepted local batches `batch_0000` through `batch_0006`: **700** source rows / **1,400** stage rows accepted.
+- Confirmed `batch_0007` and `batch_0008` have all six worker output packs written: **200** source rows / **400** stage rows pending mechanical audits.
+- Verified the work-laptop handoff package at `data/_handoff/fitz_gov_sage_opus_30k_package_20260617`: **30,000** source rows / **60,000** expected stage rows / **300** batches / **1,800** workpacks, with a six-part 5k duplicate under `data/_handoff/fitz_gov_sage_opus_5k_packages_20260617`.
+
+**What was learned:**
+- The 30k handoff package excludes the current local 10k source selection and was selected from **43,503** available non-overlap rows.
+- Deprecated source-preserving datasets are archived at `data/_archive/deprecated_sage_source_preserving/fitz_gov_sage_v1` and `data/_archive/deprecated_sage_source_preserving/fitz_gov_sage_v1_1`; each contains **20,000** stage rows, equivalent to **10,000** transformed source rows.
+- Git tracked state was clean before this documentation update.
+
+**Next:** mechanically audit `batch_0007` and `batch_0008`; if clean, accept them and continue local generation from `batch_0009` while the work laptop handles the separate 30k package.
+
+---
+
 ## 2026-06-17 (afternoon) — sage messy replacement batches 0001-0004 mechanically clean
 
 **What landed:**

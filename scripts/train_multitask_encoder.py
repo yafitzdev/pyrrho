@@ -725,6 +725,10 @@ def main() -> int:
         answerability_shape_id2label=answerability_shape_id2label or None,
         retrieval_modality_id2label=retrieval_modality_id2label or None,
         retrieval_obligation_id2label=retrieval_obligation_id2label or None,
+        head_input_sources=(
+            model_cfg.get("head_input_sources")
+            or data_cfg.get("head_input_sources")
+        ),
         dropout=float(model_cfg.get("dropout", 0.0)),
     )
     model = PyrrhoMultiTaskModernBert(mt_config)

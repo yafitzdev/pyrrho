@@ -55,6 +55,31 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
 
 
 def row_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    retrieval_obligation_counts = Counter(
+        str(row.get("retrieval_obligation"))
+        for row in rows
+        if int(row.get("retrieval_obligation_id", -1)) >= 0 and row.get("retrieval_obligation")
+    )
+    retrieval_action_counts = Counter(
+        str(row.get("retrieval_action"))
+        for row in rows
+        if int(row.get("retrieval_action_id", -1)) >= 0 and row.get("retrieval_action")
+    )
+    gap_type_counts = Counter(
+        str(row.get("gap_type"))
+        for row in rows
+        if int(row.get("gap_type_id", -1)) >= 0 and row.get("gap_type")
+    )
+    answerability_shape_counts = Counter(
+        str(row.get("answerability_shape"))
+        for row in rows
+        if int(row.get("answerability_shape_id", -1)) >= 0 and row.get("answerability_shape")
+    )
+    retrieval_modality_counts = Counter(
+        str(row.get("retrieval_modality"))
+        for row in rows
+        if int(row.get("retrieval_modality_id", -1)) >= 0 and row.get("retrieval_modality")
+    )
     return {
         "alpha_source_counts": dict(Counter(str(row.get("alpha_source") or "unknown") for row in rows)),
         "dataset_version_counts": dict(
@@ -64,6 +89,15 @@ def row_counts(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "label_counts": dict(Counter(str(row.get("label")) for row in rows if row.get("label"))),
         "retrieval_obligation_labeled_rows": sum(1 for row in rows if int(row.get("retrieval_obligation_id", -1)) >= 0),
         "retrieval_obligation_masked_rows": sum(1 for row in rows if int(row.get("retrieval_obligation_id", -1)) < 0),
+        "retrieval_obligation_counts": dict(retrieval_obligation_counts),
+        "retrieval_action_labeled_rows": sum(1 for row in rows if int(row.get("retrieval_action_id", -1)) >= 0),
+        "retrieval_action_masked_rows": sum(1 for row in rows if int(row.get("retrieval_action_id", -1)) < 0),
+        "retrieval_action_counts": dict(retrieval_action_counts),
+        "gap_type_labeled_rows": sum(1 for row in rows if int(row.get("gap_type_id", -1)) >= 0),
+        "gap_type_masked_rows": sum(1 for row in rows if int(row.get("gap_type_id", -1)) < 0),
+        "gap_type_counts": dict(gap_type_counts),
+        "answerability_shape_counts": dict(answerability_shape_counts),
+        "retrieval_modality_counts": dict(retrieval_modality_counts),
     }
 
 
