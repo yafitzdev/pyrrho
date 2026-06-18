@@ -13,6 +13,20 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-19 (morning) — V13 gap level options
+
+**What landed:**
+- Calculated evenly-scaled V11 gap-detector target profiles over the current **68,044** row base.
+- Wrote the level comparison to `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/reports/v13_current_gap_detector_20260619/v13_gap_level_options_20260619.json`.
+
+**What was learned:**
+- Level 1 remains **420** rows (`5/8/5` target profile).
+- Stronger levels broaden beyond stale-decoy text/log rows into structured table, code, configuration, mixed, and pdf-layout rows while keeping domains and difficulties nearly even.
+
+**Next:** choose a level before generating; Level 2 is the conservative next expansion, while Level 3 or Level 4 are broader but still manageable.
+
+---
+
 ## 2026-06-19 (morning) — current V13 gap detector pass
 
 **What landed:**

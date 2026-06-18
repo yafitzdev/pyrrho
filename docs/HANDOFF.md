@@ -23,6 +23,8 @@ V13 classic generation probe: Round 1 in `C:/Users/yanfi/PycharmProjects/fitz-go
 
 Current V13 gap detector pass: reports are under `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/reports/v13_current_gap_detector_20260619/`. The V11 practical planner over active g5.6/V12 plus accepted V13 Round 2 (**68,044** rows) reports **420** practical rows still needed: all `TRUSTWORTHY`, all `failure_focus=stale_forbidden_decoy`, only `unstructured_text` (**210**) and `log_trace` (**210**), evenly split across 7 domains and 3 difficulties, with pack shapes `retrieval_pack_6_10` (**210**) and `long_pack_11_plus` (**210**). `class_obligation` is fully covered. Use `v11_row_targets_current_plus_v13_probe.jsonl` for the next generation queue; do not use the raw V10 detector on flattened pyrrho data without adapting it.
 
+V13 expansion levels are calculated in `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/reports/v13_current_gap_detector_20260619/v13_gap_level_options_20260619.json`. Level 1 is **420** rows. Level 2 is **836** rows total from current state, Level 3 **1,275**, Level 4 **1,767**, Level 5 **2,895**, and Level 6 **7,416**. These are practical row counts from the current base, not additive counts after regeneration.
+
 ## Active goal — pyrrho-MoE-g4-real
 
 The active goal is now explicitly defined in [GOAL.md](GOAL.md): build `pyrrho-MoE-g4-real`, a clean real sparse MoE with stock runtime compatibility as gate zero. `pyrrho-MoE-g3-mvp` is frozen as an experimental proof-of-life artifact, not the active target.
