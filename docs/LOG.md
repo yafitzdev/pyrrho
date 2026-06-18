@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-19 (morning) — classic reset archive and V13 100-row probe
+
+**What landed:**
+- Archived rejected/negative-control data and model artifacts out of the active pyrrho tree under `data/_archive/20260618_classic_reset_archive/`, `models/_archive/20260618_classic_reset_archive/`, and `outputs/_archive/20260618_classic_reset_archive/`; the archive manifest is `data/_archive/20260618_classic_reset_archive/archive_manifest.json`.
+- Left the active classic training base as `data/multitask_g5_6_v12_focused_medium_candidate`: **67,944** rows total, including the **7,061** V12 focused classic rows that produced the best strict-owner fitz-sage score (**97/120**).
+- Committed the cleanup/tooling state in pyrrho (`a30862d`) and fitz-gov (`39c52d7`), leaving both repos clean before the probe work.
+- Ran a 100-row V13 classic generation probe with six `gpt-5.4` subagents. Round 1 passed schema but was rejected because it did not match the V12 focused distribution closely enough.
+- Ran Round 2 at `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/v13_classic_probe_100_round2_20260619/`: **100/100** rows passed schema validation with **0** errors/warnings and strict golden-distribution comparison with **0** errors.
+
+**What was learned:**
+- The generation prompt must constrain the V12 focused distribution, not only the JSON schema. Otherwise agents produce valid but too-general rows: balanced labels, extra taxonomy/gap labels, and too many 3-context packs.
+- The usable Round 2 protocol is captured in `generation_contract_round2.md`, with checks in `validate_v13_probe.py` and `strict_golden_compare.py`. Scale from Round 2 only; do not scale from Round 1.
+
+**Next:** if generating more classic V13 rows, use the Round 2 contract/checkers as the template and keep every batch behind the strict golden-distribution comparison before it becomes training data.
+
+---
+
 ## 2026-06-18 (evening) — sage-mix regression research controls
 
 **What landed:**

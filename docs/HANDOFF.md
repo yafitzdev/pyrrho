@@ -15,6 +15,12 @@ Fine-tuned classification models for RAG governance. Given a (query, retrieved c
 
 The brand name is from Pyrrho of Elis — the Greek philosopher whose school practiced suspension of judgment when evidence was insufficient.
 
+## Current data reset
+
+Active classic base: `data/multitask_g5_6_v12_focused_medium_candidate` (**67,944** rows total, including **7,061** V12 focused classic rows). Rejected sage-shaped, g5.7/g5.8, and failed repair artifacts were archived on 2026-06-18 under `data/_archive/20260618_classic_reset_archive/`, `models/_archive/20260618_classic_reset_archive/`, and `outputs/_archive/20260618_classic_reset_archive/`; see `data/_archive/20260618_classic_reset_archive/archive_manifest.json`. Both pyrrho and fitz-gov were committed clean after this reset (`pyrrho` commit `a30862d`, `fitz-gov` commit `39c52d7`).
+
+V13 classic generation probe: Round 1 in `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/v13_classic_probe_100_20260618/` is rejected despite schema validity because it did not match the V12 focused distribution. Round 2 in `C:/Users/yanfi/PycharmProjects/fitz-gov/data/_workspaces/v13_classic_probe_100_round2_20260619/` is the usable template: six `gpt-5.4` subagents generated **100** classic rows; `validate_v13_probe.py` passed **100/100** with **0** errors/warnings, and `strict_golden_compare.py` passed with **0** errors. For any next classic V13 generation, use `generation_contract_round2.md` and keep the strict golden-distribution check as the batch gate.
+
 ## Active goal — pyrrho-MoE-g4-real
 
 The active goal is now explicitly defined in [GOAL.md](GOAL.md): build `pyrrho-MoE-g4-real`, a clean real sparse MoE with stock runtime compatibility as gate zero. `pyrrho-MoE-g3-mvp` is frozen as an experimental proof-of-life artifact, not the active target.
