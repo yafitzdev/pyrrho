@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-19 (evening) — fitz-gov-v2 round 2 and v2 g1 alpha baseline
+
+**What landed:**
+- Prepared and pushed the second-round `fitz-gov-v2` generator queue in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`: `outputs/bulk_30000_round2/row_targets.jsonl` has **30,000** targets, IDs `fitz_gov_v2_bulk_020001` through `fitz_gov_v2_bulk_050000`, with enforced `decoy_profile`, `authority_profile`, `temporal_profile`, and `source_format` fields.
+- Added `scripts/prepare_v2_bulk_data.py` and `configs/encoder/modernbert_base_v2_nano_g1_alpha.yaml`.
+- Prepared the first **20,000** generated v2 rows into `data/multitask_v2_g1_alpha_20k` with deterministic ID-hash splits: train **15,977** / eval **2,052** / test **1,971**.
+- Trained and packaged `pyrrho-v2-nano-g1-alpha` from base ModernBERT, seed **42**, at `models/pyrrho-v2-nano-g1-alpha`; CPU package verification passed.
+- Benchmarked it against fitz-sage current strict-owner suites: core **7/20**, holdout **8/50**, holdout2 **5/50**, total **20/120**; reports are `C:/Users/yanfi/PycharmProjects/fitz-sage/benchmarks/results/*_v2_g1_alpha.{json,md}`.
+
+**What was learned:**
+- The 20k v2-only alpha is not usable downstream. Held-out fitz-gov test is only **79.81%** governance accuracy / **5.01%** false-TRUSTWORTHY, with weak auxiliary heads: taxonomy **17.86%**, retrieval-action F1 **39.84%**, gap-type F1 **24.40%**, retrieval-obligation F1 **51.53%**.
+- fitz-sage retrieval itself still found evidence reasonably often (mean required recall about **0.95-0.98** across suites), but Pyrrho over-abstained and mis-modeled many cases: **95** mode mismatches, **12** missing-evidence failures, **9** forbidden-evidence hits across the 120-case benchmark.
+- Starting v2 numbering at `pyrrho-v2-nano-g1-alpha` is correct because v2 is a fresh data family, but the clean v2 headline should wait for the 50k/60k run.
+
+**Next:** generate round-2 rows on the work laptop, validate/prepare the 50k or 60k v2 set, then train the next v2 alpha from base ModernBERT; keep any g5.6 warm-start as a separate ablation.
+
+---
+
 ## 2026-06-19 (morning) — fitz-gov-modern generation contract
 
 **What landed:**
