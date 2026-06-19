@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-19 (night) — fitz-gov-v1 HF freeze and archive
+
+**What landed:**
+- Moved the public Hugging Face dataset from `yafitzdev/fitz-gov` to [`yafitzdev/fitz-gov-v1`](https://huggingface.co/datasets/yafitzdev/fitz-gov-v1); the old `fitz-gov` URL now redirects to `fitz-gov-v1`.
+- Published the frozen v1-final pyrrho-ready corpus under `v1-final/`: train **54,416**, validation **6,778**, test **6,750**, total **67,944** rows.
+- Added the `v1-final` HF tag and verified a fresh download of the tagged parquet files with the expected split counts.
+- Created private Hugging Face dataset `yafitzdev/fitz-gov-v1-discarded-archive` for rejected/discarded v1 artifacts and tagged it `20260618-reset-archive`.
+- Uploaded the private archive's small raw files and compressed the 49 large leftover JSONL files into `compressed_large_jsonl/missing_large_jsonl_raw.tar.zst` (**873,676,053** bytes, SHA256 `98dc1f88c810665bfa555ce72e05b64abac6cc70d985b92c3a83708a75d1c103`).
+
+**What was learned:**
+- `hf repos move ... --type dataset` cleanly renamed the repo, and `hf datasets info yafitzdev/fitz-gov` resolves to `yafitzdev/fitz-gov-v1` after the move.
+- The active v1-final corpus is a flattened Pyrrho training view, not raw SDGP rows. Its Parquet publication serializes nested/list fields as JSON strings so the Hub dataset has stable schema.
+- Raw upload of the discarded archive timed out on large multi-hundred-MB JSONL files; compressing only the 49 missing large files reduced **7.81 GB** raw to **873.7 MB**.
+
+**Next:** treat `fitz-gov-v1` as frozen legacy data, keep discarded artifacts private, and continue the clean `fitz-gov-v2` generation/validation path.
+
+---
+
 ## 2026-06-19 (evening) — fitz-gov-v2 round 2 and v2 g1 alpha baseline
 
 **What landed:**
