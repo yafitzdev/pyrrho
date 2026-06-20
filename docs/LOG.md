@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-20 (afternoon) — v2 blind-label QA failure
+
+**What landed:**
+- Reviewed the work-laptop Sonnet 4.6 blind-label QA report at `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/blind_qa_sonnet_5k_20260620/drift_report.md`.
+- Added the failure state to `docs/HANDOFF.md` so fresh sessions do not treat the 50k v2 labels as accepted data.
+
+**What was learned:**
+- Blind QA over **4,985** sampled rows fails the v2 label layer: main-label agreement **76.7%**, retrieval-action **56.3%**, gap-type **42.4%**, taxonomy **11.3%**.
+- The issue is global, not isolated to round 2: main-label agreement is **77.0%** for `bulk_20000` and **76.5%** for `bulk_30000_round2`.
+- Directional drift explains the weak v2 alpha behavior. Original TRUSTWORTHY rows are stable (**97.7%** agreement), but DISPUTED rows are only **59.6%** agreement and ABSTAIN rows **74.8%**. The blind pass often upgrades rows to TRUSTWORTHY when final/authoritative evidence resolves decoys that the original labels treated as unresolved.
+- Taxonomy drift is partly an ontology-definition problem: many support patterns collapse into `multi_source_corroboration`, and many negative/ambiguous cases collapse into `partial_overlap`. This still makes the current taxonomy labels unusable as training targets without a stricter rubric or relabel pass.
+
+**Next:** freeze v2 generation, write strict relabel/adjudication rubrics, and relabel the existing 50k rows into a corrected v2.1 candidate before any larger training run.
+
+---
+
 ## 2026-06-20 (afternoon) — fitz-gov-v2 50k alpha benchmark
 
 **What landed:**
