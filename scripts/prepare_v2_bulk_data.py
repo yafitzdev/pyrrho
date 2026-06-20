@@ -152,6 +152,8 @@ PROFILE_FIELDS = (
     "temporal_profile",
     "source_format",
 )
+DIFFICULTY_VALUES = {"easy", "medium", "hard"}
+DEFAULT_INPUT_DIR = Path("../fitz-gov-modern_generator/outputs/bulk_20000")
 
 
 def parse_args() -> argparse.Namespace:
@@ -159,8 +161,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input-dir",
         type=Path,
-        default=Path("../fitz-gov-modern_generator/outputs/bulk_20000"),
-        help="Directory containing worker_*.jsonl generated rows.",
+        action="append",
+        default=None,
+        help=(
+            "Directory containing worker_*.jsonl generated rows. "
+            "May be repeated to combine generator batches."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -180,7 +186,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
+def source_name_for_input_dir(input_dir: Path) -> str:
+    name = input_dir.name
+    if name == "bulk_20000":
+        return "fitz_gov_v2_bulk_20k_fresh_synthetic"
+    if name == "bulk_30000_round2":
+        return "fitz_gov_v2_bulk_30k_round2_fresh_synthetic"
+    slug = "".join(char.lower() if char.isalnum() else "_" for char in name).strip("_")
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return f"fitz_gov_v2_{slug or 'bulk'}_fresh_synthetic"
+
+
+def read_jsonl(path: Path, *, input_dir: Path, source_name: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as handle:
         for line_no, raw in enumerate(handle, start=1):
@@ -189,6 +207,8 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             row = json.loads(raw)
             row["_source_file"] = str(path)
             row["_source_line"] = line_no
+            row["_input_dir"] = str(input_dir)
+            row["_source_name"] = source_name
             rows.append(row)
     return rows
 
@@ -255,6 +275,8 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     out.pop("_source_file", None)
     out.pop("_source_line", None)
+    source_input_dir = out.pop("_input_dir", None)
+    source_name = out.pop("_source_name", None) or "fitz_gov_v2_fresh_synthetic"
     out["version"] = out.get("schema_version") or "fitz-gov-v2-1.0-candidate"
     out["dataset_version"] = out.get("dataset_version") or "v2_candidate"
     out["query_contract_raw"] = out.get("query_contract")
@@ -263,7 +285,9 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     out["answerability_shape_detailed"] = out.get("answerability_shape")
     out["retrieval_modality_raw"] = out.get("retrieval_modality")
     out["taxonomy_pattern_raw"] = out.get("taxonomy_pattern")
-    out["alpha_source"] = "fitz_gov_v2_bulk_20k_fresh_synthetic"
+    out["alpha_source"] = source_name
+    out["source_batch"] = source_name
+    out["source_input_dir"] = source_input_dir
     if out.get("retrieval_obligation") in (None, "", "null"):
         out["retrieval_obligation"] = None
         out["retrieval_obligation_raw"] = None
@@ -280,12 +304,33 @@ def deterministic_split(row_id: str) -> str:
     return "test"
 
 
+def stable_payload_key(row: dict[str, Any]) -> str:
+    payload = {
+        "query": row.get("query"),
+        "contexts": row.get("contexts"),
+        "label": row.get("label"),
+        "query_contract": row.get("query_contract"),
+        "route": row.get("route"),
+        "taxonomy_pattern": row.get("taxonomy_pattern"),
+        "retrieval_action": row.get("retrieval_action"),
+        "gap_type": row.get("gap_type"),
+        "retrieval_modality": row.get("retrieval_modality"),
+        "retrieval_obligation": row.get("retrieval_obligation"),
+    }
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
 def validate_row(row: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     row_id = require_text(row, "id", errors)
     split = row.get("split")
     if split not in {"train", "eval", "test"}:
         errors.append(f"{row_id}: invalid split={split!r}")
+    if row.get("difficulty") not in DIFFICULTY_VALUES:
+        errors.append(f"{row_id}: invalid difficulty={row.get('difficulty')!r}")
+    for field in PROFILE_FIELDS:
+        require_text(row, field, errors)
     require_text(row, "text", errors)
     require_text(row, "query_text", errors)
     require_text(row, "query", errors)
@@ -356,20 +401,26 @@ def counts(rows: list[dict[str, Any]], field: str) -> dict[str, int]:
 def main() -> int:
     args = parse_args()
     start = time.time()
-    input_dir = args.input_dir.resolve()
+    input_dirs = [path.resolve() for path in (args.input_dir or [DEFAULT_INPUT_DIR])]
     output_dir = args.output_dir.resolve()
-    paths = sorted(input_dir.glob(args.glob))
-    if not paths:
-        raise FileNotFoundError(f"no files matched {input_dir / args.glob}")
 
     raw_rows: list[dict[str, Any]] = []
-    for path in paths:
-        raw_rows.extend(read_jsonl(path))
+    input_files_by_dir: dict[str, list[str]] = {}
+    for input_dir in input_dirs:
+        paths = sorted(input_dir.glob(args.glob))
+        if not paths:
+            raise FileNotFoundError(f"no files matched {input_dir / args.glob}")
+        source_name = source_name_for_input_dir(input_dir)
+        input_files_by_dir[str(input_dir)] = [str(path) for path in paths]
+        for path in paths:
+            raw_rows.extend(read_jsonl(path, input_dir=input_dir, source_name=source_name))
 
     errors: list[str] = []
     seen_ids: set[str] = set()
     duplicate_ids: list[str] = []
     duplicate_queries: Counter[str] = Counter()
+    duplicate_payloads: Counter[str] = Counter()
+    payload_examples: dict[str, str] = {}
     rows_by_split: dict[str, list[dict[str, Any]]] = {"train": [], "eval": [], "test": []}
 
     for row in raw_rows:
@@ -382,6 +433,9 @@ def main() -> int:
         query_key = str(row.get("query") or "").strip().lower()
         if query_key:
             duplicate_queries[query_key] += 1
+        payload_key = stable_payload_key(row)
+        duplicate_payloads[payload_key] += 1
+        payload_examples.setdefault(payload_key, row_id)
         if len(errors) > args.max_errors:
             break
         if not row_errors:
@@ -395,20 +449,27 @@ def main() -> int:
             rows_by_split[str(normalized["split"])].append(normalized)
 
     repeated_queries = {query: count for query, count in duplicate_queries.items() if count > 1}
+    repeated_payloads = {
+        key: count for key, count in duplicate_payloads.items() if count > 1
+    }
     if duplicate_ids:
         errors.extend(f"duplicate id: {row_id}" for row_id in duplicate_ids[: args.max_errors])
+    if repeated_payloads:
+        for key, count in list(repeated_payloads.items())[: args.max_errors]:
+            errors.append(f"duplicate payload: {payload_examples[key]} appears {count} times")
     if len(raw_rows) != args.expected_rows:
         errors.append(f"expected {args.expected_rows} rows, found {len(raw_rows)}")
 
     if errors:
         report = {
             "status": "failed",
-            "input_dir": str(input_dir),
+            "input_dirs": [str(path) for path in input_dirs],
             "rows_read": len(raw_rows),
             "errors": errors[: args.max_errors],
             "error_count": len(errors),
             "duplicate_id_count": len(duplicate_ids),
             "duplicate_query_count": len(repeated_queries),
+            "duplicate_payload_count": len(repeated_payloads),
         }
         write_json(output_dir / "validation_report.json", report)
         raise SystemExit(f"validation failed with {len(errors)} errors; see {output_dir / 'validation_report.json'}")
@@ -426,9 +487,9 @@ def main() -> int:
         "source": {
             "dataset_family": "fitz-gov-v2",
             "generator_repo": str((Path.cwd().parent / "fitz-gov-modern_generator").resolve()),
-            "input_dir": str(input_dir),
-            "input_files": [str(path) for path in paths],
-            "candidate_status": "fresh_synthetic_v2_round1_generator_validated",
+            "input_dirs": [str(path) for path in input_dirs],
+            "input_files_by_dir": input_files_by_dir,
+            "candidate_status": "fresh_synthetic_v2_generator_validated",
             "blind_label_qa": "not_run",
             "split_strategy": args.split_strategy,
         },
@@ -453,8 +514,10 @@ def main() -> int:
             1 for row in all_rows if row.get("retrieval_obligation") is None
         ),
         "profile_counts": {field: counts(all_rows, field) for field in PROFILE_FIELDS},
+        "source_batch_counts": counts(all_rows, "source_batch"),
         "duplicate_query_count": len(repeated_queries),
         "duplicate_query_examples": list(repeated_queries.items())[:20],
+        "duplicate_payload_count": len(repeated_payloads),
         "route2id": ROUTE2ID,
         "taxonomy_pattern2id": TAXONOMY_PATTERN2ID,
         "query_contract2id": QUERY_CONTRACT2ID,
@@ -479,21 +542,23 @@ def main() -> int:
         output_dir / "validation_report.json",
         {
             "status": "passed",
-            "input_dir": str(input_dir),
+            "input_dirs": [str(path) for path in input_dirs],
             "rows_read": len(raw_rows),
             "rows_written": len(all_rows),
             "splits": metadata["splits"],
             "duplicate_id_count": len(duplicate_ids),
             "duplicate_query_count": len(repeated_queries),
+            "duplicate_payload_count": len(repeated_payloads),
         },
     )
 
-    print(f"input_dir   : {input_dir}")
+    print(f"input_dirs  : {', '.join(str(path) for path in input_dirs)}")
     print(f"output_dir  : {output_dir}")
     print(f"rows        : {len(all_rows)}")
     print(f"splits      : {metadata['splits']}")
     print(f"labels      : {metadata['label_counts']}")
     print(f"modalities  : {metadata['retrieval_modality_counts']}")
+    print(f"sources     : {metadata['source_batch_counts']}")
     print(f"obligations : labeled={metadata['retrieval_obligation_labeled_rows']} masked={metadata['retrieval_obligation_masked_rows']}")
     print(f"metadata    : {output_dir / 'metadata.json'}")
     return 0

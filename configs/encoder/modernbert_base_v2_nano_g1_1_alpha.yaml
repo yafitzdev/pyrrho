@@ -1,0 +1,71 @@
+# pyrrho-v2-nano-g1.1-alpha multitask ModernBERT encoder.
+# Data: first 50k freshly generated fitz-gov-v2 candidate rows.
+
+model:
+  base_model: answerdotai/ModernBERT-base
+  dropout: 0.0
+
+architecture:
+  semantic_expert_groups:
+    - science_medicine
+    - law_policy
+    - history_geography
+    - technology_computing
+    - economics_finance
+    - culture_society
+    - general_commonsense
+
+data:
+  dataset_family: fitz-gov-v2
+  generator_repo: ../fitz-gov-modern_generator
+  generator_input_dirs:
+    - ../fitz-gov-modern_generator/outputs/bulk_20000
+    - ../fitz-gov-modern_generator/outputs/bulk_30000_round2
+  input_dir: data/multitask_v2_g1_1_alpha_50k
+  require_query_contract: true
+  require_retrieval_control: true
+  max_seq_length: 4096
+  max_query_length: 256
+  head_input_sources:
+    retrieval_action: evidence
+    gap_type: evidence
+    answerability_shape: query
+    retrieval_modality: query
+    retrieval_obligation: query
+  scalar_fields:
+    - evidence_sufficiency
+    - query_evidence_alignment
+    - answer_coverage
+    - conflict_density
+    - retrieval_retry_value
+    - false_trustworthy_risk
+    - evidence_failure_severity
+
+training:
+  output_dir: outputs/pyrrho-v2-nano-g1.1-alpha/seed_42
+  num_train_epochs: 2
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  num_workers: 0
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  max_grad_norm: 1.0
+  bf16: true
+  label_smoothing: 0.10
+  governance_class_weights: [2.3, 2.3, 1.0]
+  balance_query_contract: true
+  seed: 42
+
+loss:
+  governance: 1.0
+  query_contract: 0.55
+  route: 0.20
+  taxonomy: 0.25
+  scalars: 0.25
+  retrieval_action: 0.20
+  gap_type: 0.24
+  answerability_shape: 0.18
+  retrieval_modality: 0.18
+  retrieval_obligation: 0.22

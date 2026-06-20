@@ -13,6 +13,25 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-20 (afternoon) — fitz-gov-v2 50k alpha benchmark
+
+**What landed:**
+- Extended `scripts/prepare_v2_bulk_data.py` so it can combine multiple generator batches while preserving source provenance and failing on duplicate IDs or duplicate full payloads.
+- Prepared the combined **50,000** row v2 training view from `outputs/bulk_20000` + `outputs/bulk_30000_round2`: `data/multitask_v2_g1_1_alpha_50k`, split train **40,032** / eval **5,020** / test **4,948**.
+- Added `configs/encoder/modernbert_base_v2_nano_g1_1_alpha.yaml` and trained `pyrrho-v2-nano-g1.1-alpha` from base ModernBERT, seed **42**.
+- Wrote the one-seed summary at `outputs/pyrrho-v2-nano-g1.1-alpha/summary.json` and attempted a local package at `models/pyrrho-v2-nano-g1.1-alpha`.
+- Benchmarked the package against fitz-sage strict-owner suites: core **7/20**, holdout **19/50**, holdout2 **15/50**, total **41/120**; reports are `C:/Users/yanfi/PycharmProjects/fitz-sage/benchmarks/results/*_v2_g1_1_alpha.{json,md}`.
+
+**What was learned:**
+- The combined 50k import is structurally clean: **0** duplicate IDs, **0** duplicate full payloads, and exactly **20,000** round-1 + **30,000** round-2 source rows.
+- More v2 data moved the model metrics substantially versus the 20k alpha: held-out governance **79.81% -> 87.53%**, FT **5.01% -> 2.97%**, taxonomy **17.86% -> 23.57%**, retrieval-action F1 **39.84% -> 45.41%**, gap-type F1 **24.40% -> 40.17%**, retrieval-obligation F1 **51.53% -> 62.89%**.
+- Downstream transfer is still bad: fitz-sage improved **20/120 -> 41/120**, but code is **0/28**, unstructured is **6/37**, and forbidden evidence remains **9**. Package smoke also failed one handcrafted case (`speed_of_light` became `DISPUTED`).
+- The v2 synthetic family is not ready to publish or wire. The next run should not blindly scale rows until the transfer gap is understood.
+
+**Next:** diagnose v2 shape transfer against fitz-sage code/unstructured/temporal cases before generating or training the next larger v2 checkpoint.
+
+---
+
 ## 2026-06-19 (night) — fitz-gov-v1 HF freeze and archive
 
 **What landed:**
