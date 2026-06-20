@@ -13,6 +13,20 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-20 (afternoon) — v2 blind-QA continuation rule
+
+**What landed:**
+- Updated pyrrho and generator handoffs with the exact continuation rule for the work laptop.
+- The existing Sonnet 4.6 blind-QA slice at `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/blind_qa_sonnet_5k_20260620/` must be reused, not overwritten or relabeled.
+
+**What was learned:**
+- The next laptop QA job should process only the remaining **45,015** row IDs: **50,000** total v2 rows minus the **4,985** rows already present in `sample_manifest.jsonl` / `blind_labels.jsonl`.
+- The correct exclusion key is row `id`; build the excluded-ID set from both existing QA sidecars before scanning `outputs/bulk_20000/worker_*.jsonl` and `outputs/bulk_30000_round2/worker_*.jsonl`.
+
+**Next:** run the remaining-row Sonnet QA sidecar pass, then merge **4,985 existing + 45,015 new = 50,000** unique QA labels before adjudication/repair.
+
+---
+
 ## 2026-06-20 (afternoon) — v2 blind-label QA failure
 
 **What landed:**
