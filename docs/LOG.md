@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-20 (afternoon) — v2 full-QA adjudication handoff
+
+**What landed:**
+- Updated `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/HANDOFF.md` with the exact laptop-agent instructions for the v2.1 label overlay.
+- Updated this pyrrho handoff so fresh sessions know the full Sonnet QA sidecars now cover **49,838 / 50,000** v2 rows, not only the first 5k probe.
+
+**What was learned:**
+- The exact coverage hole is **162** missing blind sidecars: **4,985** labels from the 5k probe plus **44,853** labels from the remaining run.
+- Exact comparison is the required queue builder: **3,205** all-head agreements, **16,491** taxonomy-only disagreements, **17,262** same-label/action-or-gap disagreements, **12,880** main-label disagreements, and **162** missing sidecars.
+- `needs_adjudication=true` is unsafe as the only filter because it misses **10,207** main-label disagreements; Sonnet labels also have **510** hard compatibility violations, so they cannot be copied wholesale as ground truth.
+
+**Next:** laptop agents should retry the 162 missing sidecars, build `outputs/v2_1_label_adjudication_20260620/labels_v2_1_overlay.jsonl`, validate 50k/50k overlay coverage and compatibility, then run a fresh 5k blind-QA probe before pyrrho retraining.
+
+---
+
 ## 2026-06-20 (afternoon) — v2 blind-QA continuation rule
 
 **What landed:**
