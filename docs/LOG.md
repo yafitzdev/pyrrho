@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-21 (morning) — v2.1 follow-up QA manifest staged
+
+**What landed:**
+- Added `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/blind_qa_v2_1_followup.py`, a post-adjudication blind-QA runner that compares fresh blind labels against the repaired v2.1 overlay instead of the original worker labels.
+- Built a stratified **1,000**-row follow-up manifest at `outputs/blind_qa_v2_1_followup_1k_20260621/sample_manifest.jsonl`.
+- The manifest includes **101** `manual_review` rows, all **23** taxonomy patterns, all **7/7** available `wrong_specificity` rows, and a balanced label spread: **327** TRUSTWORTHY, **318** ABSTAIN, **355** DISPUTED.
+
+**What was learned:**
+- The QA run could not execute on this machine because the BMW LLM completion hosts `api.gcp.cloud.bmw` and `api-i.gcp.cloud.bmw` do not resolve here, even though `auth.bmwgroup.net` resolves and token auth succeeds.
+- No blind labels were written, so this is a prepared QA batch, not a completed QA result.
+
+**Next:** run `python blind_qa_v2_1_followup.py --workers 24 --batch-size 1` from the generator repo on a machine with BMW LLM API DNS access, then rebuild the drift report.
+
+---
+
 ## 2026-06-21 (morning) — v2.1 human-review queue closed
 
 **What landed:**
