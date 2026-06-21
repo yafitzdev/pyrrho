@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-21 (morning) — v2.1 overlay final repair
+
+**What landed:**
+- Pulled the fixed LFS overlay from `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator` and reviewed the remaining **17** fallback-unresolved rows manually against their query/evidence packs.
+- Repaired those 17 overlay labels with `decision_source=manual_review`, regenerated the human-review sidecar from the fixed overlay, and updated generator handoff/summary docs.
+- Updated pyrrho `docs/HANDOFF.md` to point at the now-clean v2.1 overlay.
+
+**What was learned:**
+- The initial LFS repair fixed malformed/duplicate JSONL output, but the overlay still had **17** compatibility violations, all from fallback rows.
+- After manual repair, `labels_v2_1_overlay.jsonl` validates as **50,000** parseable JSON rows, **50,000** unique IDs, **0** duplicate IDs, **0** missing original IDs, **0** missing required fields, and **0** label/action/gap/taxonomy compatibility violations.
+- Final decision-source counts are **45,987** `sonnet_adjudicated`, **3,910** `accepted_agreement`, **86** `fallback_original`, and **17** `manual_review`; **394** rows remain flagged for human review but are schema/compatibility-valid.
+
+**Next:** merge the v2.1 overlay with the original evidence packs into a pyrrho-ready data view, then run a fresh stratified 5k blind-QA probe before training another v2 checkpoint.
+
+---
+
 ## 2026-06-20 (afternoon) — v2 full-QA adjudication handoff
 
 **What landed:**
