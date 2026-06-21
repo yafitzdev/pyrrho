@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-21 (morning) — v2.1 human-review queue closed
+
+**What landed:**
+- Resolved all **394** `needs_human_review` rows in the fitz-gov-v2.1 overlay.
+- Cleared **242** stale threshold flags, accepted **66** low-confidence Sonnet adjudications after review, and converted **86** fallback-original rows to explicit `manual_review` decisions.
+- Regenerated the human-review sidecar as an empty file and updated generator plus pyrrho handoff docs.
+
+**What was learned:**
+- The remaining queue was not a structural data blocker; it was stale review metadata plus fallback rows that needed explicit final decisions.
+- Final overlay validates as **50,000** parseable JSON rows, **50,000** unique IDs, **0** bad JSON, **0** duplicate IDs, **0** missing original IDs, **0** compatibility violations, and **0** `needs_human_review` rows.
+- Final decision-source counts are **45,921** `sonnet_adjudicated`, **3,910** `accepted_agreement`, and **169** `manual_review`.
+
+**Next:** merge the v2.1 overlay with the original evidence packs into a pyrrho-ready data view, then run a fresh stratified 5k blind-QA probe before training another v2 checkpoint.
+
+---
+
 ## 2026-06-21 (morning) — v2.1 overlay final repair
 
 **What landed:**
