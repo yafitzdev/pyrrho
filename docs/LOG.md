@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-21 (morning) — v2.2 neutral relabel reset prepared
+
+**What landed:**
+- Prepared a clean v2.2 relabel path in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`.
+- Added a neutral prompt that labels only from `query + contexts`: `prompt/NEUTRAL_RELABEL_PROMPT.md`.
+- Added deterministic tooling: `build_neutral_relabel_queue.py` for blind-only shards and `merge_neutral_relabel.py` for strict overlay validation.
+- Added run handoff: `outputs/v2_2_neutral_relabel_20260621/HANDOFF.md`.
+
+**What was learned:**
+- The v2.1 approach is rejected not because the 50k raw evidence packs are unusable, but because the adjudication overlay was biased by prior labels and became over-conservative.
+- The accepted reset is: keep the initial 50k raw evidence packs, freeze v2.1 as failed, create a new v2.2 neutral label overlay from scratch.
+
+**Next:** run the v2.2 neutral relabel queue, merge with `merge_neutral_relabel.py --strict`, inspect label/taxonomy distribution, then run follow-up QA before any pyrrho import.
+
+---
+
 ## 2026-06-21 (morning) — v2.1 subagent follow-up QA failed
 
 **What landed:**
