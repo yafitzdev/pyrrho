@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-21 (morning) — v2.1 subagent follow-up QA failed
+
+**What landed:**
+- Ran the prepared **1,000**-row follow-up blind QA using six Codex subagents after the BMW completion host failed DNS resolution on this machine.
+- Merged all six shard outputs into `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/blind_qa_v2_1_followup_1k_20260621/blind_labels.jsonl`.
+- Strict merge validation passed: **1,000 / 1,000** rows merged, **0** missing IDs, **0** malformed rows, **0** compatibility errors.
+
+**What was learned:**
+- The repaired v2.1 overlay failed independent follow-up QA: label agreement **56.8%**, retrieval-action agreement **50.9%**, gap-type agreement **49.6%**, taxonomy agreement **32.8%**, with **18** adjudication flags.
+- The failure is asymmetric: sampled overlay TRUSTWORTHY rows agreed **327/327**, but ABSTAIN and DISPUTED rows were often relabeled TRUSTWORTHY by blind subagents. Blind label counts were **724** TRUSTWORTHY / **215** ABSTAIN / **61** DISPUTED versus overlay counts **327** / **318** / **355**.
+- Spot checks suggest the v2.1 overlay is often too conservative on ABSTAIN/DISPUTED rows, not merely structurally invalid.
+
+**Next:** do not train from v2.1 as accepted data; audit/relabel the over-conservative ABSTAIN/DISPUTED overlay layer before any pyrrho-ready import.
+
+---
+
 ## 2026-06-21 (morning) — v2.1 follow-up QA manifest staged
 
 **What landed:**
