@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — v2 acceptance vault workflow added
+
+**What landed:**
+- Added generator commit `90ac18e` with `build_acceptance_vault.py`, `make_target_slice.py`, and `outputs/fitz_gov_v2_acceptance_vault_20260622/`.
+- Built a salvage vault from the completed 993-row blind-QA pilot.
+- Updated the generator handoff with the Agreement Vault and Online Acceptance Loop commands for small work-laptop rounds.
+
+**What was learned:**
+- Agreement rows can be reused, but only by tier: **645** label-only rows, **389** core rows, and **60** full-multitask rows.
+- `accepted_core.rows.jsonl` is the practical retrieval-control salvage set; label-only rows must not be treated as full multitask training rows.
+- The next workflow is small online acceptance batches, not bulk generation.
+
+**Next:** run the online acceptance loop on a 50-row ABSTAIN/DISPUTED slice and inspect core acceptance before scaling.
+
+---
+
 ## 2026-06-22 (evening) — v2 pilot blind QA failed semantically
 
 **What landed:**
