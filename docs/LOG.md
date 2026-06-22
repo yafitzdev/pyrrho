@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (afternoon) — v2 pilot generated to 993/1000
+
+**What landed:**
+- Pulled generator commit `362ff65` from `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`, containing the regenerated v2 1k pilot worker files.
+- Ran `validate_v2_tranche.py` against `outputs/fitz_gov_v2_tranche1_pilot_1000/row_targets.jsonl`.
+- Updated generator and pyrrho handoffs with the exact pilot status and missing row IDs.
+
+**What was learned:**
+- Accepted pilot rows are structurally clean: **993/1,000** valid, **0** duplicate row IDs, **0** duplicate query strings, and context counts match pack shapes exactly.
+- Seven target rows are still missing: `fitz_gov_v2_000068`, `fitz_gov_v2_000142`, `fitz_gov_v2_000442`, `fitz_gov_v2_000525`, `fitz_gov_v2_000526`, `fitz_gov_v2_000583`, and `fitz_gov_v2_000707`.
+- The seven rejects are not the old enum-ID bug: five are malformed JSON responses, one is missing required `context_features` keys, and one ignored the target context count.
+- Local Codex could not resume generation because DNS failed for `api.gcp.cloud.bmw`; no local rows were added.
+
+**Next:** rerun only the seven missing pilot rows on the work laptop, then run strict validation and blind QA.
+
+---
+
 ## 2026-06-22 (afternoon) — v2 pilot enum-ID rejection fixed and rows reset
 
 **What landed:**
