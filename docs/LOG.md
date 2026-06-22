@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — v2 generator handoff command block cleaned
+
+**What landed:**
+- Moved the active work-laptop commands to the top of `fitz-gov-modern_generator/HANDOFF.md`.
+- Updated the online acceptance command to use the current Sonnet-friendly batch defaults: generation batch **3**, blind-QA batch **5**, round size **100**.
+- Updated pyrrho handoff to point at that exact command.
+
+**What was learned:**
+- The controller was already present, but the handoff still showed the older smaller/default batch command in the main section.
+- The top of the generator handoff is now copy/paste command-first.
+
+**Next:** run the top command block from the generator handoff on the work laptop.
+
+---
+
 ## 2026-06-22 (evening) — resumable v2 online acceptance controller
 
 **What landed:**
