@@ -13,6 +13,20 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-23 (morning) — broad v2 pilot raised to 1,000 rows
+
+**What landed:**
+- Updated the generator and pyrrho handoff commands to run a **1,000 accepted-core-row** pilot instead of the earlier 100-row smoke run.
+- Kept the active broad queue unchanged at **20,000** target shells.
+
+**What was learned:**
+- `core` remains the acceptance tier for this pilot: `label + query_contract + evidence_need + failure_family` must agree under blind QA.
+- The larger pilot is still bounded enough to inspect before scaling, but big enough to expose whether broad-schema agreement is usable.
+
+**Next:** pull `fitz-gov-modern_generator` on the work laptop and run the 1,000 accepted-core-row online acceptance loop.
+
+---
+
 ## 2026-06-23 (morning) — fitz-gov-v2 broad-label reset
 
 **What landed:**

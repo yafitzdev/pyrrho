@@ -51,10 +51,10 @@ cd C:\Users\yanfi\PycharmProjects\fitz-gov-modern_generator
 git pull --ff-only origin main
 git lfs pull
 python -m py_compile allocate_bulk_targets.py generate_bulk.py run_generation.py run_blind_qa_tranche1.py build_acceptance_vault.py run_online_acceptance_loop.py validate_v2_tranche.py
-python run_online_acceptance_loop.py --tier core --target-new-accepted 100 --round-size 100 --workers 20 --qa-workers 6 --generator-batch-size 3 --qa-batch-size 5
+python run_online_acceptance_loop.py --tier core --target-new-accepted 1000 --round-size 250 --workers 20 --qa-workers 6 --generator-batch-size 3 --qa-batch-size 5
 ```
 
-In the new vault, `core` means `label + query_contract + evidence_need + failure_family` agreement. Review the first **100 accepted core rows** before scaling.
+In the new vault, `core` means `label + query_contract + evidence_need + failure_family` agreement. Review the first **1,000 accepted core rows** before scaling.
 
 Active classic base: `data/multitask_g5_6_v12_focused_medium_candidate` (**67,944** rows total, including **7,061** V12 focused classic rows). This corpus is now frozen on Hugging Face as [`yafitzdev/fitz-gov-v1`](https://huggingface.co/datasets/yafitzdev/fitz-gov-v1), tag `v1-final`, with `v1-final/train.parquet` (**54,416**), `v1-final/validation.parquet` (**6,778**), and `v1-final/test.parquet` (**6,750**). The old [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov) URL redirects to `fitz-gov-v1`; old V7-V11 tags/files remain in the renamed repo for continuity. Rejected sage-shaped, g5.7/g5.8, and failed repair artifacts were archived on 2026-06-18 under `data/_archive/20260618_classic_reset_archive/`, `models/_archive/20260618_classic_reset_archive/`, and `outputs/_archive/20260618_classic_reset_archive/`; the discarded-row/data archive is also on Hugging Face as private dataset `yafitzdev/fitz-gov-v1-discarded-archive`, tag `20260618-reset-archive`. The private archive has **5,126** raw small files plus `compressed_large_jsonl/missing_large_jsonl_raw.tar.zst` (**873,676,053** bytes, SHA256 `98dc1f88c810665bfa555ce72e05b64abac6cc70d985b92c3a83708a75d1c103`) covering the 49 large JSONL files from the interrupted raw upload. See `data/_archive/20260618_classic_reset_archive/archive_manifest.json`.
 
