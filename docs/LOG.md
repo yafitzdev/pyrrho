@@ -13,6 +13,20 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — generator CA bundle shim fixed
+
+**What landed:**
+- Patched `fitz-gov-modern_generator/run_generation.py` and `generate_bulk.py` so they no longer require `sage_ai_caller.CA_BUNDLE`.
+- Updated generator and pyrrho handoffs with the credential note.
+
+**What was learned:**
+- The local `ai_engine/sage_ai_caller.py` exposes `DEFAULT_CA_BUNDLE` and `_resolve_ca_bundle()`, not `CA_BUNDLE`.
+- `py_compile`, `run_online_acceptance_loop.py --plan-only`, and `run_generation.py --status` all pass without the attribute error.
+
+**Next:** rerun the top command block from the generator handoff on the work laptop.
+
+---
+
 ## 2026-06-22 (evening) — v2 generator handoff command block cleaned
 
 **What landed:**
