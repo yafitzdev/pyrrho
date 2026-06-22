@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (afternoon) — v2 pilot enum-ID rejection fixed and rows reset
+
+**What landed:**
+- Pulled the work-laptop rejected pilot batches from `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`.
+- Diagnosed the 83 rejected batches as deterministic enum-ID failures, not content/pack-shape failures.
+- Patched generator commit `b141acc` so generated rows canonicalize `*_id` fields from enum labels before validation/writing.
+- Deleted the 83 recovered pilot rows and recovered-batch raw files at user request in generator commit `f6b3836`.
+
+**What was learned:**
+- The matrix/target queue was not the cause; rows were rejected because GPT guessed numeric fields like `route_id`, `taxonomy_pattern_id`, and `retrieval_obligation_id`.
+- These numeric fields are deterministic metadata and must be code-owned, not LLM-owned.
+- The active pilot is again `0/1,000` generated rows with `0` invalid blockers.
+
+**Next:** regenerate the 1k pilot from the same target queue after pulling `f6b3836`, then run validation and blind QA.
+
+---
+
 ## 2026-06-22 (afternoon) — work-laptop credential command fixed
 
 **What landed:**
