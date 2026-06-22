@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (afternoon) — work-laptop credential command fixed
+
+**What landed:**
+- Patched `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/generate_bulk.py` so it loads BMW LLM credentials from `ai_engine/sage_ai_caller.py` when env vars are missing.
+- Updated generator `HANDOFF.md` to use `run_generation.py` for generation/status commands.
+- Pushed generator commit `6dc6e91`.
+
+**What was learned:**
+- The previous handoff commands called `generate_bulk.py` directly, bypassing the existing credential-forwarding wrapper `run_generation.py`.
+- A no-network dry run now works through both paths: `run_generation.py ... --dry-run` and direct `generate_bulk.py ... --dry-run`.
+
+**Next:** work laptop should pull `main` again and rerun the `Copy/Paste Commands For Work Laptop` section from the generator handoff.
+
+---
+
 ## 2026-06-22 (afternoon) — fitz-gov-v2 tranche reset staged
 
 **What landed:**
