@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (night) — v2 online loop rounds 5-8 audited
+
+**What landed:**
+- Pulled generator commit `0d48455` with online acceptance rounds 5-8 complete and round 9 generated-only.
+- Rechecked strict merged vault shape and round reports after the context-object validator fix.
+- Updated pyrrho and generator handoffs with current counts and next resume point.
+
+**What was learned:**
+- Strict merged vault is now **522** label-only, **278** core, and **40** full-multitask rows, with **0** duplicate IDs and **0** bad context-object rows in the merged files.
+- Completed post-fix rounds only added **18** strict core rows: **260 -> 278**. Current strict core mix is **223 TRUSTWORTHY / 21 ABSTAIN / 34 DISPUTED**.
+- Round 9 has **95/100** strict-clean generated rows, **5** missing IDs, and no blind-QA/acceptance folder yet.
+
+**Next:** rerun the online acceptance controller on the work laptop; it should fill the 5 missing round-9 rows, then run blind QA and acceptance for round 9.
+
+---
+
 ## 2026-06-22 (evening) — v2 online vault strict-context audit
 
 **What landed:**
