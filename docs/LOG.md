@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — v2 pilot blind-label handoff prepared
+
+**What landed:**
+- Updated `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/HANDOFF.md` so the first section is a starred work-laptop command block for the 993-row blind-QA run.
+- Patched `run_blind_qa_tranche1.py --reset-sample` to clear stale `blind_labels.jsonl`, `errors.jsonl`, and drift reports before rebuilding the sample.
+- Verified `python -m py_compile ai_engine/sage_ai_caller.py run_blind_qa_tranche1.py generate_bulk.py run_generation.py validate_v2_tranche.py`.
+- Verified `run_blind_qa_tranche1.py --prepare-only --reset-sample` produces **993** sample rows, **0** completed labels, **0** errors, then removed the local test output so the work laptop run starts clean.
+- Pushed generator commit `e79e16d`.
+
+**What was learned:**
+- The repo is ready for blind labeling without finishing the seven missing generation rows.
+- The work laptop should produce and commit `outputs/fitz_gov_v2_tranche1_pilot_1000_blind_qa_1000/`.
+
+**Next:** run the starred commands at the top of the generator handoff on the work laptop, then review the pushed drift report.
+
+---
+
 ## 2026-06-22 (afternoon) — v2 pilot blind-QA gate moved to 993 rows
 
 **What landed:**
