@@ -13,6 +13,51 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (afternoon) — active v2 generator validator fixed
+
+**What landed:**
+- Patched `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/generate_bulk.py` so `pack_shape` now enforces actual context counts.
+- Added `prompt/FITZ_GOV_V2_ACTIVE_GENERATION_PROMPT.md` and pointed `generate_bulk.py` at it instead of the superseded broad-v2 prompt.
+- Re-ran `python generate_bulk.py --targets outputs\fitz_gov_v2_tranche1\row_targets.jsonl --status --workers 20`.
+
+**What was learned:**
+- The patched validator correctly rejects the current tranche: **0/20,000** valid rows, **19,986** invalid existing rows. That is the desired fail-closed behavior because nearly every row has 12 contexts despite compact pack labels.
+- The previous generator had two hard bugs: `build_user_prompt()` hardcoded 12 contexts for every non-legacy pack shape, and validation never enforced `len(contexts)` against `pack_shape`.
+
+**Next:** archive/move the invalid tranche worker files, regenerate a small pilot with the patched generator, and run blind QA before spending another full 20k generation pass.
+
+---
+
+## 2026-06-22 (afternoon) — tranche-1 context-count contract failed
+
+**What landed:**
+- Rechecked the actual `contexts` arrays in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/fitz_gov_v2_tranche1/`.
+- Updated handoffs to supersede the earlier assumption that the new tranche had smaller evidence packs.
+
+**What was learned:**
+- The tranche did **not** implement the production-shaped context-count contract. `pack_shape` labels are balanced across compact_1_2 / compact_3_5 / pack_5_6 / pack_7_8, but actual row payloads still have **12 contexts on 19,985 / 19,986 rows** and **13 contexts on 1 row**.
+- The blind-QA failure is therefore not surprising: the generator created v1.5-like large evidence packs while merely labeling them as compact rows. The validator did not enforce `len(contexts)` against `pack_shape`.
+
+**Next:** fix generation validation so `pack_shape` controls actual context count, then regenerate tranche 1 or a 1k pilot before spending another full 20k generation run.
+
+---
+
+## 2026-06-22 (afternoon) — fitz-gov-v2 tranche-1 blind QA failed
+
+**What landed:**
+- Pulled the completed `outputs/fitz_gov_v2_tranche1_blind_qa_1000/` run from `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`.
+- Reviewed the 1,000-row blind-label report and spot-checked high-confidence disagreements.
+- Updated handoff state with tranche completeness and QA outcome.
+
+**What was learned:**
+- The new production-shaped tranche is structurally closer to the intended distribution, but is not train-ready: **19,986 / 20,000** target rows exist and **14** target IDs are missing.
+- Blind QA completed **1,000/1,000** with **0** call/parse errors, but main-label agreement is only **75.8%**, below the **>=90%** gate. Retrieval-action agreement is **59.7%**, gap-type **45.3%**, and taxonomy-pattern **20.6%**.
+- The dominant failure is not unsafe TRUSTWORTHY labels: original TRUSTWORTHY rows are stable at **333/335** agreement. The weak labels are original DISPUTED (**187/334**) and ABSTAIN (**238/331**), especially rows blind-labeled TRUSTWORTHY with high confidence.
+
+**Next:** do not train `pyrrho-v2-nano-g1-alpha` from tranche 1 as-is. Repair the generation policy for non-TRUSTWORTHY rows and close the 14 missing target IDs before another QA gate.
+
+---
+
 ## 2026-06-22 (night) — fitz-gov v2 reset defined
 
 **What landed:**
