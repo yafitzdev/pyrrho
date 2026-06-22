@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — v2 vault compatibility scope clarified
+
+**What landed:**
+- Re-ran current `validate_v2_tranche.py` gates against the generated archives in `fitz-gov-modern_generator`.
+- Added `outputs/fitz_gov_v2_acceptance_vault_20260622/source_compatibility_report.md` to the generator repo.
+- Updated generator and pyrrho handoffs to define active fitz-gov-v2 vault membership by exact current prompt/schema compatibility.
+
+**What was learned:**
+- The only generated rows currently eligible for the real fitz-gov-v2 vault are the **993** valid rows in `outputs/fitz_gov_v2_tranche1_pilot_1000/`.
+- Their reusable agreement tiers are **645** label-only, **389** core, and **60** full-multitask rows.
+- The old 50k broad agreement rows remain salvageable only as v1.5 material; they are excluded from the active v2 vault because of prompt/schema mismatch, not because of class balance.
+
+**Next:** keep adding to the active v2 vault via online generate-then-blind-label acceptance rounds using the current prompt/schema only.
+
+---
+
 ## 2026-06-22 (evening) — legacy v1.5 salvage audit
 
 **What landed:**
