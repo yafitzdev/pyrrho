@@ -13,6 +13,169 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (night) — fitz-gov v2 reset defined
+
+**What landed:**
+- Added `docs/FITZ_GOV_V2_PRODUCTION_RECIPE_20260622.md`.
+- Updated pyrrho and generator handoffs so the failed broad 50k corpus is now `fitz-gov-v1.5`, not the active v2 line.
+- Updated the generator README to stop pointing workers at the old `bulk_30000_round2` queue and old broad-v2 instructions.
+
+**What was learned:**
+- The correct reset is not another v1.5 relabel attempt. The next active dataset is a fresh production-shaped `fitz-gov-v2`: **20k** first tranche = **10k base + 7k production + 3k hard**, then **60k** only if the alpha moves.
+- The old broad 50k corpus remains useful as audit history, but it must not be trained, repaired, or published as v2.
+
+**Next:** prepare the new v2 work-laptop queue and prompt from the recipe, run a 100-row pilot, then blind-QA before any `pyrrho-v2-nano-g1-alpha` training.
+
+---
+
+## 2026-06-22 (night) — v2 label instability root-cause investigation
+
+**What landed:**
+- Added `docs/V2_LABEL_INSTABILITY_INVESTIGATION_20260622.md`.
+- Compared processed v1/g5.6 data against processed v2 50k data, v2 generation/relabel prompts, v1 QA reports, v2 blind-QA reports, and v2.4 non-unanimous examples.
+- Ran a local no-token `pyrrho-nano-g5.6` probe on the existing v2.4 100-row pilot.
+
+**What was learned:**
+- v2 is not simply a cleaner v1 replacement: v2 has balanced governance labels, exactly 8/12 contexts per row, longer queries/evidence packs, every modality, every query contract, every answerability shape, and many decoy/profile dimensions. The successful V12/g5.6 focused slice was much narrower: **4,923 TRUSTWORTHY / 2,012 DISPUTED / 126 ABSTAIN**.
+- v2 disagreement clusters around observable policy boundaries: exhaustive list completeness, official/current/final source-of-record status, policy-vs-implementation authority, stale logs, and source precedence.
+- `pyrrho-nano-g5.6` is not a usable label oracle for v2. On the v2.4 pilot it agreed with original labels **56/100**, v2.4 majority **44/98**, and unanimous GPT-5.4 rows **39/76**.
+
+**Next:** use the work laptop only after adding a row-validity/label-observability gate; do not bulk-relabel until the protocol can separate ambiguous rows from labelable rows.
+
+---
+
+## 2026-06-22 (night) — v2.4 governance reproducibility pilot failed
+
+**What landed:**
+- Completed and analyzed the v2.4 Stage A governance-contract pilot in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/v2_4_stage_a_contract_pilot_100x3_20260622/`.
+- Closed the remaining local subagents after they wrote the final `agent_05` shard files.
+- Updated pyrrho and generator handoffs to mark v2.1, v2.2, v2.3, and v2.4 as non-training-truth label layers.
+
+**What was learned:**
+- The v2.4 run is structurally clean: **300/300** valid annotations, **0** validation errors, **0** missing.
+- It failed the reproducibility gate: **76/100 (76.0%)** three-way unanimous overall, **49/70 (70.0%)** on contentious rows, **27/30 (90.0%)** on controls, and **250/300 (83.3%)** pairwise agreement.
+- The problem is not file format or worker completion; the governance label policy is still ambiguous on hard conflict, authority, temporal, and exhaustive-coverage cases.
+
+**Next:** hand the labeling protocol to the work laptop only after tightening Stage A; do not spend calls on Stage B/C or train pyrrho from v2 majority votes.
+
+---
+
+## 2026-06-22 (night) — v2.3 governance decomposition failed; v2.4 reproducibility gate launched
+
+**What landed:**
+- Validated **579/1,000** GPT-5.4 governance-only labels from the partial v2.3 run with **0** malformed rows.
+- Extended `analyze_decomposed_stage_a.py` to compare original, Sonnet v2.2, prior full-prompt QA, and decomposed Stage A by label, taxonomy, route, confidence, and vote pattern.
+- Added canonical three-call prompts under `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/prompt/DECOMPOSED_*.md`.
+- Added and launched the v2.4 Stage A contract pilot: **100** rows, **70** contentious + **30** controls, three independent GPT-5.4 labels per row across six workers.
+
+**What was learned:**
+- v2.3 agreement is too low for import: **41.3%** vs original, **56.0%** vs Sonnet, **62.9%** vs prior full-prompt QA, and **29.0%** all-four agreement.
+- Original DISPUTED is especially unreliable: only **19/268 (7.1%)** were reproduced by Stage A. Manual examples show visible precedence/effective-date rules often resolve the generator's intended conflict.
+- Stage A v1 also fails in the opposite direction by answering incomplete `all`/set/aggregate queries, so no existing layer can be promoted wholesale.
+
+**Next:** complete the v2.4 three-annotator run and require reproducibility before running retrieval-control or taxonomy labeling.
+
+---
+
+## 2026-06-22 (night) — v2.3 decomposed GPT-5.4 pilot staged
+
+**What landed:**
+- Added `setup_decomposed_gpt54_pilot.py`, `merge_decomposed_stage_a.py`, and `analyze_decomposed_stage_a.py` in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`.
+- Created `outputs/v2_3_decomposed_gpt54_pilot_1k_20260622/` using the exact 1,000-row manifest from the v2.2 full-prompt QA rerun.
+- Prepared Stage A/B/C prompt docs, but split execution so Stage A is governance-only and runs before action/gap/taxonomy work.
+- Split Stage A across six GPT-5.4 worker folders: four agents with **167** rows and two agents with **166** rows, with small part files to avoid oversized writes.
+
+**What was learned:**
+- The Sonnet v2.2 overlay is still not training truth, but it remains useful as a weak comparison layer. Rows where independent GPT-5.4 Stage A agrees with Sonnet become salvage candidates; disagreements remain unresolved.
+- Decomposition is now the next empirical test: if governance alone is unstable, there is no point spending calls on retrieval-action, gap-type, or taxonomy labels.
+
+**Next:** run the six GPT-5.4 Stage A subagents, merge with `merge_decomposed_stage_a.py --strict`, then analyze agreement against v2.2 Sonnet and the prior full-prompt QA.
+
+---
+
+## 2026-06-21 (night) — v2.2 full-prompt QA rerun failed
+
+**What landed:**
+- Reused the same 1,000-row v2.2 QA manifest for an apples-to-apples rerun.
+- Rebuilt subagent instructions with the full blind-label taxonomy definitions plus the v2.2 neutral relabel decoy/current/final rules.
+- Ran Codex `gpt-5.4` subagents, split failed large shards into smaller chunks, and closed the final cleanup set.
+- Final strict merge passed with **1,000 / 1,000** rows, **0** missing, **0** unresolved errors, and **3** raw enum errors fixed by cleanup.
+
+**What was learned:**
+- The full-prompt rerun still fails the semantic gate: label agreement **49.0%**, retrieval-action **38.9%**, gap-type **35.2%**, taxonomy **20.8%**, with **302** adjudication flags.
+- The decisive failure is DISPUTED instability: sampled overlay DISPUTED rows reproduced as DISPUTED only **46 / 343** times; blind relabelers split the rest into TRUSTWORTHY **149** and ABSTAIN **148**.
+- Both source batches are bad: `bulk_20000` label agreement **50.2%**, `bulk_30000_round2` **48.1%**.
+
+**Next:** do not train from v2.2. Treat the 50k raw evidence packs as possible salvage material, but reject the v2.2 label layer unless a new labeling/adjudication protocol is designed.
+
+---
+
+## 2026-06-21 (night) — v2.2 QA failure reclassified as prompt-mismatch diagnostic
+
+**What landed:**
+- Audited the v2.2 follow-up QA instructions after the bad 1k result.
+- Compared `outputs/blind_qa_v2_2_followup_1k_20260621/SUBAGENT_QA_INSTRUCTIONS.md` against `prompt/BLIND_LABEL_QA_PROMPT.md` and `prompt/NEUTRAL_RELABEL_PROMPT.md`.
+- Updated pyrrho and generator handoffs to mark v2.2 as **not accepted**, but not definitively rejected by that QA attempt.
+
+**What was learned:**
+- The Codex subagent QA prompt omitted the full taxonomy definitions, semantic guards, and decoy-handling rules. It mostly gave enum names and legal pairings.
+- That makes the **18.4%** taxonomy agreement non-comparable to the Sonnet neutral relabel. The **52.2%** main-label agreement is still a serious instability warning, but the run cannot be treated as a fair final gate.
+- The real failure mode is now clearer: v2 rows are highly sensitive to annotation policy around stale/current/final/decoy evidence and conflict-vs-resolution boundaries.
+
+**Next:** rerun the 1k QA with full prompt definitions copied into the subagent instructions, then manually audit a small disagreement slice before deciding whether to relabel, adjudicate, or abandon v2.2.
+
+---
+
+## 2026-06-21 (night) — v2.2 follow-up blind QA failed
+
+**What landed:**
+- Built `blind_qa_v2_2_followup.py` in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`.
+- Created a 1,000-row follow-up manifest against the repaired v2.2 overlay, including **205** `needs_review` rows.
+- Ran six Codex `gpt-5.4` blind-label subagents, then two cleanup subagents for **20** invalid enum/compatibility outputs.
+- Final strict subagent merge passed with **1,000 / 1,000** rows, **0** missing, and **0** unresolved errors.
+
+**What was learned:**
+- The repaired v2.2 overlay fails semantic QA: label agreement **52.2%**, retrieval-action agreement **42.5%**, gap-type agreement **37.6%**, taxonomy agreement **18.4%**.
+- Main-label disagreement is severe, not only taxonomy naming drift: overlay DISPUTED became blind TRUSTWORTHY **123 / 343**, and overlay ABSTAIN became blind TRUSTWORTHY **102 / 346**.
+- Both source batches fail similarly: `bulk_20000` label agreement **49.8%**, `bulk_30000_round2` **53.9%**.
+
+**Next:** do not train from v2.2; decide whether to rebuild labels with a stricter adjudication protocol or restart the v2 labeling strategy from the raw evidence packs.
+
+---
+
+## 2026-06-21 (evening) — v2.2 neutral repair closed
+
+**What landed:**
+- Built a row-level repair queue for the exact **885** v2.2 neutral relabel IDs that were missing or internally incompatible.
+- Used Codex subagents to relabel those rows from `id`, `query`, and `contexts` only, then collected the repair labels under `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/v2_2_neutral_repair_20260621/`.
+- Re-ran `python merge_neutral_relabel.py --repair-dir outputs\v2_2_neutral_repair_20260621 --strict`.
+
+**What was learned:**
+- The final v2.2 overlay now passes structural validation at **50,000 / 50,000** rows with **0** missing rows and **0** validation errors.
+- The merge repaired **885** rows: **177** omitted IDs plus **708** incompatible base labels.
+- Final label counts are TRUSTWORTHY **28,158**, ABSTAIN **14,194**, and DISPUTED **7,648**. The overlay still has **3,068** `needs_review` flags, so semantic acceptance requires a follow-up QA probe.
+
+**Next:** run a 1k blind QA probe against the final v2.2 overlay; only import/train pyrrho v2 from this overlay if that semantic gate passes.
+
+---
+
+## 2026-06-21 (evening) — v2.2 neutral relabel pulled and assessed
+
+**What landed:**
+- Pulled the completed v2.2 neutral relabel output into `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`.
+- Re-ran `python merge_neutral_relabel.py --strict` locally against the pulled files.
+- Updated pyrrho and generator handoff docs with the actual post-merge state.
+
+**What was learned:**
+- The relabel pass produced **49,823** raw label rows for **50,000** expected IDs: **177** IDs are omitted.
+- Strict merge accepts **49,115 / 50,000** rows and rejects **708** rows for internal incompatibility.
+- The dominant incompatibility is `ABSTAIN + resolve_conflict + conflicting_values`, especially `partial_overlap` (**299**) and `scope_conflict` (**239**).
+- Raw v2.2 labels drift strongly from the original worker labels: main-label agreement **70.5%**, retrieval-action **53.2%**, gap-type **44.7%**, taxonomy **11.4%**. This is consistent with a genuine neutral relabel, but the overlay is not train-ready.
+
+**Next:** run a row-level neutral repair for the exact **885** bad/missing IDs, rerun strict merge to reach 50,000/50,000, then run a 1k blind QA probe before any pyrrho v2 training.
+
+---
+
 ## 2026-06-21 (morning) — v2.2 neutral relabel reset prepared
 
 **What landed:**
