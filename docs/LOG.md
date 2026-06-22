@@ -13,6 +13,24 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — v2 pilot blind QA failed semantically
+
+**What landed:**
+- Pulled and reviewed generator commit `0757407` containing `outputs/fitz_gov_v2_tranche1_pilot_1000_blind_qa_1000/`.
+- Re-ran `run_blind_qa_tranche1.py --status` and `--report-only`; report generation is clean.
+- Re-ran `validate_v2_tranche.py` on the pilot generation folder; accepted rows remain structurally clean: **993/1,000** valid, **7** missing rows, **0** errors.
+- Updated generator and pyrrho handoffs to mark the pilot as QA-complete but semantically rejected.
+
+**What was learned:**
+- Blind QA completed mechanically: **993/993** labels, **0** errors, **0** missing labels, **21** needs-adjudication rows.
+- Semantic agreement is too low: label **659/993 = 66.4%**, retrieval action **52.5%**, gap type **45.4%**, taxonomy pattern **11.9%**.
+- TRUSTWORTHY rows are stable (**332/334 = 99.4%**), but ABSTAIN and DISPUTED are not: **108** ABSTAIN rows and **172** DISPUTED rows were blind-labeled TRUSTWORTHY.
+- The problem is not the row serializer or context-count validator; it is that many generated negative/contested rows look answerable to the blind labeler.
+
+**Next:** diagnose the ABSTAIN/DISPUTED construction pattern before generating more v2 rows; do not run the 19k queue or train a v2 alpha from this pilot.
+
+---
+
 ## 2026-06-22 (evening) — v2 pilot blind-label handoff prepared
 
 **What landed:**
