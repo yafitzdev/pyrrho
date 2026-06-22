@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — v2 online vault strict-context audit
+
+**What landed:**
+- Pulled generator commit `e4727b1` and audited `outputs/fitz_gov_v2_online_acceptance_loop/`.
+- Patched the generator locally so future rows require `contexts` as ordered `{source_id, text}` objects, not string lists.
+- Patched the online merged vault to filter out bad-context accepted rows and archive invalid existing worker rows before regeneration.
+- Updated pyrrho and generator handoffs with the strict-clean vault counts.
+
+**What was learned:**
+- The old validator only checked context count, so the previous merged-vault counts were inflated.
+- Strict merged-vault counts are now **477** label-only, **260** core, and **38** full-multitask rows; bad-context rows skipped from source vaults are **348 / 149 / 24**.
+- Round 5 is generated-only and incomplete: **61/100** strict-clean rows, with **39** rows missing or invalid before blind QA.
+
+**Next:** push the strict generator fix, then resume `run_online_acceptance_loop.py` on the work laptop; it should archive invalid round-5 worker lines and regenerate them before QA.
+
+---
+
 ## 2026-06-22 (evening) — generator CA bundle shim fixed
 
 **What landed:**
