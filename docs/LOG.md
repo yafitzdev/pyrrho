@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (afternoon) — fitz-gov-v2 tranche reset staged
+
+**What landed:**
+- Archived the invalid first `fitz-gov-v2` tranche in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/archive/20260622_invalid_tranche1_context_count/`.
+- Split the original 20,000 target queue into a clean **1,000-row pilot** and **19,000-row remaining** queue.
+- Added `validate_v2_tranche.py` in the generator repo so pilot rows can be mechanically checked against target IDs, labels, pack shapes, context counts, duplicate IDs, and missing rows.
+- Updated generator README/HANDOFF/AGENTS and the blind-QA defaults so the active path is the 1k pilot first.
+
+**What was learned:**
+- The clean target split is internally valid: **1,000** pilot targets + **19,000** remaining targets = **20,000** unique IDs, with **0** overlap and **0** label/action/gap invariant errors.
+- The pilot queue is representative enough for a sanity gate: labels are roughly balanced (**ABSTAIN 318 / DISPUTED 345 / TRUSTWORTHY 337**), difficulties are evenly split, and all routes/modalities are present.
+- Prompt construction now passes exact context counts into API calls; the first eight inspected targets showed `context_count=4/6/8/...` and the hard rule `compact_1_2=2`, `compact_3_5=4`, `pack_5_6=6`, `pack_7_8=8`.
+
+**Next:** generate only `outputs/fitz_gov_v2_tranche1_pilot_1000/`, run `validate_v2_tranche.py --require-complete`, then run blind QA before touching the 19k queue.
+
+---
+
 ## 2026-06-22 (afternoon) — active v2 generator validator fixed
 
 **What landed:**
