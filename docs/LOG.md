@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (afternoon) — v2 pilot blind-QA gate moved to 993 rows
+
+**What landed:**
+- Prepared the blind-QA path for the **993** accepted v2 pilot rows instead of blocking on the seven missing target IDs.
+- Patched `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/ai_engine/sage_ai_caller.py` so the old hardcoded work-laptop CA-bundle path no longer hard-fails when absent.
+- Cleared the failed local QA artifacts so the next successful run does not inherit stale infrastructure errors.
+
+**What was learned:**
+- The local machine can authenticate to BMW, but cannot resolve `api.gcp.cloud.bmw`, so it cannot run the actual blind-label calls.
+- `run_blind_qa_tranche1.py` naturally samples all available valid rows when `--sample-size 1000` exceeds the generated row count; the expected blind-QA sample is therefore **993** rows.
+- The work laptop should run the blind QA; the seven missing generation rows can be regenerated later if the 993-row QA passes.
+
+**Next:** run `run_blind_qa_tranche1.py` on the work laptop and review `outputs/fitz_gov_v2_tranche1_pilot_1000_blind_qa_1000/drift_report.md`.
+
+---
+
 ## 2026-06-22 (afternoon) — v2 pilot generated to 993/1000
 
 **What landed:**
