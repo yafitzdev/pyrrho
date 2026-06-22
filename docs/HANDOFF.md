@@ -11,15 +11,50 @@ This file is **overwritten** as the state changes. It always reflects only the c
 
 ## What pyrrho is, in 30 seconds
 
-Fine-tuned classification models for RAG governance. Given a (query, retrieved contexts) pair, predicts `ABSTAIN` / `DISPUTED` / `TRUSTWORTHY` plus planning metadata for fitz-sage. Encoders are the CPU production track; generative SLM/MoE work is a separate portfolio track. Published public nano release is still `pyrrho-nano-g5.5` on official fitz-gov V11.0.0, but it is not a downstream fitz-sage upgrade. Local downstream controls: `pyrrho-nano-g5.6` remains the strongest strict-owner fitz-sage candidate at **97/120**; `g5.7` moved sideways at **96/120**; `g5.8` is rejected as another negative control (**92/120** for seed 7, **95/120** for seed 1337). The failed broad 50k corpus formerly called `fitz-gov-v2` is demoted to `fitz-gov-v1.5`: private/frozen/ignored for now. The active `fitz-gov-v2` plan is a new from-scratch production-shaped corpus: first tranche **20k** = **10k base + 7k production + 3k hard**, then scale to **60k** only if alpha results move. The old 20k/50k broad v2 alphas scored **20/120** and **41/120** downstream and must not be published or wired into fitz-sage.
+Fine-tuned classification models for RAG governance. Given a (query, retrieved contexts) pair, predicts `ABSTAIN` / `DISPUTED` / `TRUSTWORTHY` plus planning metadata for fitz-sage. Encoders are the CPU production track; generative SLM/MoE work is a separate portfolio track. Published public nano release is still `pyrrho-nano-g5.5` on official fitz-gov V11.0.0, but it is not a downstream fitz-sage upgrade. Local downstream controls: `pyrrho-nano-g5.6` remains the strongest strict-owner fitz-sage candidate at **97/120**; `g5.7` moved sideways at **96/120**; `g5.8` is rejected as another negative control (**92/120** for seed 7, **95/120** for seed 1337). The failed broad 50k corpus formerly called `fitz-gov-v2` is demoted to `fitz-gov-v1.5`: private/frozen/ignored. Active `fitz-gov-v2` was reset again on **2026-06-23** to a broad-label schema generated from scratch: trainable labels are now `label`, `route`, `query_contract`, `evidence_need`, and `failure_family`; the old `answerability_shape`, `retrieval_modality`, `retrieval_obligation`, `retrieval_action`, `gap_type`, and `taxonomy_pattern` heads are removed from active v2.
 
 The brand name is from Pyrrho of Elis — the Greek philosopher whose school practiced suspension of judgment when evidence was insufficient.
 
 ## Current data reset
 
-Current naming decision: the existing broad 50k generated corpus previously staged as `fitz-gov-v2` is now `fitz-gov-v1.5` and should be made private/frozen externally, then ignored. The new `fitz-gov-v2` is a fresh production-shaped dataset, not a repair/relabel of v1.5. Recipe: `docs/FITZ_GOV_V2_PRODUCTION_RECIPE_20260622.md`.
+Current naming decision: `fitz-gov-v1` is frozen classic data; `fitz-gov-v1.5` is the failed broad 50k generated corpus; active `fitz-gov-v2` is a fresh broad-label production-shaped dataset. Do not train from v1.5, v2.1, v2.2, v2.3, v2.4, or the old online-acceptance vault.
 
-fitz-gov-v2 tranche-1 reset: the invalid first generation is archived in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/archive/20260622_invalid_tranche1_context_count/`. It had **19,986 generated rows / 20,000 targets**, but did **not** implement the smaller context-pack shape: `pack_shape` labels were compact_1_2 / compact_3_5 / pack_5_6 / pack_7_8 while actual `len(contexts)` was **12 on 19,985 rows** and **13 on 1 row**. The replacement v2 pilot generated **993/1,000** rows and work-laptop blind QA completed mechanically, but it is semantically rejected as a bulk training source: label agreement **659/993 = 66.4%**, retrieval-action agreement **52.5%**, gap-type agreement **45.4%**, taxonomy-pattern agreement **11.9%**. TRUSTWORTHY is stable (**332/334 = 99.4%**), but ABSTAIN and DISPUTED are unstable. Do not train `pyrrho-v2-nano-g1-alpha` from the pilot or run bulk 19k generation without immediate blind-QA acceptance. The active path is the online acceptance vault in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/fitz_gov_v2_online_acceptance_loop/merged_vault/`. Latest pulled generator commit `0d48455` completes online acceptance rounds 1-8 and starts round 9. Strict-clean merged counts are now **522** label-only rows, **278** core rows (label + retrieval_action + gap_type agree), and **40** full-multitask rows; the merge filter still skips **348 / 149 / 24** accepted rows respectively because their `contexts` field was not clean `{source_id, text}` objects. The old count-only vault numbers (**645 / 389 / 60**) are inflated. Completed post-fix rounds added only **18** strict core rows (**260 -> 278**); current strict core label mix is **223 TRUSTWORTHY / 21 ABSTAIN / 34 DISPUTED**. Round 9 is generated-only at **95/100** strict-clean rows with **5** missing target IDs and no blind-QA/acceptance yet. Current command remains `python run_online_acceptance_loop.py --tier core --target-new-accepted 500 --round-size 100 --labels ABSTAIN DISPUTED --workers 20 --qa-workers 6 --generator-batch-size 3 --qa-batch-size 5`; rerunning should finish the 5 missing round-9 rows and then QA/accept round 9. Legacy v1.5 salvage exists separately: old 50k Sonnet QA has **27,104** label-only / **17,173** core / **2,757** full rows, and the stronger original+Sonnet+v2.2 intersection has **26,152** label-only / **16,887** core / **1,790** full rows.
+The generator repo is `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator`. Active old-v2 data was archived on **2026-06-23** under `outputs/archive/20260623_v2_broad_schema_reset/`, including `fitz_gov_v2_acceptance_vault_20260622`, `fitz_gov_v2_online_acceptance_loop`, `fitz_gov_v2_tranche1_pilot_1000`, the pilot blind QA folder, and `fitz_gov_v2_tranche1_remaining_19000`. These are preserved history only.
+
+Active v2 broad schema:
+
+```text
+label
+route
+query_contract
+evidence_need
+failure_family
+```
+
+Removed active heads:
+
+```text
+answerability_shape
+retrieval_modality
+retrieval_obligation
+retrieval_action
+gap_type
+taxonomy_pattern
+```
+
+Active context counts are exactly **2 / 4 / 6** via `compact_1_2`, `compact_3_5`, and `pack_5_6`. No active 8-context rows.
+
+Fresh broad target queue exists at `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/fitz_gov_v2_broad_tranche1/row_targets.jsonl` with **20,000** target shells. The new empty active vault is `outputs/fitz_gov_v2_broad_online_acceptance_loop/merged_vault/` and currently reports **0** accepted rows. Next work-laptop command is:
+
+```powershell
+cd C:\Users\yanfi\PycharmProjects\fitz-gov-modern_generator
+git pull --ff-only origin main
+git lfs pull
+python -m py_compile allocate_bulk_targets.py generate_bulk.py run_generation.py run_blind_qa_tranche1.py build_acceptance_vault.py run_online_acceptance_loop.py validate_v2_tranche.py
+python run_online_acceptance_loop.py --tier core --target-new-accepted 100 --round-size 100 --workers 20 --qa-workers 6 --generator-batch-size 3 --qa-batch-size 5
+```
+
+In the new vault, `core` means `label + query_contract + evidence_need + failure_family` agreement. Review the first **100 accepted core rows** before scaling.
 
 Active classic base: `data/multitask_g5_6_v12_focused_medium_candidate` (**67,944** rows total, including **7,061** V12 focused classic rows). This corpus is now frozen on Hugging Face as [`yafitzdev/fitz-gov-v1`](https://huggingface.co/datasets/yafitzdev/fitz-gov-v1), tag `v1-final`, with `v1-final/train.parquet` (**54,416**), `v1-final/validation.parquet` (**6,778**), and `v1-final/test.parquet` (**6,750**). The old [`yafitzdev/fitz-gov`](https://huggingface.co/datasets/yafitzdev/fitz-gov) URL redirects to `fitz-gov-v1`; old V7-V11 tags/files remain in the renamed repo for continuity. Rejected sage-shaped, g5.7/g5.8, and failed repair artifacts were archived on 2026-06-18 under `data/_archive/20260618_classic_reset_archive/`, `models/_archive/20260618_classic_reset_archive/`, and `outputs/_archive/20260618_classic_reset_archive/`; the discarded-row/data archive is also on Hugging Face as private dataset `yafitzdev/fitz-gov-v1-discarded-archive`, tag `20260618-reset-archive`. The private archive has **5,126** raw small files plus `compressed_large_jsonl/missing_large_jsonl_raw.tar.zst` (**873,676,053** bytes, SHA256 `98dc1f88c810665bfa555ce72e05b64abac6cc70d985b92c3a83708a75d1c103`) covering the 49 large JSONL files from the interrupted raw upload. See `data/_archive/20260618_classic_reset_archive/archive_manifest.json`.
 

@@ -13,6 +13,23 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-23 (morning) — fitz-gov-v2 broad-label reset
+
+**What landed:**
+- Archived the active old-v2 generator vault/queues under `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/archive/20260623_v2_broad_schema_reset/`.
+- Reset the active generator schema to broad labels only: `label`, `route`, `query_contract`, `evidence_need`, and `failure_family`.
+- Removed the old brittle heads from active v2 generation/QA/acceptance: `answerability_shape`, `retrieval_modality`, `retrieval_obligation`, `retrieval_action`, `gap_type`, and `taxonomy_pattern`.
+- Created a fresh broad 20k target queue at `outputs/fitz_gov_v2_broad_tranche1/row_targets.jsonl`.
+
+**What was learned:**
+- The active allocator now produces an even 20k spread: labels are **6,667 / 6,667 / 6,666**, evidence needs are about **2,856-2,859** each, failure families are `none=6,666`, `conflict=6,667`, and ABSTAIN subfamilies about **1,665-1,668** each.
+- Active context packs are now only **2 / 4 / 6** contexts; 8-context rows are removed.
+- The new empty broad vault reports **0** accepted rows; first target is **100 accepted core rows**, where core means `label + query_contract + evidence_need + failure_family` agreement.
+
+**Next:** run the broad online-acceptance command on the work laptop, then inspect the first 100 accepted core rows before any training or scale-up.
+
+---
+
 ## 2026-06-22 (night) — v2 online loop rounds 5-8 audited
 
 **What landed:**

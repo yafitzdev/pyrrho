@@ -1,5 +1,32 @@
 # Fitz-Gov V2 Production Recipe — 2026-06-22
 
+## 2026-06-23 Broad-Schema Update
+
+Active v2 now uses the broad label contract only:
+
+```text
+label
+route
+query_contract
+evidence_need
+failure_family
+```
+
+Removed active heads:
+
+```text
+answerability_shape
+retrieval_modality
+retrieval_obligation
+retrieval_action
+gap_type
+taxonomy_pattern
+```
+
+`evidence_need` replaces modality/obligation. `failure_family` replaces the
+old gap/taxonomy split. `retrieval_action` belongs to the RAG package, not the
+encoder head.
+
 ## Naming Decision
 
 The frozen classic line remains:
@@ -66,12 +93,11 @@ Create **20,000** rows total:
 
 3,000 hard rows
   Purpose: controlled edge cases.
-  Contexts: mostly 5-6, with 7-8 only when truly needed.
+  Contexts: exactly 6.
   Include temporal/final/current, authority conflict, stale decoys, table/code/config/log cases.
 ```
 
-Do not create 8-12 context packs as the default. Treat 8+ contexts as rare edge
-cases, not the main training distribution.
+Do not create 8-12 context packs. Active v2 uses only 2, 4, or 6 contexts.
 
 ## Curriculum Target
 
@@ -92,17 +118,16 @@ Difficulty must control context count and ambiguity:
 
 ```text
 easy:
-  1-2 contexts
+  2 contexts
   direct answer, clear absence, or clear conflict
 
 medium:
-  3-5 contexts
+  4 contexts
   one or two decoys
   realistic production retrieval shape
 
 hard:
-  5-6 contexts usually
-  7-8 only for controlled edge cases
+  6 contexts
   still label-observable after applying written policy
 ```
 
@@ -113,7 +138,7 @@ Before training `pyrrho-v2-nano-g1-alpha`, run a small blind QA gate:
 ```text
 sample size: 500-1,000 rows
 minimum main-label agreement target: >= 90%
-taxonomy/action/gap drift inspected but not allowed to hide main-label failure
+core agreement target: label + query_contract + evidence_need + failure_family
 manual review: disagreement rows must show row ambiguity or fixable prompt policy
 ```
 
