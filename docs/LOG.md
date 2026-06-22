@@ -13,6 +13,22 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — resumable v2 online acceptance controller
+
+**What landed:**
+- Added `run_online_acceptance_loop.py` to `fitz-gov-modern_generator`.
+- Updated the generator handoff with the work-laptop command for resumable online generation, blind QA, and acceptance vaulting.
+- Updated this handoff to make the controller the normal active v2 generation path.
+
+**What was learned:**
+- The previous tooling had the manual pieces but not the complete controller.
+- The new controller selects only target IDs not already accepted in the requested vault tier, retries non-accepted IDs, writes per-round acceptance vaults, and refreshes a merged vault under `outputs/fitz_gov_v2_online_acceptance_loop/merged_vault/`.
+- Validation passed with `py_compile` and a `--plan-only` run selecting unvaulted ABSTAIN/DISPUTED targets without API calls.
+
+**Next:** run `run_online_acceptance_loop.py --tier core --target-new-accepted 500 --round-size 50 --labels ABSTAIN DISPUTED --workers 20 --qa-workers 6` on the work laptop.
+
+---
+
 ## 2026-06-22 (evening) — v2 vault compatibility scope clarified
 
 **What landed:**
