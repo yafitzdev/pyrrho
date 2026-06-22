@@ -13,6 +13,21 @@ Each entry follows the pattern:
 
 ---
 
+## 2026-06-22 (evening) — legacy v1.5 salvage audit
+
+**What landed:**
+- Audited archived blind-label outputs in `C:/Users/yanfi/PycharmProjects/fitz-gov-modern_generator/outputs/`.
+- Updated generator and pyrrho handoffs with explicit salvage counts for the old broad 50k corpus.
+
+**What was learned:**
+- The combined old Sonnet QA has **27,104** label-only agreement rows, **17,173** core agreement rows, and **2,757** full-multitask agreement rows.
+- The stronger original+Sonnet+v2.2 intersection has **26,152** label-only rows, **16,887** core rows, and **1,790** full rows.
+- This salvage is strategically weak for active v2 because the strong core set is dominated by TRUSTWORTHY rows: **16,139/16,887** core rows are TRUSTWORTHY, with only **558** ABSTAIN and **190** DISPUTED.
+
+**Next:** keep old broad-corpus salvage as v1.5 diagnostic material only; continue fresh v2 through small online acceptance rounds.
+
+---
+
 ## 2026-06-22 (evening) — v2 acceptance vault workflow added
 
 **What landed:**
