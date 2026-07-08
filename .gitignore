@@ -52,6 +52,12 @@ results/
 logs/
 *.log
 
+# Local scratch artifacts from agent/data QA sessions
+.codex_tmp*
+.qa_staging/
+batch_*.jsonl
+zz_tmp*
+
 # Jupyter
 .ipynb_checkpoints/
 
