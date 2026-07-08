@@ -1,4 +1,9 @@
-"""build_slm_model_card.py - Generate the HuggingFace README.md for a pyrrho SLM release.
+"""Legacy v1 SLM card builder.
+
+This is retained to reproduce old SLM experiments. It is not used for the
+current Pyrrho v2 encoder release.
+
+Generate the HuggingFace README.md for a pyrrho SLM release.
 
 Reads the multi-seed summary.json written by scripts/aggregate_slm_seeds.py and
 writes a model card pinning the 3-seed mean +/- std as the headline. Compares

@@ -1,5 +1,9 @@
 # Pyrrho Training Roadmap
 
+> Historical roadmap. It predates the current `pyrrho-v2-nano-g1` release shape.
+> Use [HANDOFF.md](HANDOFF.md), [METHODOLOGY.md](METHODOLOGY.md), and the root
+> [README.md](../README.md) for the current v2 contract.
+
 > Comprehensive specification for finetuning, training, and reinforcement learning path toward pyrrho-MoE — a CPU-native sparse Mixture-of-Experts RAG runtime engine.
 
 ---

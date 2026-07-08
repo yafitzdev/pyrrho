@@ -1,5 +1,9 @@
 # pyrrho — Project Plan
 
+> Historical v1 planning document. Do not treat this as the current release
+> contract. Current v2 status lives in [HANDOFF.md](HANDOFF.md) and the root
+> [README.md](../README.md).
+
 > Fine-tuned classification models for RAG quality. Replaces the constraint+sklearn governance pipeline in fitz-sage with CPU-friendly encoders; ships a parallel portfolio of generative SLMs at 1.5B → 7B as scaling-story showcase pieces on HuggingFace.
 
 **Owner:** Yan Fitzner
